@@ -12,45 +12,48 @@ struct SwipeCardView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                VStack {
+                VStack(spacing: 20) {
                     Spacer()
 
-                    if let image = currentImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: geometry.size.width * 0.9)
-                            .cornerRadius(20)
-                            .shadow(radius: 5)
-                            .offset(x: offset.width)
-                            .rotationEffect(.degrees(Double(offset.width / 20)))
-                            .gesture(
-                                DragGesture()
-                                    .onChanged { offset = $0.translation }
-                                    .onEnded { handleSwipeGesture($0) }
-                            )
-                    } else {
-                        ProgressView()
+                    ZStack {
+                        if let image = currentImage {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: geometry.size.width * 0.85)
+                                .padding()
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                                .shadow(radius: 8)
+                                .offset(x: offset.width)
+                                .rotationEffect(.degrees(Double(offset.width / 20)))
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { offset = $0.translation }
+                                        .onEnded { handleSwipeGesture($0) }
+                                )
+                        } else {
+                            ProgressView()
+                        }
                     }
 
                     Spacer()
 
-                    HStack {
-                        Button(action: handleLeftSwipe) {
-                            Label("Delete", systemImage: "trash")
-                                .frame(maxWidth: .infinity)
+                    HStack(spacing: 40) {
+                        CircleButton(icon: "trash", tint: .red) {
+                            handleLeftSwipe()
                         }
-                        .tint(.red)
-
-                        Button(action: handleRightSwipe) {
-                            Label("Keep", systemImage: "checkmark")
-                                .frame(maxWidth: .infinity)
+                        CircleButton(icon: "bookmark", tint: .yellow) {
+                            // TODO: Implement bookmark logic
                         }
-                        .tint(.green)
+                        CircleButton(icon: "checkmark", tint: .green) {
+                            handleRightSwipe()
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .padding(.horizontal)
+                    .padding(.bottom, 32)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGroupedBackground))
             }
             .navigationTitle("Review Photos")
             .navigationBarTitleDisplayMode(.inline)
@@ -142,6 +145,26 @@ struct SwipeCardView: View {
             ) { image, _ in
                 continuation.resume(returning: image)
             }
+        }
+    }
+}
+// MARK: - Reusable Circular Icon Button
+
+struct CircleButton: View {
+    let icon: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 60, height: 60)
+                .background(
+                    Circle()
+                        .strokeBorder(tint, lineWidth: 2)
+                )
         }
     }
 }
