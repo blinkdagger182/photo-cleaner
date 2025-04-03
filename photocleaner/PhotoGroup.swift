@@ -2,19 +2,21 @@ import Foundation
 import Photos
 
 struct PhotoGroup: Identifiable {
-    let id: UUID
+    let id: String // stored, not computed
+    let title: String
     let assets: [PHAsset]
-    
+    let monthDate: Date
+
+
     var thumbnailAsset: PHAsset? {
         assets.first
     }
 
-    var creationDate: Date? {
-        assets.first?.creationDate
-    }
-
-    init(id: UUID = UUID(), assets: [PHAsset]) {
-        self.id = id
+    init(assets: [PHAsset], title: String, monthDate: Date) {
+        self.title = title
         self.assets = assets
+        self.id = title // assign title as ID
+        self.monthDate = monthDate
+
     }
 }

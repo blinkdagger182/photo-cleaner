@@ -7,7 +7,9 @@ struct SwipeCardView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var currentIndex = 0
     @State private var offset = CGSize.zero
-    @State private var preloadedImages: [UIImage?] = Array(repeating: nil, count: 10)
+    @State private var preloadedImages: [UIImage?] = []
+    @State private var loadedCount = 0
+    @State private var isLoading = false
 
     var body: some View {
         NavigationStack {
@@ -18,7 +20,7 @@ struct SwipeCardView: View {
                     ZStack {
                         ForEach((0..<min(3, preloadedImages.count - currentIndex)).reversed(), id: \.self) { index in
                             let actualIndex = currentIndex + index
-                            if let image = preloadedImages[actualIndex] {
+                            if actualIndex < preloadedImages.count, let image = preloadedImages[actualIndex] {
                                 Image(uiImage: image)
                                     .resizable()
                                     .scaledToFit()
@@ -69,7 +71,7 @@ struct SwipeCardView: View {
             }
         }
         .task {
-            await preloadImages()
+            await preloadImages(from: 0)
         }
     }
 
@@ -90,7 +92,7 @@ struct SwipeCardView: View {
     private func handleLeftSwipe() {
         Task {
             if await deleteCurrentAsset() {
-                moveToNext()
+                await moveToNext()
             }
         }
         withAnimation(.spring()) {
@@ -99,15 +101,34 @@ struct SwipeCardView: View {
     }
 
     private func handleRightSwipe() {
-        moveToNext()
+        Task {
+            await moveToNext()
+        }
         withAnimation(.spring()) {
             offset = .zero
         }
     }
 
-    private func moveToNext() {
-        if currentIndex < preloadedImages.count - 1 {
-            currentIndex += 1
+    // MARK: - Next Logic with Safe Preload
+
+    private func moveToNext() async {
+        let nextIndex = currentIndex + 1
+
+        // Preload if within last 5 images
+        let threshold = 5
+        let shouldPreload = loadedCount < group.assets.count &&
+                            preloadedImages.count - nextIndex <= threshold &&
+                            !isLoading
+
+        if shouldPreload {
+            isLoading = true
+            await preloadImages(from: loadedCount)
+            isLoading = false
+        }
+
+        // Move forward if image exists
+        if nextIndex < preloadedImages.count {
+            currentIndex = nextIndex
         } else {
             dismiss()
         }
@@ -126,13 +147,17 @@ struct SwipeCardView: View {
         }
     }
 
-    // MARK: - Preload Images
+    // MARK: - Lazy Preload Images
 
-    private func preloadImages() async {
-        let maxImages = min(10, group.assets.count)
-        var loadedImages: [UIImage?] = []
+    private func preloadImages(from startIndex: Int, count: Int = 10) async {
+        guard startIndex < group.assets.count else { return }
 
-        for i in 0..<maxImages {
+        let endIndex = min(startIndex + count, group.assets.count)
+        var newImages: [UIImage?] = []
+
+        print("Preloading images from \(startIndex) to \(endIndex)")
+
+        for i in startIndex..<endIndex {
             let asset = group.assets[i]
             let options = PHImageRequestOptions()
             options.deliveryMode = .highQualityFormat
@@ -149,12 +174,14 @@ struct SwipeCardView: View {
                 }
             }
 
-            loadedImages.append(image)
+            newImages.append(image)
         }
 
-        preloadedImages = loadedImages
+        preloadedImages += newImages
+        loadedCount = preloadedImages.count
     }
 }
+
 // MARK: - Reusable Circular Icon Button
 
 struct CircleButton: View {

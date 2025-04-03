@@ -3,119 +3,117 @@ import Photos
 
 struct PhotoGroupView: View {
     let photoGroups: [PhotoGroup]
-    @State private var selectedGroup: [PhotoGroup] = []
+
+    @State private var selectedGroup: PhotoGroup?
     @State private var showingPhotoReview = false
 
-    struct MonthGroup: Identifiable {
-        let id = UUID()
-        let title: String
-        let groups: [PhotoGroup]
-        let totalCount: Int
-    }
-
-    var monthGroups: [MonthGroup] {
-        let grouped = Dictionary(grouping: photoGroups) { group -> DateComponents in
-            let date = group.creationDate ?? .distantPast
-            let components = Calendar.current.dateComponents([.year, .month], from: date)
-            return components
-        }
-
-        return grouped
-            .compactMap { (components, groups) -> (date: Date, group: MonthGroup)? in
-                guard let year = components.year, let month = components.month else { return nil }
-                var dateComponents = DateComponents()
-                dateComponents.year = year
-                dateComponents.month = month
-                let calendar = Calendar.current
-                guard let date = calendar.date(from: dateComponents) else { return nil }
-
-                let title = date.formatted(.dateTime.year().month(.wide)).uppercased()
-                let totalCount = groups.reduce(0) { $0 + $1.assets.count }
-
-                return (date, MonthGroup(title: title, groups: groups, totalCount: totalCount))
-            }
-            .sorted(by: { $0.date > $1.date }) // descending by full date
-            .map { $0.group }
-    }
-
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
 
     var body: some View {
         NavigationStack {
-            List(monthGroups) { monthGroup in
-                Button {
-                    selectedGroup = monthGroup.groups
-                    showingPhotoReview = true
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(monthGroup.title.capitalized)
-                            .font(.headline)
-                            .foregroundColor(.black)
-                        Text("\(monthGroup.totalCount) Photos")
-                            .font(.subheadline)
-                            .foregroundStyle(.black)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    
+                    // MARK: - My Albums
+                    Section(header: sectionHeader(title: "My Albums")) {
+                        LazyVGrid(columns: columns, spacing: 20) {
+                            ForEach(photoGroups.prefix(6), id: \.id) { group in
+                                AlbumCell(group: group)
+                                    .onTapGesture {
+                                        selectedGroup = group
+                                        showingPhotoReview = true
+                                    }
+                            }
+                        }
+                        .padding(.horizontal)
                     }
-                    .padding(.vertical, 8)
+
+                    // MARK: - Shared Albums
+                    Section(header: sectionHeader(title: "Shared Albums")) {
+                        LazyVGrid(columns: columns, spacing: 20) {
+                            ForEach(photoGroups.suffix(from: 6).prefix(4), id: \.id) { group in
+                                AlbumCell(group: group)
+                                    .onTapGesture {
+                                        selectedGroup = group
+                                        showingPhotoReview = true
+                                    }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    Spacer(minLength: 40)
                 }
             }
-            .navigationTitle("Photo Groups")
+            .navigationTitle("Albums")
             .sheet(isPresented: $showingPhotoReview) {
-                if !selectedGroup.isEmpty {
-                    SwipeCardView(group: mergedGroup(from: selectedGroup))
+                if let group = selectedGroup {
+                    SwipeCardView(group: group)
                 }
             }
         }
     }
 
-    // Optional: Merge multiple PhotoGroups into one for SwipeCardView
-    func mergedGroup(from groups: [PhotoGroup]) -> PhotoGroup {
-        let allAssets = groups.flatMap { $0.assets }
-        return PhotoGroup(assets: allAssets)
+    private func sectionHeader(title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.title2)
+                .bold()
+            Spacer()
+            Button("See All") {
+                // TODO: Implement see all logic
+            }
+            .font(.subheadline)
+        }
+        .padding(.horizontal)
     }
-
 }
-
-
-struct PhotoGroupCell: View {
+struct AlbumCell: View {
     let group: PhotoGroup
     @State private var thumbnail: UIImage?
-    
+
     var body: some View {
-        HStack {
-            if let thumbnail = thumbnail {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-            } else {
-                ProgressView()
-                    .frame(width: 60, height: 60)
-            }
-            
-            VStack(alignment: .leading) {
-                Text("\(group.assets.count) Photos")
-                    .font(.headline)
-                if let date = group.creationDate {
-                    Text(date.formatted())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading) {
+            ZStack {
+                if let thumbnail = thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color.gray.opacity(0.1)
+                    ProgressView()
                 }
             }
+            .frame(width: UIScreen.main.bounds.width / 2 - 30, height: 120)
+            .clipped()
+            .cornerRadius(8)
+
+            Text(group.title ?? "Untitled")
+                .font(.subheadline)
+                .lineLimit(1)
+
+            Text("\(group.assets.count)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
+        .frame(width: UIScreen.main.bounds.width / 2 - 30, alignment: .leading)
         .task {
             await loadThumbnail()
         }
     }
-    
+
     private func loadThumbnail() async {
         guard let asset = group.thumbnailAsset else { return }
-        
+
         let options = PHImageRequestOptions()
         options.deliveryMode = .fastFormat
         options.isNetworkAccessAllowed = true
-        
-        let size = CGSize(width: 120, height: 120)
-        
+
+        let size = CGSize(width: 200, height: 200)
+
         thumbnail = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: asset,
