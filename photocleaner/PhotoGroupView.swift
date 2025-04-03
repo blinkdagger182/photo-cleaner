@@ -1,30 +1,79 @@
-
 import SwiftUI
 import Photos
 
 struct PhotoGroupView: View {
     let photoGroups: [PhotoGroup]
-    @State private var selectedGroup: PhotoGroup?
+    @State private var selectedGroup: [PhotoGroup] = []
     @State private var showingPhotoReview = false
-    
+
+    struct MonthGroup: Identifiable {
+        let id = UUID()
+        let title: String
+        let groups: [PhotoGroup]
+        let totalCount: Int
+    }
+
+    var monthGroups: [MonthGroup] {
+        let grouped = Dictionary(grouping: photoGroups) { group -> DateComponents in
+            let date = group.creationDate ?? .distantPast
+            let components = Calendar.current.dateComponents([.year, .month], from: date)
+            return components
+        }
+
+        return grouped
+            .compactMap { (components, groups) -> (date: Date, group: MonthGroup)? in
+                guard let year = components.year, let month = components.month else { return nil }
+                var dateComponents = DateComponents()
+                dateComponents.year = year
+                dateComponents.month = month
+                let calendar = Calendar.current
+                guard let date = calendar.date(from: dateComponents) else { return nil }
+
+                let title = date.formatted(.dateTime.year().month(.wide)).uppercased()
+                let totalCount = groups.reduce(0) { $0 + $1.assets.count }
+
+                return (date, MonthGroup(title: title, groups: groups, totalCount: totalCount))
+            }
+            .sorted(by: { $0.date > $1.date }) // descending by full date
+            .map { $0.group }
+    }
+
+
     var body: some View {
         NavigationStack {
-            List(photoGroups) { group in
-                PhotoGroupCell(group: group)
-                    .onTapGesture {
-                        selectedGroup = group
-                        showingPhotoReview = true
+            List(monthGroups) { monthGroup in
+                Button {
+                    selectedGroup = monthGroup.groups
+                    showingPhotoReview = true
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(monthGroup.title.capitalized)
+                            .font(.headline)
+                            .foregroundColor(.black)
+                        Text("\(monthGroup.totalCount) Photos")
+                            .font(.subheadline)
+                            .foregroundStyle(.black)
                     }
+                    .padding(.vertical, 8)
+                }
             }
             .navigationTitle("Photo Groups")
             .sheet(isPresented: $showingPhotoReview) {
-                if let group = selectedGroup {
-                    SwipeCardView(group: group)
+                if !selectedGroup.isEmpty {
+                    SwipeCardView(group: mergedGroup(from: selectedGroup))
                 }
             }
         }
     }
+
+    // Optional: Merge multiple PhotoGroups into one for SwipeCardView
+    func mergedGroup(from groups: [PhotoGroup]) -> PhotoGroup {
+        let allAssets = groups.flatMap { $0.assets }
+        return PhotoGroup(assets: allAssets)
+    }
+
 }
+
 
 struct PhotoGroupCell: View {
     let group: PhotoGroup

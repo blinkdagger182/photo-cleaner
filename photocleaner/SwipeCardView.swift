@@ -7,7 +7,7 @@ struct SwipeCardView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var currentIndex = 0
     @State private var offset = CGSize.zero
-    @State private var currentImage: UIImage?
+    @State private var preloadedImages: [UIImage?] = Array(repeating: nil, count: 10)
 
     var body: some View {
         NavigationStack {
@@ -16,24 +16,27 @@ struct SwipeCardView: View {
                     Spacer()
 
                     ZStack {
-                        if let image = currentImage {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: geometry.size.width * 0.85)
-                                .padding()
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                                .shadow(radius: 8)
-                                .offset(x: offset.width)
-                                .rotationEffect(.degrees(Double(offset.width / 20)))
-                                .gesture(
-                                    DragGesture()
-                                        .onChanged { offset = $0.translation }
-                                        .onEnded { handleSwipeGesture($0) }
-                                )
-                        } else {
-                            ProgressView()
+                        ForEach((0..<min(3, preloadedImages.count - currentIndex)).reversed(), id: \.self) { index in
+                            let actualIndex = currentIndex + index
+                            if let image = preloadedImages[actualIndex] {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: geometry.size.width * 0.85)
+                                    .padding()
+                                    .background(Color.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                                    .shadow(radius: 8)
+                                    .offset(x: index == 0 ? offset.width : CGFloat(index * 6), y: CGFloat(index * 6))
+                                    .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
+                                    .zIndex(Double(-index))
+                                    .gesture(
+                                        index == 0 ? DragGesture()
+                                            .onChanged { offset = $0.translation }
+                                            .onEnded { handleSwipeGesture($0) }
+                                        : nil
+                                    )
+                            }
                         }
                     }
 
@@ -66,7 +69,7 @@ struct SwipeCardView: View {
             }
         }
         .task {
-            await loadCurrentImage()
+            await preloadImages()
         }
     }
 
@@ -74,13 +77,11 @@ struct SwipeCardView: View {
 
     private func handleSwipeGesture(_ value: DragGesture.Value) {
         let threshold: CGFloat = 100
-
         if value.translation.width < -threshold {
             handleLeftSwipe()
         } else if value.translation.width > threshold {
             handleRightSwipe()
         }
-
         withAnimation(.spring()) {
             offset = .zero
         }
@@ -105,11 +106,8 @@ struct SwipeCardView: View {
     }
 
     private func moveToNext() {
-        if currentIndex < group.assets.count - 1 {
+        if currentIndex < preloadedImages.count - 1 {
             currentIndex += 1
-            Task {
-                await loadCurrentImage()
-            }
         } else {
             dismiss()
         }
@@ -128,24 +126,33 @@ struct SwipeCardView: View {
         }
     }
 
-    // MARK: - Load Image
+    // MARK: - Preload Images
 
-    private func loadCurrentImage() async {
-        let asset = group.assets[currentIndex]
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
+    private func preloadImages() async {
+        let maxImages = min(10, group.assets.count)
+        var loadedImages: [UIImage?] = []
 
-        currentImage = await withCheckedContinuation { continuation in
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: PHImageManagerMaximumSize,
-                contentMode: .aspectFit,
-                options: options
-            ) { image, _ in
-                continuation.resume(returning: image)
+        for i in 0..<maxImages {
+            let asset = group.assets[i]
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+
+            let image = await withCheckedContinuation { continuation in
+                PHImageManager.default().requestImage(
+                    for: asset,
+                    targetSize: PHImageManagerMaximumSize,
+                    contentMode: .aspectFit,
+                    options: options
+                ) { image, _ in
+                    continuation.resume(returning: image)
+                }
             }
+
+            loadedImages.append(image)
         }
+
+        preloadedImages = loadedImages
     }
 }
 // MARK: - Reusable Circular Icon Button
