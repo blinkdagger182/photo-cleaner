@@ -3,8 +3,8 @@ import Photos
 import UIKit
 
 struct ContentView: View {
-    @StateObject private var photoManager = PhotoManager()
-    @StateObject var toast = ToastService()
+    @EnvironmentObject private var photoManager: PhotoManager
+    @EnvironmentObject var toast: ToastService
 
     var body: some View {
         Group {
@@ -18,31 +18,24 @@ struct ContentView: View {
             case .authorized:
                 if photoManager.photoGroups.isEmpty {
                     ContentUnavailableView("No Photos",
-                                        systemImage: "photo.on.rectangle",
-                                        description: Text("Your photo library is empty"))
+                        systemImage: "photo.on.rectangle",
+                        description: Text("Your photo library is empty"))
                 } else {
-                    PhotoGroupView(
-                        photoGroups: photoManager.photoGroups,
-                        yearGroups: photoManager.yearGroups
-                    )
-                    .environmentObject(photoManager) // ✅ correct
-                    .environmentObject(toast)
-                    
-
+                    PhotoGroupView()
+                        .environmentObject(photoManager)
+                        .environmentObject(toast)
                 }
             case .denied, .restricted:
                 ContentUnavailableView("No Access to Photos",
-                                    systemImage: "lock.fill",
-                                    description: Text("Please enable photo access in Settings"))
+                    systemImage: "lock.fill",
+                    description: Text("Please enable photo access in Settings"))
             @unknown default:
                 EmptyView()
             }
         }
-        .task {
-            await photoManager.requestAuthorization()
-        }
     }
 }
+
 
 struct RequestAccessView: View {
     let onRequest: () -> Void

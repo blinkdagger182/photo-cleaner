@@ -1,8 +1,9 @@
 import SwiftUI
 import Photos
 import UIKit
+
 struct SwipeCardView: View {
-    @State var group: PhotoGroup
+    let group: PhotoGroup
 
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
@@ -63,7 +64,7 @@ struct SwipeCardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
             }
-            .navigationTitle("Review Photos")
+            .navigationTitle(group.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -86,62 +87,52 @@ struct SwipeCardView: View {
         } else if value.translation.width > threshold {
             handleRightSwipe()
         }
-        withAnimation(.spring()) {
-            offset = .zero
-        }
+        withAnimation(.spring()) { offset = .zero }
     }
 
     private func handleLeftSwipe() {
         let asset = group.assets[currentIndex]
-        let groupDate = group.monthDate
 
-        photoManager.softDeleteAsset(asset)
+        // Remove from the main group
+        photoManager.removeAsset(asset, fromGroupWithDate: group.monthDate)
+        photoManager.addAsset(asset, toAlbumNamed: "Deleted")
+
+        Task {
+            await photoManager.refreshSystemAlbum(named: "Deleted")
+        }
 
         toast.show("Photo deleted", action: "Undo") {
-            photoManager.restoreToPhotoGroups(asset, inMonth: groupDate)
-            refreshDeletedCard(asset)
+            photoManager.restoreToPhotoGroups(asset, inMonth: group.monthDate)
+            refreshCard(at: currentIndex, with: asset)
         }
 
         Task { await moveToNext() }
-
-        withAnimation(.spring()) { offset = .zero }
     }
-    private func refreshDeletedCard(_ asset: PHAsset) {
-        // Step 1: Insert asset back at correct index
-        var updatedAssets = group.assets
-        updatedAssets.insert(asset, at: currentIndex)
-        group = PhotoGroup(assets: updatedAssets, title: group.title, monthDate: group.monthDate)
-
-        // Step 2: Insert placeholder in preload, then load the image
-        preloadedImages.insert(nil, at: currentIndex)
-        loadedCount = preloadedImages.count
-
-        Task {
-            await preloadSingleImage(at: currentIndex)
-        }
-    }
-
 
     private func handleBookmark() {
         let asset = group.assets[currentIndex]
         photoManager.bookmarkAsset(asset)
+
         toast.show("Photo saved", action: "Undo") {
             photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
-            refreshDeletedCard(asset)
+            refreshCard(at: currentIndex, with: asset)
         }
+
         Task { await moveToNext() }
-        withAnimation(.easeInOut) { offset = .zero }
     }
-
-    private func restoreAsset(_ asset: PHAsset) {
-        photoManager.removeAsset(asset, fromAlbumNamed: "Deleted")
-        photoManager.restoreToPhotoGroups(asset)
-    }
-
 
     private func handleRightSwipe() {
         Task { await moveToNext() }
-        withAnimation(.spring()) { offset = .zero }
+    }
+
+    private func refreshCard(at index: Int, with asset: PHAsset) {
+        // Just reinsert locally to visual stack, not to original group
+        preloadedImages.insert(nil, at: index)
+        loadedCount = preloadedImages.count
+
+        Task {
+            await preloadSingleImage(at: index)
+        }
     }
 
     private func moveToNext() async {
@@ -193,6 +184,7 @@ struct SwipeCardView: View {
         preloadedImages += newImages
         loadedCount = preloadedImages.count
     }
+
     private func preloadSingleImage(at index: Int) async {
         guard index < group.assets.count else { return }
 
@@ -216,7 +208,6 @@ struct SwipeCardView: View {
             preloadedImages[index] = image
         }
     }
-
 }
 
 struct CircleButton: View {
@@ -237,4 +228,3 @@ struct CircleButton: View {
         }
     }
 }
-

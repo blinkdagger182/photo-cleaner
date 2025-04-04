@@ -3,9 +3,8 @@ import Photos
 import UIKit
 
 struct PhotoGroupView: View {
-    let photoGroups: [PhotoGroup]
-    let yearGroups: [YearGroup]
     @EnvironmentObject var photoManager: PhotoManager
+    @EnvironmentObject var toast: ToastService
 
     @State private var selectedGroup: PhotoGroup?
     @State private var showingPhotoReview = false
@@ -19,8 +18,6 @@ struct PhotoGroupView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                
-                // Picker is outside ScrollView to prevent tap conflict
                 Picker("View Mode", selection: $viewByYear) {
                     Text("By Year").tag(true)
                     Text("My Albums").tag(false)
@@ -31,10 +28,8 @@ struct PhotoGroupView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        
-                        // MARK: - Year View
                         if viewByYear {
-                            ForEach(yearGroups) { yearGroup in
+                            ForEach(photoManager.yearGroups) { yearGroup in
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("\(yearGroup.year)")
                                         .font(.title)
@@ -45,6 +40,7 @@ struct PhotoGroupView: View {
                                         ForEach(yearGroup.months, id: \.id) { group in
                                             AlbumCell(group: group)
                                                 .onTapGesture {
+                                                    print("Tapped album: \(group.title)")
                                                     selectedGroup = group
                                                     showingPhotoReview = true
                                                 }
@@ -53,19 +49,20 @@ struct PhotoGroupView: View {
                                     .padding(.horizontal)
                                 }
                             }
-
-                        // MARK: - My Albums View (Only Saved + Deleted)
                         } else {
                             VStack(alignment: .leading, spacing: 16) {
-                                Section(header: sectionHeader(title: "My Albums")) {
-                                    LazyVGrid(columns: columns, spacing: 20) {
-                                        ForEach(photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
-                                            AlbumCell(group: group)
-                                                .disabled(true) // Non-interactive
-                                        }
+                                sectionHeader(title: "My Albums")
+                                LazyVGrid(columns: columns, spacing: 20) {
+                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
+                                        AlbumCell(group: group)
+                                            .onTapGesture {
+                                                print("Tapped system album: \(group.title)")
+                                                selectedGroup = group
+                                                showingPhotoReview = true
+                                            }
                                     }
-                                    .padding(.horizontal)
                                 }
+                                .padding(.horizontal)
 
                                 Spacer(minLength: 40)
                             }
@@ -74,10 +71,12 @@ struct PhotoGroupView: View {
                 }
             }
             .navigationTitle("Albums")
-            .sheet(isPresented: $showingPhotoReview) {
-                if let group = selectedGroup {
-                    SwipeCardView(group: group)
-                }
+        }
+        .sheet(isPresented: $showingPhotoReview) {
+            if let group = selectedGroup {
+                SwipeCardView(group: group)
+                    .environmentObject(photoManager)
+                    .environmentObject(toast)
             }
         }
     }
@@ -88,10 +87,6 @@ struct PhotoGroupView: View {
                 .font(.title2)
                 .bold()
             Spacer()
-            Button("See All") {
-                // TODO: Implement see all logic
-            }
-            .font(.subheadline)
         }
         .padding(.horizontal)
     }
