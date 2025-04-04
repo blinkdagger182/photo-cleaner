@@ -3,35 +3,27 @@ import Photos
 
 struct PhotoGroup: Identifiable {
     let id: UUID
-    let title: String
     let assets: [PHAsset]
-    let monthDate: Date?  // ✅ Optional for system albums like "Deleted", "Saved"
+    let title: String
+    let monthDate: Date?
+    var lastViewedIndex: Int = 0
 
     var thumbnailAsset: PHAsset? {
         assets.first
     }
 
-    init(id: UUID = UUID(), assets: [PHAsset], title: String, monthDate: Date?) {
+    func copy(withAssets newAssets: [PHAsset]) -> PhotoGroup {
+        PhotoGroup(id: id, assets: newAssets, title: title, monthDate: monthDate, lastViewedIndex: lastViewedIndex)
+    }
+
+    init(id: UUID = UUID(), assets: [PHAsset], title: String, monthDate: Date?, lastViewedIndex: Int = 0) {
         self.id = id
-        self.title = title
         self.assets = assets
+        self.title = title
         self.monthDate = monthDate
-    }
-
-    // For month albums (safe default for non-system groups)
-    init(assets: [PHAsset], title: String, creationDate: Date) {
-        self.id = UUID()
-        self.title = title
-        self.assets = assets
-        self.monthDate = creationDate
-    }
-
-    func copy(withAssets assets: [PHAsset]) -> PhotoGroup {
-        return PhotoGroup(id: self.id, assets: assets, title: self.title, monthDate: self.monthDate)
+        self.lastViewedIndex = lastViewedIndex
     }
 }
-
-
 
 struct YearGroup: Identifiable {
     let id: Int

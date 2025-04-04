@@ -207,4 +207,13 @@ class PhotoManager: ObservableObject {
         self.photoGroups = await months + system
         self.yearGroups = await fetchPhotoGroupsByYearAndMonth()
     }
+    
+    func updateLastViewedIndex(for groupID: UUID, index: Int) {
+        if let idx = photoGroups.firstIndex(where: { $0.id == groupID }) {
+            var group = photoGroups[idx]
+            group.lastViewedIndex = index
+            photoGroups[idx] = group
+        }
+    }
+
 }

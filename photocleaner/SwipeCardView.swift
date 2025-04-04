@@ -9,11 +9,16 @@ struct SwipeCardView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var toast: ToastService
 
-    @State private var currentIndex = 0
+    @State private var currentIndex: Int
     @State private var offset = CGSize.zero
     @State private var preloadedImages: [UIImage?] = []
     @State private var loadedCount = 0
     @State private var isLoading = false
+
+    init(group: PhotoGroup) {
+        self.group = group
+        _currentIndex = State(initialValue: group.lastViewedIndex)
+    }
 
     var body: some View {
         NavigationStack {
@@ -48,6 +53,13 @@ struct SwipeCardView: View {
 
                     Spacer()
 
+                    Text("\(currentIndex + 1)/\(group.assets.count)")
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color.black.opacity(0.6))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+
                     HStack(spacing: 40) {
                         CircleButton(icon: "trash", tint: .red) {
                             handleLeftSwipe()
@@ -76,6 +88,9 @@ struct SwipeCardView: View {
         }
         .task {
             await preloadImages(from: 0)
+        }
+        .onChange(of: currentIndex) {
+            photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
         }
         .overlay(toast.overlayView, alignment: .bottom)
     }
@@ -125,13 +140,23 @@ struct SwipeCardView: View {
         Task { await moveToNext() }
     }
 
+    
     private func refreshCard(at index: Int, with asset: PHAsset) {
-        // Just reinsert locally to visual stack, not to original group
-        preloadedImages.insert(nil, at: index)
+        if index < preloadedImages.count {
+            preloadedImages[index] = nil
+        } else {
+            preloadedImages.insert(nil, at: index)
+        }
+
         loadedCount = preloadedImages.count
 
         Task {
             await preloadSingleImage(at: index)
+        }
+
+        // Go back to the restored photo
+        if currentIndex > 0 {
+            currentIndex -= 1
         }
     }
 
@@ -209,7 +234,6 @@ struct SwipeCardView: View {
         }
     }
 }
-
 struct CircleButton: View {
     let icon: String
     let tint: Color
