@@ -11,7 +11,11 @@ import SwiftUI
 struct photocleanerApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            SplashView() // Shows after launch screen; can load ContentView
         }
-    }
+
+        // 🚀 This is your native launch screen
+        WindowGroup("Launch Screen", id: "Launch Screen") {
+            LaunchScreen()
+        }    }
 }
