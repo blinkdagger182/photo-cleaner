@@ -4,7 +4,8 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var photoManager = PhotoManager()
-    
+    @StateObject var toast = ToastService()
+
     var body: some View {
         Group {
             switch photoManager.authorizationStatus {
@@ -20,7 +21,14 @@ struct ContentView: View {
                                         systemImage: "photo.on.rectangle",
                                         description: Text("Your photo library is empty"))
                 } else {
-                    PhotoGroupView(photoGroups: photoManager.photoGroups, yearGroups: photoManager.yearGroups)
+                    PhotoGroupView(
+                        photoGroups: photoManager.photoGroups,
+                        yearGroups: photoManager.yearGroups
+                    )
+                    .environmentObject(photoManager) // ✅ correct
+                    .environmentObject(toast)
+                    
+
                 }
             case .denied, .restricted:
                 ContentUnavailableView("No Access to Photos",

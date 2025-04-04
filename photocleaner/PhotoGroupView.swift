@@ -1,9 +1,11 @@
 import SwiftUI
 import Photos
+import UIKit
 
 struct PhotoGroupView: View {
     let photoGroups: [PhotoGroup]
     let yearGroups: [YearGroup]
+    @EnvironmentObject var photoManager: PhotoManager
 
     @State private var selectedGroup: PhotoGroup?
     @State private var showingPhotoReview = false
@@ -84,8 +86,9 @@ struct PhotoGroupView: View {
             .navigationTitle("Albums")
             .sheet(isPresented: $showingPhotoReview) {
                 if let group = selectedGroup {
-                    SwipeCardView(group: group)
-                }
+                       SwipeCardView(group: group)
+                       // No need to call .environmentObject here again, it inherits it
+                   }
             }
         }
     }

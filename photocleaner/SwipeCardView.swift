@@ -1,10 +1,13 @@
 import SwiftUI
 import Photos
-
+import UIKit
 struct SwipeCardView: View {
     let group: PhotoGroup
 
+    @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var toast: ToastService
+
     @State private var currentIndex = 0
     @State private var offset = CGSize.zero
     @State private var preloadedImages: [UIImage?] = []
@@ -49,7 +52,7 @@ struct SwipeCardView: View {
                             handleLeftSwipe()
                         }
                         CircleButton(icon: "bookmark", tint: .yellow) {
-                            // TODO: Implement bookmark logic
+                            handleBookmark()
                         }
                         CircleButton(icon: "checkmark", tint: .green) {
                             handleRightSwipe()
@@ -73,9 +76,8 @@ struct SwipeCardView: View {
         .task {
             await preloadImages(from: 0)
         }
+        .overlay(toast.overlayView, alignment: .bottom)
     }
-
-    // MARK: - Swipe Handlers
 
     private func handleSwipeGesture(_ value: DragGesture.Value) {
         let threshold: CGFloat = 100
@@ -90,35 +92,43 @@ struct SwipeCardView: View {
     }
 
     private func handleLeftSwipe() {
-        Task {
-            if await deleteCurrentAsset() {
-                await moveToNext()
-            }
-        }
-        withAnimation(.spring()) {
-            offset = .zero
-        }
+        let asset = group.assets[currentIndex]
+        photoManager.softDeleteAsset(asset)
+        Task { await moveToNext() }
+        withAnimation(.spring()) { offset = .zero }
     }
 
-    private func handleRightSwipe() {
+    private func handleBookmark() {
+        let asset = group.assets[currentIndex]
+        photoManager.bookmarkAsset(asset)
+        toast.show("Photo deleted", action: "Undo") {
+            restoreAsset(asset)
+        }
         Task {
             await moveToNext()
         }
-        withAnimation(.spring()) {
+
+        withAnimation(.easeInOut) {
             offset = .zero
         }
     }
+    private func restoreAsset(_ asset: PHAsset) {
+        photoManager.removeAsset(asset, fromAlbumNamed: "Deleted")
+        photoManager.restoreToPhotoGroups(asset)
+    }
 
-    // MARK: - Next Logic with Safe Preload
+
+    private func handleRightSwipe() {
+        Task { await moveToNext() }
+        withAnimation(.spring()) { offset = .zero }
+    }
 
     private func moveToNext() async {
         let nextIndex = currentIndex + 1
-
-        // Preload if within last 5 images
         let threshold = 5
         let shouldPreload = loadedCount < group.assets.count &&
-                            preloadedImages.count - nextIndex <= threshold &&
-                            !isLoading
+            preloadedImages.count - nextIndex <= threshold &&
+            !isLoading
 
         if shouldPreload {
             isLoading = true
@@ -126,7 +136,6 @@ struct SwipeCardView: View {
             isLoading = false
         }
 
-        // Move forward if image exists
         if nextIndex < preloadedImages.count {
             currentIndex = nextIndex
         } else {
@@ -134,28 +143,11 @@ struct SwipeCardView: View {
         }
     }
 
-    // MARK: - Photo Deletion
-
-    private func deleteCurrentAsset() async -> Bool {
-        let asset = group.assets[currentIndex]
-        return await withCheckedContinuation { continuation in
-            PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.deleteAssets([asset] as NSArray)
-            }) { success, _ in
-                continuation.resume(returning: success)
-            }
-        }
-    }
-
-    // MARK: - Lazy Preload Images
-
     private func preloadImages(from startIndex: Int, count: Int = 10) async {
         guard startIndex < group.assets.count else { return }
 
         let endIndex = min(startIndex + count, group.assets.count)
         var newImages: [UIImage?] = []
-
-        print("Preloading images from \(startIndex) to \(endIndex)")
 
         for i in startIndex..<endIndex {
             let asset = group.assets[i]
@@ -182,8 +174,6 @@ struct SwipeCardView: View {
     }
 }
 
-// MARK: - Reusable Circular Icon Button
-
 struct CircleButton: View {
     let icon: String
     let tint: Color
@@ -202,3 +192,4 @@ struct CircleButton: View {
         }
     }
 }
+

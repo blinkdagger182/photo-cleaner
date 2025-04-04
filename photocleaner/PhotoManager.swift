@@ -119,6 +119,116 @@ class PhotoManager: ObservableObject {
         self.photoGroups = groups.map { assets in
             let firstDate = assets.first?.creationDate ?? Date()
             return PhotoGroup(assets: assets, title: "Group Succeeded", monthDate: firstDate)
-        }    }
+        }
+    }
+    func fetchPhotoGroupsFromAlbums(albumNames: [String]) async -> [PhotoGroup] {
+        var result: [PhotoGroup] = []
 
+        for name in albumNames {
+            let fetchOptions = PHFetchOptions()
+            let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
+
+            collections.enumerateObjects { collection, _, _ in
+                if collection.localizedTitle == name {
+                    let assets = PHAsset.fetchAssets(in: collection, options: nil)
+                    var assetArray: [PHAsset] = []
+                    assets.enumerateObjects { asset, _, _ in
+                        assetArray.append(asset)
+                    }
+                    if !assetArray.isEmpty {
+                        result.append(PhotoGroup(assets: assetArray, title: name, monthDate: assetArray.first?.creationDate ?? Date()))
+                    }
+                }
+            }
+        }
+
+        return result
+    }
+    
+    
+    func fetchOrCreateAlbum(named title: String, completion: @escaping (PHAssetCollection?) -> Void) {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.predicate = NSPredicate(format: "title = %@", title)
+        let collection = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+
+        if let album = collection.firstObject {
+            completion(album)
+        } else {
+            var placeholder: PHObjectPlaceholder?
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: title)
+                placeholder = request.placeholderForCreatedAssetCollection
+            }) { success, error in
+                if success, let placeholder = placeholder {
+                    let collection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [placeholder.localIdentifier], options: nil)
+                    completion(collection.firstObject)
+                } else {
+                    completion(nil)
+                }
+            }
+        }
+    }
+
+    func addAsset(_ asset: PHAsset, toAlbumNamed name: String) {
+        fetchOrCreateAlbum(named: name) { collection in
+            guard let collection = collection else { return }
+
+            PHPhotoLibrary.shared().performChanges {
+                if let changeRequest = PHAssetCollectionChangeRequest(for: collection) {
+                    changeRequest.addAssets([asset] as NSArray)
+                }
+            }
+        }
+    }
+
+    func softDeleteAsset(_ asset: PHAsset) {
+        addAsset(asset, toAlbumNamed: "Deleted")
+        DispatchQueue.main.async {
+            self.photoGroups = self.photoGroups.map { group in
+                let filtered = group.assets.filter { $0.localIdentifier != asset.localIdentifier }
+                return PhotoGroup(assets: filtered, title: group.title, monthDate: group.monthDate)
+            }.filter { !$0.assets.isEmpty }
+        }
+    }
+
+    func bookmarkAsset(_ asset: PHAsset) {
+        addAsset(asset, toAlbumNamed: "Saved")
+    }
+
+    func removeAsset(_ asset: PHAsset, fromAlbumNamed name: String) {
+        fetchOrCreateAlbum(named: name) { collection in
+            guard let collection = collection else { return }
+
+            PHPhotoLibrary.shared().performChanges {
+                if let changeRequest = PHAssetCollectionChangeRequest(for: collection) {
+                    changeRequest.removeAssets([asset] as NSArray)
+                }
+            }
+        }
+    }
+    func restoreToPhotoGroups(_ asset: PHAsset) {
+        guard let date = asset.creationDate else { return }
+
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: date)
+        guard let monthDate = calendar.date(from: components) else { return }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        let title = formatter.string(from: monthDate)
+
+        DispatchQueue.main.async {
+            if let index = self.photoGroups.firstIndex(where: { $0.monthDate == monthDate }) {
+                var existingGroup = self.photoGroups[index]
+                let updatedAssets = [asset] + existingGroup.assets
+                let updatedGroup = PhotoGroup(assets: updatedAssets, title: title, monthDate: monthDate)
+                self.photoGroups[index] = updatedGroup
+            } else {
+                self.photoGroups.insert(
+                    PhotoGroup(assets: [asset], title: title, monthDate: monthDate),
+                    at: 0
+                )
+            }
+        }
+    }
 }
