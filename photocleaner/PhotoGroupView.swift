@@ -3,9 +3,11 @@ import Photos
 
 struct PhotoGroupView: View {
     let photoGroups: [PhotoGroup]
+    let yearGroups: [YearGroup]
 
     @State private var selectedGroup: PhotoGroup?
     @State private var showingPhotoReview = false
+    @State private var viewByYear = true
 
     let columns = [
         GridItem(.flexible()),
@@ -15,37 +17,68 @@ struct PhotoGroupView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    
-                    // MARK: - My Albums
-                    Section(header: sectionHeader(title: "My Albums")) {
-                        LazyVGrid(columns: columns, spacing: 20) {
-                            ForEach(photoGroups.prefix(6), id: \.id) { group in
-                                AlbumCell(group: group)
-                                    .onTapGesture {
-                                        selectedGroup = group
-                                        showingPhotoReview = true
+                VStack(alignment: .leading, spacing: 20) {
+                    Picker("View Mode", selection: $viewByYear) {
+                        Text("By Year").tag(true)
+                        Text("My Albums").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+
+                    if viewByYear {
+                        ForEach(yearGroups) { yearGroup in
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("\(yearGroup.year)")
+                                    .font(.title)
+                                    .bold()
+                                    .padding(.horizontal)
+
+                                LazyVGrid(columns: columns, spacing: 16) {
+                                    ForEach(yearGroup.months, id: \..id) { group in
+                                        AlbumCell(group: group)
+                                            .onTapGesture {
+                                                selectedGroup = group
+                                                showingPhotoReview = true
+                                            }
                                     }
+                                }
+                                .padding(.horizontal)
                             }
                         }
-                        .padding(.horizontal)
-                    }
+                    } else {
+                        VStack(alignment: .leading, spacing: 16) {
 
-                    // MARK: - Shared Albums
-                    Section(header: sectionHeader(title: "Shared Albums")) {
-                        LazyVGrid(columns: columns, spacing: 20) {
-                            ForEach(photoGroups.suffix(from: 6).prefix(4), id: \.id) { group in
-                                AlbumCell(group: group)
-                                    .onTapGesture {
-                                        selectedGroup = group
-                                        showingPhotoReview = true
+                            // MARK: - My Albums
+                            Section(header: sectionHeader(title: "My Albums")) {
+                                LazyVGrid(columns: columns, spacing: 20) {
+                                    ForEach(photoGroups.prefix(6), id: \..id) { group in
+                                        AlbumCell(group: group)
+                                            .onTapGesture {
+                                                selectedGroup = group
+                                                showingPhotoReview = true
+                                            }
                                     }
+                                }
+                                .padding(.horizontal)
                             }
-                        }
-                        .padding(.horizontal)
-                    }
 
-                    Spacer(minLength: 40)
+                            // MARK: - Shared Albums
+                            Section(header: sectionHeader(title: "Shared Albums")) {
+                                LazyVGrid(columns: columns, spacing: 20) {
+                                    ForEach(photoGroups.suffix(from: 6).prefix(4), id: \..id) { group in
+                                        AlbumCell(group: group)
+                                            .onTapGesture {
+                                                selectedGroup = group
+                                                showingPhotoReview = true
+                                            }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+
+                            Spacer(minLength: 40)
+                        }
+                    }
                 }
             }
             .navigationTitle("Albums")
@@ -71,6 +104,7 @@ struct PhotoGroupView: View {
         .padding(.horizontal)
     }
 }
+
 struct AlbumCell: View {
     let group: PhotoGroup
     @State private var thumbnail: UIImage?
@@ -91,7 +125,7 @@ struct AlbumCell: View {
             .clipped()
             .cornerRadius(8)
 
-            Text(group.title ?? "Untitled")
+            Text(group.title)
                 .font(.subheadline)
                 .lineLimit(1)
 

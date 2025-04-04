@@ -20,7 +20,7 @@ struct ContentView: View {
                                         systemImage: "photo.on.rectangle",
                                         description: Text("Your photo library is empty"))
                 } else {
-                    PhotoGroupView(photoGroups: photoManager.photoGroups)
+                    PhotoGroupView(photoGroups: photoManager.photoGroups, yearGroups: photoManager.yearGroups)
                 }
             case .denied, .restricted:
                 ContentUnavailableView("No Access to Photos",
