@@ -240,4 +240,29 @@ class PhotoManager: ObservableObject {
         let albums = await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Saved"])
         return albums
     }
+    func restoreToPhotoGroups(_ asset: PHAsset, inMonth: Date) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        let title = formatter.string(from: inMonth)
+
+        DispatchQueue.main.async {
+            if let index = self.photoGroups.firstIndex(where: { $0.monthDate == inMonth }) {
+                var group = self.photoGroups[index]
+                let updatedAssets = [asset] + group.assets
+                self.photoGroups[index] = PhotoGroup(assets: updatedAssets, title: title, monthDate: inMonth)
+            } else {
+                self.photoGroups.insert(PhotoGroup(assets: [asset], title: title, monthDate: inMonth), at: 0)
+            }
+        }
+
+        removeAsset(asset, fromAlbumNamed: "Deleted")
+    }
+    func refreshAllPhotoGroups() async {
+        async let monthAlbums = fetchPhotoGroupsByMonth()
+        async let systemAlbums = fetchSystemAlbums()
+
+        self.photoGroups = await monthAlbums + systemAlbums
+        self.yearGroups = await fetchPhotoGroupsByYearAndMonth()
+    }
+
 }

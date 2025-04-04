@@ -2,7 +2,7 @@ import SwiftUI
 import Photos
 import UIKit
 struct SwipeCardView: View {
-    let group: PhotoGroup
+    @State var group: PhotoGroup
 
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
@@ -93,28 +93,46 @@ struct SwipeCardView: View {
 
     private func handleLeftSwipe() {
         let asset = group.assets[currentIndex]
+        let groupDate = group.monthDate
+
         photoManager.softDeleteAsset(asset)
+
         toast.show("Photo deleted", action: "Undo") {
-               restoreAsset(asset)
-           }
+            photoManager.restoreToPhotoGroups(asset, inMonth: groupDate)
+            refreshDeletedCard(asset)
+        }
+
         Task { await moveToNext() }
+
         withAnimation(.spring()) { offset = .zero }
     }
+    private func refreshDeletedCard(_ asset: PHAsset) {
+        // Step 1: Insert asset back at correct index
+        var updatedAssets = group.assets
+        updatedAssets.insert(asset, at: currentIndex)
+        group = PhotoGroup(assets: updatedAssets, title: group.title, monthDate: group.monthDate)
+
+        // Step 2: Insert placeholder in preload, then load the image
+        preloadedImages.insert(nil, at: currentIndex)
+        loadedCount = preloadedImages.count
+
+        Task {
+            await preloadSingleImage(at: currentIndex)
+        }
+    }
+
 
     private func handleBookmark() {
         let asset = group.assets[currentIndex]
         photoManager.bookmarkAsset(asset)
-        toast.show("Photo deleted", action: "Undo") {
-            restoreAsset(asset)
+        toast.show("Photo saved", action: "Undo") {
+            photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
+            refreshDeletedCard(asset)
         }
-        Task {
-            await moveToNext()
-        }
-
-        withAnimation(.easeInOut) {
-            offset = .zero
-        }
+        Task { await moveToNext() }
+        withAnimation(.easeInOut) { offset = .zero }
     }
+
     private func restoreAsset(_ asset: PHAsset) {
         photoManager.removeAsset(asset, fromAlbumNamed: "Deleted")
         photoManager.restoreToPhotoGroups(asset)
@@ -175,6 +193,30 @@ struct SwipeCardView: View {
         preloadedImages += newImages
         loadedCount = preloadedImages.count
     }
+    private func preloadSingleImage(at index: Int) async {
+        guard index < group.assets.count else { return }
+
+        let asset = group.assets[index]
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+
+        let image = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: PHImageManagerMaximumSize,
+                contentMode: .aspectFit,
+                options: options
+            ) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+
+        if index < preloadedImages.count {
+            preloadedImages[index] = image
+        }
+    }
+
 }
 
 struct CircleButton: View {
