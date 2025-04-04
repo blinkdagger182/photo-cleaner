@@ -18,67 +18,57 @@ struct PhotoGroupView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Picker("View Mode", selection: $viewByYear) {
-                        Text("By Year").tag(true)
-                        Text("My Albums").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
+            VStack(spacing: 0) {
+                
+                // Picker is outside ScrollView to prevent tap conflict
+                Picker("View Mode", selection: $viewByYear) {
+                    Text("By Year").tag(true)
+                    Text("My Albums").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
 
-                    if viewByYear {
-                        ForEach(yearGroups) { yearGroup in
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("\(yearGroup.year)")
-                                    .font(.title)
-                                    .bold()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // MARK: - Year View
+                        if viewByYear {
+                            ForEach(yearGroups) { yearGroup in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("\(yearGroup.year)")
+                                        .font(.title)
+                                        .bold()
+                                        .padding(.horizontal)
+
+                                    LazyVGrid(columns: columns, spacing: 16) {
+                                        ForEach(yearGroup.months, id: \.id) { group in
+                                            AlbumCell(group: group)
+                                                .onTapGesture {
+                                                    selectedGroup = group
+                                                    showingPhotoReview = true
+                                                }
+                                        }
+                                    }
                                     .padding(.horizontal)
-
-                                LazyVGrid(columns: columns, spacing: 16) {
-                                    ForEach(yearGroup.months, id: \..id) { group in
-                                        AlbumCell(group: group)
-                                            .onTapGesture {
-                                                selectedGroup = group
-                                                showingPhotoReview = true
-                                            }
-                                    }
                                 }
-                                .padding(.horizontal)
-                            }
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 16) {
-
-                            // MARK: - My Albums
-                            Section(header: sectionHeader(title: "My Albums")) {
-                                LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(photoGroups.prefix(6), id: \..id) { group in
-                                        AlbumCell(group: group)
-                                            .onTapGesture {
-                                                selectedGroup = group
-                                                showingPhotoReview = true
-                                            }
-                                    }
-                                }
-                                .padding(.horizontal)
                             }
 
-                            // MARK: - Shared Albums
-                            Section(header: sectionHeader(title: "Shared Albums")) {
-                                LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(photoGroups.suffix(from: 6).prefix(4), id: \..id) { group in
-                                        AlbumCell(group: group)
-                                            .onTapGesture {
-                                                selectedGroup = group
-                                                showingPhotoReview = true
-                                            }
+                        // MARK: - My Albums View (Only Saved + Deleted)
+                        } else {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Section(header: sectionHeader(title: "My Albums")) {
+                                    LazyVGrid(columns: columns, spacing: 20) {
+                                        ForEach(photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
+                                            AlbumCell(group: group)
+                                                .disabled(true) // Non-interactive
+                                        }
                                     }
+                                    .padding(.horizontal)
                                 }
-                                .padding(.horizontal)
-                            }
 
-                            Spacer(minLength: 40)
+                                Spacer(minLength: 40)
+                            }
                         }
                     }
                 }
@@ -86,9 +76,8 @@ struct PhotoGroupView: View {
             .navigationTitle("Albums")
             .sheet(isPresented: $showingPhotoReview) {
                 if let group = selectedGroup {
-                       SwipeCardView(group: group)
-                       // No need to call .environmentObject here again, it inherits it
-                   }
+                    SwipeCardView(group: group)
+                }
             }
         }
     }

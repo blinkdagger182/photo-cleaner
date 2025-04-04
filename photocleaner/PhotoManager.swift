@@ -12,12 +12,17 @@ class PhotoManager: ObservableObject {
     func requestAuthorization() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         authorizationStatus = status
+
         if status == .authorized || status == .limited {
-            self.yearGroups = await fetchPhotoGroupsByYearAndMonth()
-            self.photoGroups = await fetchPhotoGroupsByMonth()
-               self.yearGroups = await fetchPhotoGroupsByYearAndMonth()
+            async let months = fetchPhotoGroupsByMonth()
+            async let years = fetchPhotoGroupsByYearAndMonth()
+            async let systemAlbums = fetchSystemAlbums()
+
+            self.photoGroups = await months + systemAlbums
+            self.yearGroups = await years
         }
     }
+
   func fetchPhotoGroupsByMonth() async -> [PhotoGroup] {
       let fetchOptions = PHFetchOptions()
       fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
@@ -230,5 +235,9 @@ class PhotoManager: ObservableObject {
                 )
             }
         }
+    }
+    func fetchSystemAlbums() async -> [PhotoGroup] {
+        let albums = await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Saved"])
+        return albums
     }
 }

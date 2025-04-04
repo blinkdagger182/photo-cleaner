@@ -94,6 +94,9 @@ struct SwipeCardView: View {
     private func handleLeftSwipe() {
         let asset = group.assets[currentIndex]
         photoManager.softDeleteAsset(asset)
+        toast.show("Photo deleted", action: "Undo") {
+               restoreAsset(asset)
+           }
         Task { await moveToNext() }
         withAnimation(.spring()) { offset = .zero }
     }
