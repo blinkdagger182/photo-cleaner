@@ -108,7 +108,6 @@ struct SwipeCardView: View {
     private func handleLeftSwipe() {
         let asset = group.assets[currentIndex]
 
-        // Remove from the main group
         photoManager.removeAsset(asset, fromGroupWithDate: group.monthDate)
         photoManager.addAsset(asset, toAlbumNamed: "Deleted")
 
@@ -119,10 +118,17 @@ struct SwipeCardView: View {
         toast.show("Photo deleted", action: "Undo") {
             photoManager.restoreToPhotoGroups(asset, inMonth: group.monthDate)
             refreshCard(at: currentIndex, with: asset)
+
+            // ✅ Save index after Undo
+            photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
         }
+
+        // ✅ Save before moving forward
+        photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
 
         Task { await moveToNext() }
     }
+
 
     private func handleBookmark() {
         let asset = group.assets[currentIndex]
@@ -131,15 +137,23 @@ struct SwipeCardView: View {
         toast.show("Photo saved", action: "Undo") {
             photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
             refreshCard(at: currentIndex, with: asset)
+
+            // ✅ Save index after Undo
+            photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
         }
+
+        // ✅ Save before moving forward
+        photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
 
         Task { await moveToNext() }
     }
 
     private func handleRightSwipe() {
+        // ✅ Save before moving forward
+        photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
+
         Task { await moveToNext() }
     }
-
     
     private func refreshCard(at index: Int, with asset: PHAsset) {
         if index < preloadedImages.count {
