@@ -89,7 +89,7 @@ struct SwipeCardView: View {
         .task {
             await preloadImages(from: 0)
         }
-        .onChange(of: currentIndex) {
+        .onDisappear {
             photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
         }
         .overlay(toast.overlayView, alignment: .bottom)

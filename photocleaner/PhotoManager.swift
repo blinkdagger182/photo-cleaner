@@ -8,7 +8,9 @@ class PhotoManager: ObservableObject {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @Published var photoGroups: [PhotoGroup] = []
     @Published var yearGroups: [YearGroup] = []
-
+    
+    private let lastViewedIndexKey = "LastViewedIndex"
+    
     func requestAuthorization() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         authorizationStatus = status
@@ -213,7 +215,16 @@ class PhotoManager: ObservableObject {
             var group = photoGroups[idx]
             group.lastViewedIndex = index
             photoGroups[idx] = group
+
+            saveLastViewedIndex(index, for: groupID)
         }
     }
 
+    func saveLastViewedIndex(_ index: Int, for groupID: UUID) {
+        UserDefaults.standard.set(index, forKey: "\(lastViewedIndexKey)_\(groupID.uuidString)")
+    }
+
+    func loadLastViewedIndex(for groupID: UUID) -> Int {
+        UserDefaults.standard.integer(forKey: "\(lastViewedIndexKey)_\(groupID.uuidString)")
+    }
 }
