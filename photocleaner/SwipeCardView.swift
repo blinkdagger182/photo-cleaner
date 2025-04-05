@@ -17,6 +17,8 @@ struct SwipeCardView: View {
     @State private var isLoading = false
     @State private var viewHasAppeared = false
     @State private var hasStartedLoading = false
+    @State private var showDeletePreview = false
+    @State private var deletePreviewEntries: [DeletePreviewEntry] = []
 
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
 
@@ -91,14 +93,14 @@ struct SwipeCardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
+                    Button("Next") {
+                            prepareDeletePreview()
+                        }
+                    .disabled(group.assets.isEmpty)
                 }
             }
         }
         .onAppear {
-            print("👀 onAppear - assets count:", group.assets.count)
             viewHasAppeared = true
             tryStartPreloading()
         }
@@ -107,26 +109,30 @@ struct SwipeCardView: View {
             saveProgress()
         }
         .overlay(toast.overlayView, alignment: .bottom)
+        .fullScreenCover(isPresented: $showDeletePreview) {
+            DeletePreviewView(
+                entries: $deletePreviewEntries,
+                forceRefresh: $forceRefresh
+            )
+            .environmentObject(photoManager)
+            .environmentObject(toast)
+        }
     }
 
     private func tryStartPreloading() {
-        print("📦 tryStartPreloading() called")
         guard viewHasAppeared,
               group.assets.count > 0,
               !hasStartedLoading else {
-            print("⛔️ Not starting - appeared: \(viewHasAppeared), assets: \(group.assets.count), started: \(hasStartedLoading)")
             return
         }
 
         hasStartedLoading = true
         isLoading = true
-        print("✅ Starting preload")
 
         Task {
             resetViewState()
             await preloadImages(from: 0)
             isLoading = false
-            print("✅ Finished preload")
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 forceRefresh.toggle()
@@ -176,7 +182,7 @@ struct SwipeCardView: View {
         let asset = group.assets[currentIndex]
         photoManager.removeAsset(asset, fromGroupWithDate: group.monthDate)
         photoManager.addAsset(asset, toAlbumNamed: "Deleted")
-
+        photoManager.markForDeletion(asset)
         Task {
             await photoManager.refreshSystemAlbum(named: "Deleted")
         }
@@ -184,6 +190,7 @@ struct SwipeCardView: View {
         toast.show("Photo deleted", action: "Undo") {
             photoManager.restoreToPhotoGroups(asset, inMonth: group.monthDate)
             refreshCard(at: currentIndex, with: asset)
+            photoManager.unmarkForDeletion(asset)
         }
 
         Task { await moveToNext() }
@@ -192,10 +199,12 @@ struct SwipeCardView: View {
     private func handleBookmark() {
         let asset = group.assets[currentIndex]
         photoManager.bookmarkAsset(asset)
+        photoManager.markForFavourite(asset)
 
         toast.show("Photo saved", action: "Undo") {
             photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
             refreshCard(at: currentIndex, with: asset)
+            photoManager.unmarkForDeletion(asset)
         }
 
         Task { await moveToNext() }
@@ -294,6 +303,24 @@ struct SwipeCardView: View {
             preloadedImages[index] = image
         }
     }
+    private func prepareDeletePreview() {
+        var newEntries: [DeletePreviewEntry] = []
+
+        for (index, asset) in group.assets.enumerated() {
+            guard photoManager.isMarkedForDeletion(asset) else { continue }
+
+            if let optionalImage = preloadedImages[safe: index],
+               let loadedImage = optionalImage {
+                let size = asset.estimatedAssetSize
+                let entry = DeletePreviewEntry(asset: asset, image: loadedImage, fileSize: size)
+                newEntries.append(entry)
+            }
+        }
+
+        deletePreviewEntries = newEntries
+        showDeletePreview = true
+    }
+
 }
 
 struct CircleButton: View {

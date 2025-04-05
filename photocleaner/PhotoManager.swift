@@ -8,7 +8,9 @@ class PhotoManager: ObservableObject {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @Published var photoGroups: [PhotoGroup] = []
     @Published var yearGroups: [YearGroup] = []
-    
+    @Published var markedForDeletion: Set<String> = []   // asset.localIdentifier
+    @Published var markedForBookmark: Set<String> = []
+
     private let lastViewedIndexKey = "LastViewedIndex"
     
     func requestAuthorization() async {
@@ -22,10 +24,6 @@ class PhotoManager: ObservableObject {
 
             self.photoGroups = await months + systemAlbums
             self.yearGroups = await years
-            print("years:", await years)
-            print("systemAlbums:", await systemAlbums)
-            print("months:", await months)
-            print("photoGroups:", photoGroups)
         }
     }
 
@@ -226,5 +224,27 @@ class PhotoManager: ObservableObject {
 
     func loadLastViewedIndex(for groupID: UUID) -> Int {
         UserDefaults.standard.integer(forKey: "\(lastViewedIndexKey)_\(groupID.uuidString)")
+    }
+    func markForDeletion(_ asset: PHAsset) {
+        markedForDeletion.insert(asset.localIdentifier)
+    }
+
+    func unmarkForDeletion(_ asset: PHAsset) {
+        markedForDeletion.remove(asset.localIdentifier)
+    }
+
+    func isMarkedForDeletion(_ asset: PHAsset) -> Bool {
+        markedForDeletion.contains(asset.localIdentifier)
+    }
+    func markForFavourite(_ asset: PHAsset) {
+        markedForBookmark.insert(asset.localIdentifier)
+    }
+
+    func unmarkForFavourite(_ asset: PHAsset) {
+        markedForBookmark.remove(asset.localIdentifier)
+    }
+
+    func isMarkedForFavourite(_ asset: PHAsset) -> Bool {
+        markedForBookmark.contains(asset.localIdentifier)
     }
 }

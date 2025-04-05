@@ -255,7 +255,7 @@
 				DEVELOPMENT_TEAM = 6TS2UMZGH5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = cln.;
+				INFOPLIST_KEY_CFBundleDisplayName = clean.;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "\"We want to access to deleteeez\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -289,7 +289,7 @@
 				DEVELOPMENT_TEAM = 6TS2UMZGH5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = cln.;
+				INFOPLIST_KEY_CFBundleDisplayName = clean.;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "\"We want to access to deleteeez\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
