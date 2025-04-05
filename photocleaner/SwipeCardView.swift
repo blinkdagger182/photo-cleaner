@@ -4,6 +4,7 @@ import UIKit
 
 struct SwipeCardView: View {
     let group: PhotoGroup
+    @Binding var forceRefresh: Bool
 
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
@@ -14,10 +15,13 @@ struct SwipeCardView: View {
     @State private var preloadedImages: [UIImage?] = []
     @State private var loadedCount = 0
     @State private var isLoading = false
+    @State private var viewHasAppeared = false
+    @State private var hasStartedLoading = false
 
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
 
     var body: some View {
+
         NavigationStack {
             GeometryReader { geometry in
                 VStack(spacing: 20) {
@@ -27,7 +31,7 @@ struct SwipeCardView: View {
                         if group.assets.isEmpty {
                             Text("No photos available")
                                 .foregroundColor(.gray)
-                        } else if preloadedImages.isEmpty {
+                        } else if isLoading || preloadedImages.isEmpty {
                             ProgressView("Loading...")
                         } else {
                             ForEach((0..<min(3, group.assets.count - currentIndex)).reversed(), id: \.self) { index in
@@ -60,17 +64,12 @@ struct SwipeCardView: View {
 
                     Spacer()
 
-                    if isLoading && currentIndex >= preloadedImages.count {
-                        ProgressView("Loading...")
-                            .padding(.bottom, 20)
-                    } else {
-                        Text("\(currentIndex + 1)/\(group.assets.count)")
-                            .font(.caption)
-                            .padding(8)
-                            .background(Color.black.opacity(0.6))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                    }
+                    Text("\(currentIndex + 1)/\(group.assets.count)")
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color.black.opacity(0.6))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
 
                     HStack(spacing: 40) {
                         CircleButton(icon: "trash", tint: .red) {
@@ -97,26 +96,50 @@ struct SwipeCardView: View {
                     }
                 }
             }
-            .onAppear {
-                Task {
-                    resetViewState()
-                    await preloadImages(from: 0)
-                }
-            }
         }
+        .onAppear {
+            print("👀 onAppear - assets count:", group.assets.count)
+            viewHasAppeared = true
+            tryStartPreloading()
+        }
+        .id(forceRefresh)
         .onDisappear {
             saveProgress()
         }
         .overlay(toast.overlayView, alignment: .bottom)
-        .id(group.id) // <—— This is the crucial fix: forces view refresh
     }
+
+    private func tryStartPreloading() {
+        print("📦 tryStartPreloading() called")
+        guard viewHasAppeared,
+              group.assets.count > 0,
+              !hasStartedLoading else {
+            print("⛔️ Not starting - appeared: \(viewHasAppeared), assets: \(group.assets.count), started: \(hasStartedLoading)")
+            return
+        }
+
+        hasStartedLoading = true
+        isLoading = true
+        print("✅ Starting preload")
+
+        Task {
+            resetViewState()
+            await preloadImages(from: 0)
+            isLoading = false
+            print("✅ Finished preload")
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                forceRefresh.toggle()
+            }
+        }
+    }
+
 
     private func resetViewState() {
         currentIndex = UserDefaults.standard.integer(forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
         offset = .zero
         preloadedImages = []
         loadedCount = 0
-        isLoading = false
     }
 
     private func saveProgress() {
@@ -129,7 +152,7 @@ struct SwipeCardView: View {
             .fill(Color(white: 0.95))
             .frame(width: width)
             .shadow(radius: 8)
-            .overlay(ProgressView().progressViewStyle(CircularProgressViewStyle()))
+            .overlay(ProgressView())
             .padding()
             .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
                     y: CGFloat(index * 6))

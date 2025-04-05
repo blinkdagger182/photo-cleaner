@@ -7,8 +7,8 @@ struct PhotoGroupView: View {
     @EnvironmentObject var toast: ToastService
 
     @State private var selectedGroup: PhotoGroup?
-    @State private var showingPhotoReview = false
     @State private var viewByYear = true
+    @State private var shouldForceRefresh = false
 
     let columns = [
         GridItem(.flexible()),
@@ -37,12 +37,11 @@ struct PhotoGroupView: View {
                                         .padding(.horizontal)
 
                                     LazyVGrid(columns: columns, spacing: 16) {
-                                        ForEach(yearGroup.months, id: \.id) { group in
+                                        ForEach(yearGroup.months, id: \ .id) { group in
                                             AlbumCell(group: group)
                                                 .onTapGesture {
                                                     print("Tapped album: \(group.title)")
                                                     selectedGroup = group
-                                                    showingPhotoReview = true
                                                 }
                                         }
                                     }
@@ -53,12 +52,11 @@ struct PhotoGroupView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 sectionHeader(title: "My Albums")
                                 LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
+                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \ .id) { group in
                                         AlbumCell(group: group)
                                             .onTapGesture {
                                                 print("Tapped system album: \(group.title)")
                                                 selectedGroup = group
-                                                showingPhotoReview = true
                                             }
                                     }
                                 }
@@ -72,12 +70,13 @@ struct PhotoGroupView: View {
             }
             .navigationTitle("Albums")
         }
-        .sheet(isPresented: $showingPhotoReview) {
-            if let group = selectedGroup {
-                SwipeCardView(group: group)
-                    .environmentObject(photoManager)
-                    .environmentObject(toast)
-            }
+        .sheet(item: $selectedGroup) { group in
+            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
+                .onAppear {
+                    print("📤 Showing SwipeCardView for:", group.title, "Asset count:", group.assets.count)
+                }
+                .environmentObject(photoManager)
+                .environmentObject(toast)
         }
     }
 
