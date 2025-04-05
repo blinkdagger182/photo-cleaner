@@ -6,37 +6,67 @@ struct SplashView: View {
     @StateObject var toast = ToastService()
     @State private var fadeOut = false
 
+    // Tagline rotation
+    @State private var splashTaglines = [
+        "Bye, clutter.",
+        "Make space. Keep memories.",
+        "So fresh. So cln.",
+        "Storage? Sorted.",
+        "Tap. Swipe. Clear.",
+        "Lighten up.",
+        "Clean phone. Clear mind.",
+        "cln. starts now.",
+        "It’s cln. time."
+    ]
+    @State private var currentIndex = 0
+    @State private var currentTagline = ""
+
     var body: some View {
         ZStack {
             if isActive {
                 ContentView()
                     .environmentObject(photoManager)
                     .environmentObject(toast)
-                    .transition(.opacity) // smooth fade
+                    .transition(.opacity)
             } else {
-                VStack {
+                VStack(spacing: 16) {
                     Image("splashscreen")
                         .resizable()
                         .frame(width: 100, height: 100)
                         .opacity(fadeOut ? 0 : 1)
-                    Text("Finding you good news...")
+
+                    Text(currentTagline)
                         .font(.headline)
+                        .transition(.opacity)
+                        .id(currentTagline)
                         .opacity(fadeOut ? 0 : 1)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.white)
                 .ignoresSafeArea()
                 .task {
+                    // Set first tagline
+                    currentTagline = splashTaglines[currentIndex]
+
+                    // Rotate taglines every 1.5 seconds
+                    Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { timer in
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentIndex = (currentIndex + 1) % splashTaglines.count
+                            currentTagline = splashTaglines[currentIndex]
+                        }
+                    }
+
+                    // Request permissions
                     await photoManager.requestAuthorization()
 
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    // Show splash for 4 seconds
+                    try? await Task.sleep(nanoseconds: 4_000_000_000)
 
-                    // Smooth fade out before switching
+                    // Fade out animation
                     withAnimation(.easeOut(duration: 0.5)) {
                         fadeOut = true
                     }
 
-                    // Wait a bit for the fade animation to finish
                     try? await Task.sleep(nanoseconds: 500_000_000)
 
                     withAnimation {

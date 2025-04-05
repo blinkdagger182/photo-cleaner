@@ -9,16 +9,13 @@ struct SwipeCardView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var toast: ToastService
 
-    @State private var currentIndex: Int
+    @State private var currentIndex: Int = 0
     @State private var offset = CGSize.zero
     @State private var preloadedImages: [UIImage?] = []
     @State private var loadedCount = 0
     @State private var isLoading = false
 
-    init(group: PhotoGroup) {
-        self.group = group
-        _currentIndex = State(initialValue: group.lastViewedIndex)
-    }
+    private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
 
     var body: some View {
         NavigationStack {
@@ -27,38 +24,59 @@ struct SwipeCardView: View {
                     Spacer()
 
                     ZStack {
-                        ForEach((0..<min(3, preloadedImages.count - currentIndex)).reversed(), id: \.self) { index in
-                            let actualIndex = currentIndex + index
-                            if actualIndex < preloadedImages.count, let image = preloadedImages[actualIndex] {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: geometry.size.width * 0.85)
-                                    .padding()
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                                    .shadow(radius: 8)
-                                    .offset(x: index == 0 ? offset.width : CGFloat(index * 6), y: CGFloat(index * 6))
-                                    .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
-                                    .zIndex(Double(-index))
-                                    .gesture(
-                                        index == 0 ? DragGesture()
-                                            .onChanged { offset = $0.translation }
-                                            .onEnded { handleSwipeGesture($0) }
-                                        : nil
-                                    )
+                        if group.assets.isEmpty {
+                            VStack {
+                                Text("No photos available")
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+                        } else {
+                            ForEach((0..<min(3, group.assets.count - currentIndex)).reversed(), id: \.self) { index in
+                                let actualIndex = currentIndex + index
+                                if actualIndex < preloadedImages.count {
+                                    if let image = preloadedImages[actualIndex] {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: geometry.size.width * 0.85)
+                                            .padding()
+                                            .background(Color.white)
+                                            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                                            .shadow(radius: 8)
+                                            .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
+                                                    y: CGFloat(index * 6))
+                                            .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
+                                            .zIndex(Double(-index))
+                                            .gesture(
+                                                index == 0 ? DragGesture()
+                                                    .onChanged { offset = $0.translation }
+                                                    .onEnded { handleSwipeGesture($0) }
+                                                : nil
+                                            )
+                                    } else {
+                                        spinnerCard(width: geometry.size.width * 0.85, index: index)
+                                    }
+                                } else {
+                                    spinnerCard(width: geometry.size.width * 0.85, index: index)
+                                }
                             }
                         }
                     }
 
                     Spacer()
 
-                    Text("\(currentIndex + 1)/\(group.assets.count)")
-                        .font(.caption)
-                        .padding(8)
-                        .background(Color.black.opacity(0.6))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+                    if isLoading && currentIndex >= preloadedImages.count {
+                        ProgressView("Loading...")
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .padding(.bottom, 20)
+                    } else {
+                        Text("\(currentIndex + 1)/\(group.assets.count)")
+                            .font(.caption)
+                            .padding(8)
+                            .background(Color.black.opacity(0.6))
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
 
                     HStack(spacing: 40) {
                         CircleButton(icon: "trash", tint: .red) {
@@ -87,12 +105,31 @@ struct SwipeCardView: View {
             }
         }
         .task {
+            currentIndex = UserDefaults.standard.integer(forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
             await preloadImages(from: 0)
         }
         .onDisappear {
             photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
+            UserDefaults.standard.set(currentIndex, forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
         }
         .overlay(toast.overlayView, alignment: .bottom)
+    }
+
+    private func spinnerCard(width: CGFloat, index: Int) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color(white: 0.95))
+                .frame(width: width)
+                .shadow(radius: 8)
+
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+        }
+        .padding()
+        .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
+                y: CGFloat(index * 6))
+        .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
+        .zIndex(Double(-index))
     }
 
     private func handleSwipeGesture(_ value: DragGesture.Value) {
@@ -118,17 +155,13 @@ struct SwipeCardView: View {
         toast.show("Photo deleted", action: "Undo") {
             photoManager.restoreToPhotoGroups(asset, inMonth: group.monthDate)
             refreshCard(at: currentIndex, with: asset)
-
-            // ✅ Save index after Undo
             photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
         }
 
-        // ✅ Save before moving forward
         photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
 
         Task { await moveToNext() }
     }
-
 
     private func handleBookmark() {
         let asset = group.assets[currentIndex]
@@ -137,24 +170,19 @@ struct SwipeCardView: View {
         toast.show("Photo saved", action: "Undo") {
             photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
             refreshCard(at: currentIndex, with: asset)
-
-            // ✅ Save index after Undo
             photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
         }
 
-        // ✅ Save before moving forward
         photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
 
         Task { await moveToNext() }
     }
 
     private func handleRightSwipe() {
-        // ✅ Save before moving forward
         photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
-
         Task { await moveToNext() }
     }
-    
+
     private func refreshCard(at index: Int, with asset: PHAsset) {
         if index < preloadedImages.count {
             preloadedImages[index] = nil
@@ -168,7 +196,6 @@ struct SwipeCardView: View {
             await preloadSingleImage(at: index)
         }
 
-        // Go back to the restored photo
         if currentIndex > 0 {
             currentIndex -= 1
         }
@@ -187,10 +214,8 @@ struct SwipeCardView: View {
             isLoading = false
         }
 
-        if nextIndex < preloadedImages.count {
+        if nextIndex < group.assets.count {
             currentIndex = nextIndex
-        } else {
-            dismiss()
         }
     }
 
@@ -248,6 +273,7 @@ struct SwipeCardView: View {
         }
     }
 }
+
 struct CircleButton: View {
     let icon: String
     let tint: Color
