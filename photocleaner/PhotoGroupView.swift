@@ -9,6 +9,7 @@ struct PhotoGroupView: View {
     @State private var selectedGroup: PhotoGroup?
     @State private var viewByYear = true
     @State private var shouldForceRefresh = false
+    @State private var fadeIn = false
 
     let columns = [
         GridItem(.flexible()),
@@ -20,18 +21,20 @@ struct PhotoGroupView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     
-                    Spacer()
-
-                        Text("cln.")
-                            .font(.system(size: 40, weight: .heavy))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.red, .orange, .green, .yellow],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .offset(y: 6)
+                    HStack {
+                        Spacer() // Pushes content to the right
+                        Image("CLN")
+                            .resizable()
+                            .frame(width: 100, height: 100)
+                            .opacity(fadeIn ? 1 : 0)
+                            .onAppear {
+                                withAnimation(.easeIn(duration: 0.5)) {
+                                    fadeIn = true
+                                }
+                            }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 16)
                     // 🔄 Top Row: Picker and cln. logo
                     HStack(alignment: .bottom) {
                         Picker("View Mode", selection: $viewByYear) {
@@ -43,7 +46,6 @@ struct PhotoGroupView: View {
 
                     }
                     .padding(.horizontal)
-                    .padding(.top, 12)
                     .padding(.bottom, 8)
 
                     // 📅 Main content

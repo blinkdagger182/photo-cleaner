@@ -32,9 +32,9 @@ struct SplashView: View {
                     .transition(.opacity)
             } else {
                 VStack(spacing: 16) {
-                    Image("splashscreen")
+                    Image("CLN")
                         .resizable()
-                        .frame(width: 100, height: 100)
+                        .frame(width: 150, height: 150)
                         .opacity(fadeOut ? 0 : 1)
 
                     Text(currentTagline)
