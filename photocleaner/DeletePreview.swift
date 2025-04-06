@@ -125,7 +125,7 @@ struct DeletePreviewView: View {
             // ✅ Refresh Deleted album AND monthly albums
             await photoManager.refreshAllPhotoGroups()
             await photoManager.refreshSystemAlbum(named: "Deleted")
-
+            print("refresh")
             isDeleting = false
             deletionComplete = true
 

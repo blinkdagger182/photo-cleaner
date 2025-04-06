@@ -73,7 +73,7 @@ struct PhotoGroupView: View {
         .sheet(item: $selectedGroup) { group in
             SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
                 .onAppear {
-                    print("📤 Showing SwipeCardView for:", group.title, "Asset count:", group.assets.count)
+                    print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.assets.count)
                 }
                 .environmentObject(photoManager)
                 .environmentObject(toast)
@@ -126,13 +126,20 @@ struct AlbumCell: View {
     }
 
     private func loadThumbnail() async {
-        guard let asset = group.thumbnailAsset else { return }
+        guard !group.assets.isEmpty else { return }
+
+        let key = "LastViewedIndex_\(group.id.uuidString)"
+        let savedIndex = UserDefaults.standard.integer(forKey: key)
+        let safeIndex = min(savedIndex, group.assets.count - 1)
+        let asset = group.assets[safeIndex]
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
         options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
 
-        let size = CGSize(width: 200, height: 200)
+        let size = CGSize(width: 600, height: 600)
 
         thumbnail = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(

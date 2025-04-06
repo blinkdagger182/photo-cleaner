@@ -12,77 +12,91 @@ class PhotoManager: ObservableObject {
     @Published var markedForBookmark: Set<String> = []
 
     private let lastViewedIndexKey = "LastViewedIndex"
-    
+
     func requestAuthorization() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         authorizationStatus = status
 
         if status == .authorized || status == .limited {
-            async let months = fetchPhotoGroupsByMonth()
             async let years = fetchPhotoGroupsByYearAndMonth()
             async let systemAlbums = fetchSystemAlbums()
 
-            self.photoGroups = await months + systemAlbums
-            self.yearGroups = await years
+            let fetchedYears = await years
+            let fetchedSystemAlbums = await systemAlbums
+            self.yearGroups = fetchedYears
+            self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
+            dump(yearGroups)
+            dump(photoGroups)
         }
     }
 
-    func fetchPhotoGroupsByMonth() async -> [PhotoGroup] {
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+//    func fetchPhotoGroupsByMonth() async -> [PhotoGroup] {
+//        let fetchOptions = PHFetchOptions()
+//        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+//        let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+//
+//        var groupedAssets: [Date: [PHAsset]] = [:]
+//        let calendar = Calendar.current
+//
+//        allPhotos.enumerateObjects { asset, _, _ in
+//            if !self.markedForDeletion.contains(asset.localIdentifier),
+//               let date = asset.creationDate,
+//               let monthDate = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) {
+//                groupedAssets[monthDate, default: []].append(asset)
+//            }
+//        }
+//
+//        let formatter = DateFormatter()
+//        formatter.dateFormat = "MMMM yyyy"
+//
+//        let groups = groupedAssets.map { (monthDate, assets) in
+//            PhotoGroup(assets: assets, title: formatter.string(from: monthDate), monthDate: monthDate)
+//        }
+//
+//        return groups.sorted { ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast) }
+//    }
 
-        var groupedAssets: [Date: [PHAsset]] = [:]
-        let calendar = Calendar.current
-
-        allPhotos.enumerateObjects { asset, _, _ in
-            if let date = asset.creationDate,
-               let monthDate = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) {
-                groupedAssets[monthDate, default: []].append(asset)
-            }
-        }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-
-        let groups = groupedAssets.map { (monthDate, assets) in
-            PhotoGroup(assets: assets, title: formatter.string(from: monthDate), monthDate: monthDate)
-        }
-
-        return groups.sorted { ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast) }
-    }
-
+    
     func fetchPhotoGroupsByYearAndMonth() async -> [YearGroup] {
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
 
-        var monthGroups: [Date: [PHAsset]] = [:]
+        var groupedByMonth: [Date: [PHAsset]] = [:]
         let calendar = Calendar.current
 
         allPhotos.enumerateObjects { asset, _, _ in
-            if let date = asset.creationDate,
+            if !self.markedForDeletion.contains(asset.localIdentifier),
+               let date = asset.creationDate,
                let monthDate = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) {
-                monthGroups[monthDate, default: []].append(asset)
+                groupedByMonth[monthDate, default: []].append(asset)
             }
         }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMMM yyyy"
 
-        let photoGroups = monthGroups.map { (monthDate, assets) in
-            PhotoGroup(assets: assets, title: formatter.string(from: monthDate), monthDate: monthDate)
+        var yearMap: [Int: [PhotoGroup]] = [:]
+        for (monthDate, assets) in groupedByMonth {
+            let components = calendar.dateComponents([.year, .month], from: monthDate)
+            let year = components.year ?? 0
+            let title = dateFormatter.string(from: monthDate)
+
+            let group = PhotoGroup(assets: assets, title: title, monthDate: monthDate)
+            yearMap[year, default: []].append(group)
         }
 
-        let groupedByYear = Dictionary(grouping: photoGroups) {
-            Calendar.current.component(.year, from: $0.monthDate ?? .distantPast)
+        let yearGroups = yearMap.map { (year, photoGroups) in
+            YearGroup(
+                id: year,
+                year: year,
+                months: photoGroups.sorted { ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast) }
+            )
         }
 
-        return groupedByYear.map { (year, groups) in
-            YearGroup(id: year, year: year, months: groups.sorted { ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast) })
-        }.sorted { $0.year > $1.year }
+        return yearGroups.sorted { ($0.year) > ($1.year) }
     }
-
+    
     func fetchSystemAlbums() async -> [PhotoGroup] {
         await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Saved"])
     }
@@ -202,9 +216,9 @@ class PhotoManager: ObservableObject {
     }
 
     func refreshAllPhotoGroups() async {
-        async let months = fetchPhotoGroupsByMonth()
+//        async let months = fetchPhotoGroupsByMonth()
         async let system = fetchSystemAlbums()
-        self.photoGroups = await months + system
+        self.photoGroups = await system
         self.yearGroups = await fetchPhotoGroupsByYearAndMonth()
     }
     
@@ -246,5 +260,38 @@ class PhotoManager: ObservableObject {
 
     func isMarkedForFavourite(_ asset: PHAsset) -> Bool {
         markedForBookmark.contains(asset.localIdentifier)
+    }
+    func fetchAlbumCoverImage(for group: PhotoGroup, completion: @escaping (UIImage?) -> Void) {
+        guard !group.assets.isEmpty else {
+            completion(nil)
+            return
+        }
+
+        let key = "LastViewedIndex_\(group.id.uuidString)"
+        let savedIndex = UserDefaults.standard.integer(forKey: key)
+        let safeIndex = min(savedIndex, group.assets.count - 1)
+
+        let asset = group.assets[safeIndex]
+
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+
+        PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: CGSize(width: 600, height: 600),
+            contentMode: .aspectFill,
+            options: options
+        ) { image, _ in
+            completion(image)
+        }
+    }
+    func handleLeftSwipe(asset: PHAsset, monthDate: Date?) async {
+        self.markForDeletion(asset)
+        self.removeAsset(asset, fromGroupWithDate: monthDate)
+        self.addAsset(asset, toAlbumNamed: "Deleted")
+        await self.refreshAllPhotoGroups()
     }
 }
