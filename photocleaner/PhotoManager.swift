@@ -294,4 +294,17 @@ class PhotoManager: ObservableObject {
         self.addAsset(asset, toAlbumNamed: "Deleted")
         await self.refreshAllPhotoGroups()
     }
+    func hardDeleteAssets(_ assets: [PHAsset]) async {
+            guard !assets.isEmpty else { return }
+
+            try? await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.deleteAssets(assets as NSArray)
+            }
+
+            for asset in assets {
+                self.unmarkForDeletion(asset)
+            }
+
+            await self.refreshAllPhotoGroups()
+        }
 }

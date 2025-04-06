@@ -40,18 +40,19 @@ struct DeletePreviewView: View {
     }
 
     var body: some View {
-        HStack {
-            Spacer()
-            Button(action: {
-                dismiss()
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.secondary)
-            }
-            .padding([.top, .trailing], 16)
-        }
         VStack(spacing: 16) {
+            HStack {
+                Spacer()
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+                }
+                .padding([.top, .trailing], 16)
+            }
+
             Text("Ready to Clean Up?").font(.title).bold()
             Text("You're about to delete \(selectedCount) photos\nFree up \(formattedSize) of storage.")
                 .multilineTextAlignment(.center)
@@ -84,6 +85,7 @@ struct DeletePreviewView: View {
                             }
                     }
                 }
+                .padding(.horizontal)
             }
 
             if deletionComplete {
@@ -93,16 +95,16 @@ struct DeletePreviewView: View {
             } else if isDeleting {
                 ProgressView("Deleting…")
             } else {
-                Button("Delete") {
-                    deleteSelectedPhotos()
+                Button(action: deleteSelectedPhotos) {
+                    Text("Delete")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.red)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-                .padding(.horizontal)
             }
         }
         .padding()
@@ -114,18 +116,11 @@ struct DeletePreviewView: View {
     private func deleteSelectedPhotos() {
         isDeleting = true
         let toDelete = entries.filter { selectedEntries.contains($0.id) }
-
-        for entry in toDelete {
-            photoManager.removeAsset(entry.asset, fromGroupWithDate: nil)
-            photoManager.addAsset(entry.asset, toAlbumNamed: "Deleted")
-            photoManager.unmarkForDeletion(entry.asset) // cleanup global state
-        }
+        let assetsToDelete = toDelete.map { $0.asset }
 
         Task { @MainActor in
-            // ✅ Refresh Deleted album AND monthly albums
-            await photoManager.refreshAllPhotoGroups()
+            await photoManager.hardDeleteAssets(assetsToDelete)
             await photoManager.refreshSystemAlbum(named: "Deleted")
-            print("refresh")
             isDeleting = false
             deletionComplete = true
 
@@ -135,5 +130,4 @@ struct DeletePreviewView: View {
             }
         }
     }
-
 }

@@ -320,6 +320,8 @@ struct SwipeCardView: View {
         deletePreviewEntries = newEntries
         showDeletePreview = true
     }
+    
+    
 
 }
 
