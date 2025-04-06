@@ -17,16 +17,34 @@ struct PhotoGroupView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Picker("View Mode", selection: $viewByYear) {
-                    Text("By Year").tag(true)
-                    Text("My Albums").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Large clean. header
+                    VStack {
+                        Text("clean.")
+                            .font(.system(size: 56, weight: .bold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.red, .orange, .green, .yellow],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .padding(.top, 24)
+                            .padding(.bottom, 16)
+                    }
+                    .frame(maxWidth: .infinity)
 
-                ScrollView {
+                    // Segmented Picker
+                    Picker("View Mode", selection: $viewByYear) {
+                        Text("By Year").tag(true)
+                        Text("My Albums").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+
+                    // Album sections
                     VStack(alignment: .leading, spacing: 20) {
                         if viewByYear {
                             ForEach(photoManager.yearGroups) { yearGroup in
@@ -37,10 +55,9 @@ struct PhotoGroupView: View {
                                         .padding(.horizontal)
 
                                     LazyVGrid(columns: columns, spacing: 16) {
-                                        ForEach(yearGroup.months, id: \ .id) { group in
+                                        ForEach(yearGroup.months, id: \.id) { group in
                                             AlbumCell(group: group)
                                                 .onTapGesture {
-                                                    print("Tapped album: \(group.title)")
                                                     selectedGroup = group
                                                 }
                                         }
@@ -52,23 +69,20 @@ struct PhotoGroupView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 sectionHeader(title: "My Albums")
                                 LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \ .id) { group in
+                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
                                         AlbumCell(group: group)
                                             .onTapGesture {
-                                                print("Tapped system album: \(group.title)")
                                                 selectedGroup = group
                                             }
                                     }
                                 }
                                 .padding(.horizontal)
-
                                 Spacer(minLength: 40)
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Albums")
         }
         .sheet(item: $selectedGroup) { group in
             SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)

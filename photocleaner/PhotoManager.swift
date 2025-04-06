@@ -25,8 +25,6 @@ class PhotoManager: ObservableObject {
             let fetchedSystemAlbums = await systemAlbums
             self.yearGroups = fetchedYears
             self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
-            dump(yearGroups)
-            dump(photoGroups)
         }
     }
 
