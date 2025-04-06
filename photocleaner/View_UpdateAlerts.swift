@@ -7,7 +7,7 @@ extension View {
                 updateService.shouldForceUpdate
             }, set: { _ in })) {
                 Button("Update Now") {
-                    if let url = URL(string: "https://apps.apple.com/app/idYOUR_APP_ID") {
+                    if let url = URL(string: "https://apps.apple.com/app/com.riskcreates.cln") {
                         UIApplication.shared.open(url)
                     }
                 }

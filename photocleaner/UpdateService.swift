@@ -43,9 +43,11 @@ class UpdateService: ObservableObject {
                     print("❌ No current version info found for \(currentVersion)")
                     return
                 }
+                print(currentInfo)
 
                 if !currentInfo.is_valid {
                     shouldForceUpdate = true
+                    shouldShowOptionalUpdate = false // ✅ important to disable sheet!
                     updateNotes = currentInfo.notes
                     return
                 }

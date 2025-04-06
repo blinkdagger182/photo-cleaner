@@ -51,7 +51,7 @@ struct SplashView: View {
                     currentTagline = splashTaglines[currentIndex]
 
                     // Rotate taglines every 1.5 seconds
-                    Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { timer in
+                    Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
                         withAnimation(.easeInOut(duration: 0.3)) {
                             currentIndex = (currentIndex + 1) % splashTaglines.count
                             currentTagline = splashTaglines[currentIndex]
@@ -76,15 +76,15 @@ struct SplashView: View {
                     }
                 }
             }
-
-            // 🚫 Force Update (blocks all interaction)
-            if updateService.shouldForceUpdate {
-                ForceUpdateOverlayView(notes: updateService.updateNotes)
-                    .transition(.opacity)
-                    .zIndex(999)
-                    .interactiveDismissDisabled(true)
-            }
         }
+
+        // 🚫 Force update: full-screen & undismissable
+        .fullScreenCover(isPresented: $updateService.shouldForceUpdate) {
+            ForceUpdateOverlayView(notes: updateService.updateNotes)
+        }
+        .interactiveDismissDisabled(true) // applies to fullScreenCover
+
+        // ⚠️ Optional update: dismissible
         .sheet(isPresented: $updateService.shouldShowOptionalUpdate) {
             OptionalUpdateSheet(
                 notes: updateService.updateNotes
@@ -93,6 +93,7 @@ struct SplashView: View {
                 updateService.shouldShowOptionalUpdate = false
             }
         }
+
         .animation(.easeInOut(duration: 0.3), value: isActive)
     }
 }
