@@ -19,11 +19,12 @@ struct SwipeCardView: View {
     @State private var hasStartedLoading = false
     @State private var showDeletePreview = false
     @State private var deletePreviewEntries: [DeletePreviewEntry] = []
+    @State private var swipeLabel: String? = nil
+    @State private var swipeLabelColor: Color = .green
 
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
 
     var body: some View {
-
         NavigationStack {
             GeometryReader { geometry in
                 VStack(spacing: 20) {
@@ -34,29 +35,67 @@ struct SwipeCardView: View {
                             Text("No photos available")
                                 .foregroundColor(.gray)
                         } else if isLoading || preloadedImages.isEmpty {
-                            ProgressView("Loading...")
+                            ProgressView("We are fetching images... \n Patience, young padawan..")
                         } else {
                             ForEach((0..<min(3, group.assets.count - currentIndex)).reversed(), id: \.self) { index in
                                 let actualIndex = currentIndex + index
                                 if actualIndex < preloadedImages.count, let image = preloadedImages[actualIndex] {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: geometry.size.width * 0.85)
-                                        .padding()
-                                        .background(Color.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                                        .shadow(radius: 8)
-                                        .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
-                                                y: CGFloat(index * 6))
-                                        .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
-                                        .zIndex(Double(-index))
-                                        .gesture(
-                                            index == 0 ? DragGesture()
-                                                .onChanged { offset = $0.translation }
-                                                .onEnded { handleSwipeGesture($0) }
-                                            : nil
-                                        )
+                                    ZStack {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: geometry.size.width * 0.85)
+                                            .padding()
+                                            .background(Color.white)
+                                            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                                            .shadow(radius: 8)
+
+                                        // Overlay label
+                                        if index == 0, let swipeLabel = swipeLabel {
+                                            Text(swipeLabel.uppercased())
+                                                .font(.system(size: 36, weight: .bold))
+                                                .foregroundColor(swipeLabelColor)
+                                                .padding(.horizontal, 20)
+                                                .padding(.vertical, 10)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .fill(Color.white.opacity(0.8))
+                                                        .overlay(
+                                                            RoundedRectangle(cornerRadius: 12)
+                                                                .stroke(swipeLabelColor, lineWidth: 3)
+                                                        )
+                                                )
+                                                .rotationEffect(.degrees(-15))
+                                                .opacity(1)
+                                                .offset(x: swipeLabel == "Keep" ? -40 : 40, y: -geometry.size.height / 4)
+                                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                                .animation(.easeInOut(duration: 0.2), value: swipeLabel)
+                                        }
+                                    }
+                                    .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
+                                            y: CGFloat(index * 6))
+                                    .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
+                                    .zIndex(Double(-index))
+                                    .gesture(
+                                        index == 0 ? DragGesture()
+                                            .onChanged { value in
+                                                offset = value.translation
+                                                if offset.width > 50 {
+                                                    swipeLabel = "Keep"
+                                                    swipeLabelColor = .green
+                                                } else if offset.width < -50 {
+                                                    swipeLabel = "Delete"
+                                                    swipeLabelColor = .red
+                                                } else {
+                                                    swipeLabel = nil
+                                                }
+                                            }
+                                            .onEnded { value in
+                                                handleSwipeGesture(value)
+                                                swipeLabel = nil
+                                            }
+                                        : nil
+                                    )
                                 } else {
                                     spinnerCard(width: geometry.size.width * 0.85, index: index)
                                 }
@@ -94,8 +133,8 @@ struct SwipeCardView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Next") {
-                            prepareDeletePreview()
-                        }
+                        prepareDeletePreview()
+                    }
                     .disabled(group.assets.isEmpty)
                 }
             }
@@ -119,6 +158,8 @@ struct SwipeCardView: View {
         }
     }
 
+    // MARK: - Helpers
+
     private func tryStartPreloading() {
         guard viewHasAppeared,
               group.assets.count > 0,
@@ -139,7 +180,6 @@ struct SwipeCardView: View {
             }
         }
     }
-
 
     private func resetViewState() {
         currentIndex = UserDefaults.standard.integer(forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
@@ -303,6 +343,7 @@ struct SwipeCardView: View {
             preloadedImages[index] = image
         }
     }
+
     private func prepareDeletePreview() {
         var newEntries: [DeletePreviewEntry] = []
 
@@ -320,9 +361,6 @@ struct SwipeCardView: View {
         deletePreviewEntries = newEntries
         showDeletePreview = true
     }
-    
-    
-
 }
 
 struct CircleButton: View {

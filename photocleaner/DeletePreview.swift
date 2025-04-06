@@ -54,7 +54,7 @@ struct DeletePreviewView: View {
             }
 
             Text("Ready to Clean Up?").font(.title).bold()
-            Text("You're about to delete \(selectedCount) photos\nFree up \(formattedSize) of storage.")
+            Text("You're about to delete \(selectedCount) photos\nFree up to \(formattedSize) of storage.")
                 .multilineTextAlignment(.center)
                 .font(.subheadline)
 
