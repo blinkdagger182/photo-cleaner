@@ -187,7 +187,7 @@ struct SwipeCardView: View {
             await photoManager.refreshSystemAlbum(named: "Deleted")
         }
 
-        toast.show("Photo deleted", action: "Undo") {
+        toast.show("Marked for deletion. Press Next to permanently delete from storage.", action: "Undo") {
             photoManager.restoreToPhotoGroups(asset, inMonth: group.monthDate)
             refreshCard(at: currentIndex, with: asset)
             photoManager.unmarkForDeletion(asset)
