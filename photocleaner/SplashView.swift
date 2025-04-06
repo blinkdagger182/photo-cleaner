@@ -3,7 +3,9 @@ import SwiftUI
 struct SplashView: View {
     @State private var isActive = false
     @StateObject private var photoManager = PhotoManager()
-    @StateObject var toast = ToastService()
+    @StateObject private var toast = ToastService()
+    @EnvironmentObject var updateService: UpdateService
+
     @State private var fadeOut = false
 
     // Tagline rotation
@@ -73,6 +75,22 @@ struct SplashView: View {
                         isActive = true
                     }
                 }
+            }
+
+            // 🚫 Force Update (blocks all interaction)
+            if updateService.shouldForceUpdate {
+                ForceUpdateOverlayView(notes: updateService.updateNotes)
+                    .transition(.opacity)
+                    .zIndex(999)
+                    .interactiveDismissDisabled(true)
+            }
+        }
+        .sheet(isPresented: $updateService.shouldShowOptionalUpdate) {
+            OptionalUpdateSheet(
+                notes: updateService.updateNotes
+            ) {
+                updateService.dismissedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+                updateService.shouldShowOptionalUpdate = false
             }
         }
         .animation(.easeInOut(duration: 0.3), value: isActive)

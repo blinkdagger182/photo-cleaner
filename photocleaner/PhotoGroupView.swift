@@ -19,10 +19,11 @@ struct PhotoGroupView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Large clean. header
-                    VStack {
-                        Text("clean.")
-                            .font(.system(size: 56, weight: .bold))
+                    
+                    Spacer()
+
+                        Text("cln.")
+                            .font(.system(size: 40, weight: .heavy))
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [.red, .orange, .green, .yellow],
@@ -30,21 +31,22 @@ struct PhotoGroupView: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .padding(.top, 24)
-                            .padding(.bottom, 16)
-                    }
-                    .frame(maxWidth: .infinity)
+                            .offset(y: 6)
+                    // 🔄 Top Row: Picker and cln. logo
+                    HStack(alignment: .bottom) {
+                        Picker("View Mode", selection: $viewByYear) {
+                            Text("By Year").tag(true)
+                            Text("My Albums").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity)
 
-                    // Segmented Picker
-                    Picker("View Mode", selection: $viewByYear) {
-                        Text("By Year").tag(true)
-                        Text("My Albums").tag(false)
                     }
-                    .pickerStyle(.segmented)
                     .padding(.horizontal)
+                    .padding(.top, 12)
                     .padding(.bottom, 8)
 
-                    // Album sections
+                    // 📅 Main content
                     VStack(alignment: .leading, spacing: 20) {
                         if viewByYear {
                             ForEach(photoManager.yearGroups) { yearGroup in
@@ -77,6 +79,7 @@ struct PhotoGroupView: View {
                                     }
                                 }
                                 .padding(.horizontal)
+
                                 Spacer(minLength: 40)
                             }
                         }
@@ -104,7 +107,6 @@ struct PhotoGroupView: View {
         .padding(.horizontal)
     }
 }
-
 struct AlbumCell: View {
     let group: PhotoGroup
     @State private var thumbnail: UIImage?

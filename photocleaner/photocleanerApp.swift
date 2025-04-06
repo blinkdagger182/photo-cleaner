@@ -1,21 +1,24 @@
-//
-//  photocleanerApp.swift
-//  photocleaner
-//
-//  Created by New User on 03/04/2025.
-//
-
 import SwiftUI
 
 @main
 struct photocleanerApp: App {
+    @StateObject var updateService = UpdateService.shared
+    @StateObject var photoManager = PhotoManager()
+    @StateObject var toast = ToastService()
+
     var body: some Scene {
         WindowGroup {
-            SplashView() // Shows after launch screen; can load ContentView
+            SplashView()
+                .environmentObject(updateService)
+                .environmentObject(photoManager)
+                .environmentObject(toast)
+                .task {
+                    await updateService.checkAppVersion()
+                }
         }
 
-        // 🚀 This is your native launch screen
         WindowGroup("Launch Screen", id: "Launch Screen") {
             LaunchScreen()
-        }    }
+        }
+    }
 }

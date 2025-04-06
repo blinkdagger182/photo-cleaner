@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD32DA2418F003F1AC9 /* Auth */; };
+		B23D8FD62DA2418F003F1AC9 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD52DA2418F003F1AC9 /* Functions */; };
+		B23D8FD82DA2418F003F1AC9 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD72DA2418F003F1AC9 /* PostgREST */; };
+		B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD92DA2418F003F1AC9 /* Realtime */; };
+		B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FDB2DA2418F003F1AC9 /* Storage */; };
+		B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B2FD4B622DA244CF005DD7C5 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = photocleaner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +32,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B23D8FD82DA2418F003F1AC9 /* PostgREST in Frameworks */,
+				B23D8FD62DA2418F003F1AC9 /* Functions in Frameworks */,
+				B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */,
+				B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */,
+				B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */,
+				B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -33,6 +48,7 @@
 			isa = PBXGroup;
 			children = (
 				B23D8F8F2D9E8250003F1AC9 /* photocleaner */,
+				B2FD4B612DA244CF005DD7C5 /* Frameworks */,
 				B23D8F8E2D9E8250003F1AC9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +59,13 @@
 				B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B2FD4B612DA244CF005DD7C5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -65,6 +88,12 @@
 			);
 			name = photocleaner;
 			packageProductDependencies = (
+				B23D8FD32DA2418F003F1AC9 /* Auth */,
+				B23D8FD52DA2418F003F1AC9 /* Functions */,
+				B23D8FD72DA2418F003F1AC9 /* PostgREST */,
+				B23D8FD92DA2418F003F1AC9 /* Realtime */,
+				B23D8FDB2DA2418F003F1AC9 /* Storage */,
+				B2FD4B622DA244CF005DD7C5 /* Supabase */,
 			);
 			productName = photocleaner;
 			productReference = B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */;
@@ -94,6 +123,9 @@
 			);
 			mainGroup = B23D8F842D9E8250003F1AC9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B23D8F8E2D9E8250003F1AC9 /* Products */;
 			projectDirPath = "";
@@ -257,7 +289,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = clean.;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "\"We want to access to deleteeez\"";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "\"Cln. requires access to your photos to work.\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -269,8 +301,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.riskcreatives.photocleaner;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.riskcreatives.cln;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -291,7 +323,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = clean.;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "\"We want to access to deleteeez\"";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "\"Cln. requires access to your photos to work.\"";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -303,8 +335,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.riskcreatives.photocleaner;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.riskcreatives.cln;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -334,6 +366,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B23D8FD32DA2418F003F1AC9 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		B23D8FD52DA2418F003F1AC9 /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		B23D8FD72DA2418F003F1AC9 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		B23D8FD92DA2418F003F1AC9 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		B23D8FDB2DA2418F003F1AC9 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		B2FD4B622DA244CF005DD7C5 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B23D8F852D9E8250003F1AC9 /* Project object */;
 }
