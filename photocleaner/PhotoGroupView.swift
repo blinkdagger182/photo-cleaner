@@ -25,7 +25,8 @@ struct PhotoGroupView: View {
                         Spacer() // Pushes content to the right
                         Image("CLN")
                             .resizable()
-                            .frame(width: 100, height: 100)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 50) // You can use width or height depending on layout
                             .opacity(fadeIn ? 1 : 0)
                             .onAppear {
                                 withAnimation(.easeIn(duration: 0.5)) {
@@ -46,6 +47,7 @@ struct PhotoGroupView: View {
 
                     }
                     .padding(.horizontal)
+                    .padding(.top, 12)
                     .padding(.bottom, 8)
 
                     // 📅 Main content
