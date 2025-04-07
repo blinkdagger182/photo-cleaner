@@ -13,10 +13,12 @@
 		B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD92DA2418F003F1AC9 /* Realtime */; };
 		B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FDB2DA2418F003F1AC9 /* Storage */; };
 		B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B2FD4B622DA244CF005DD7C5 /* Supabase */; };
+		B2FD4BE32DA41E94005DD7C5 /* PhotosUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B2FD4BE22DA41E93005DD7C5 /* PhotosUI.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = photocleaner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2FD4BE22DA41E93005DD7C5 /* PhotosUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhotosUI.framework; path = System/Library/Frameworks/PhotosUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -37,6 +39,7 @@
 				B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */,
 				B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */,
 				B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */,
+				B2FD4BE32DA41E94005DD7C5 /* PhotosUI.framework in Frameworks */,
 				B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -64,6 +67,7 @@
 		B2FD4B612DA244CF005DD7C5 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B2FD4BE22DA41E93005DD7C5 /* PhotosUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

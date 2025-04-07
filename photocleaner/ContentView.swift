@@ -21,6 +21,7 @@ struct ContentView: View {
                 if photoManager.photoGroups.isEmpty {
                     // 🔍 If no albums are grouped, but assets exist (e.g. limited selection)
                     if !photoManager.allAssets.isEmpty {
+                        let _ = print("✅ LimitedAccessView is active") // ✅ trick to inline-print
                         LimitedAccessView()
                     } else {
                         ContentUnavailableView("No Photos",
@@ -77,6 +78,31 @@ struct LimitedAccessView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    
+                    // 🔔 Banner: Only viewing selected photos
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("You're viewing only selected photos.")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+
+                        Button(action: {
+                            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let root = scene.windows.first?.rootViewController {
+                                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
+                            }
+                        }) {
+                            Text("Add More Photos")
+                                .font(.subheadline)
+                                .bold()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                    .background(Color.yellow.opacity(0.1))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
+                    // 📸 Section header
                     sectionHeader(title: "Selected Photos")
 
                     let group = PhotoGroup(
@@ -93,22 +119,17 @@ struct LimitedAccessView: View {
                             }
                     }
                     .padding()
-
-                    Button("Manage Access") {
-                        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                           let root = scene.windows.first?.rootViewController {
-                            PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
-                        }
-                    }
-                    .padding()
-                    .buttonStyle(.borderedProminent)
                 }
             }
+
         }
         .sheet(item: $selectedGroup) { group in
             SwipeCardView(group: group, forceRefresh: .constant(false))
                 .environmentObject(photoManager)
                 .environmentObject(toast)
+        }
+        .onAppear {
+            print("👀 LimitedAccessView is visible")
         }
     }
 

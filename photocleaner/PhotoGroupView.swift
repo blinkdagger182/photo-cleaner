@@ -20,22 +20,60 @@ struct PhotoGroupView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    
-                    HStack {
-                        Spacer() // Pushes content to the right
-                        Image("CLN")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(height: 50) // You can use width or height depending on layout
-                            .opacity(fadeIn ? 1 : 0)
-                            .onAppear {
-                                withAnimation(.easeIn(duration: 0.5)) {
-                                    fadeIn = true
+                    HStack(alignment: .center) {
+                        // 🟨 Left: Banner text + buttons
+                        if photoManager.authorizationStatus == .limited {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("You're viewing only selected photos.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+
+                                Button("Add More Photos") {
+                                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                       let root = scene.windows.first?.rootViewController {
+                                        let selector = NSSelectorFromString("presentLimitedLibraryPickerFromViewController:")
+                                        if PHPhotoLibrary.shared().responds(to: selector) {
+                                            PHPhotoLibrary.shared().perform(selector, with: root)
+                                        }
+                                    }
                                 }
+                                .buttonStyle(.bordered)
+
+                                Button("Go to Settings to Allow Full Access") {
+                                    if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                        UIApplication.shared.open(settingsURL)
+                                    }
+                                }
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                             }
+                            .padding()
+                            .background(Color.yellow.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+
+                        Spacer()
+
+                        // 🟧 Right: cln. logo, vertically centered
+                        VStack {
+                            Spacer(minLength: 0)
+                            Image("CLN")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(height: 50)
+                                .opacity(fadeIn ? 1 : 0)
+                                .onAppear {
+                                    withAnimation(.easeIn(duration: 0.5)) {
+                                        fadeIn = true
+                                    }
+                                }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(height: 100) // Match left VStack’s approximate height
                     }
                     .padding(.horizontal)
                     .padding(.top, 16)
+
                     // 🔄 Top Row: Picker and cln. logo
                     HStack(alignment: .bottom) {
                         Picker("View Mode", selection: $viewByYear) {
