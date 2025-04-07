@@ -118,15 +118,17 @@ struct DeletePreviewView: View {
         let toDelete = entries.filter { selectedEntries.contains($0.id) }
         let assetsToDelete = toDelete.map { $0.asset }
 
-        Task { @MainActor in
+        Task {
             await photoManager.hardDeleteAssets(assetsToDelete)
-            await photoManager.refreshSystemAlbum(named: "Deleted")
-            isDeleting = false
-            deletionComplete = true
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                dismiss()
-                forceRefresh.toggle()
+            await MainActor.run {
+                isDeleting = false
+                deletionComplete = true
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    dismiss()
+                    forceRefresh.toggle()
+                }
             }
         }
     }
