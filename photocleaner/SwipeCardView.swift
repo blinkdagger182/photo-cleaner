@@ -21,7 +21,7 @@ struct SwipeCardView: View {
     @State private var deletePreviewEntries: [DeletePreviewEntry] = []
     @State private var swipeLabel: String? = nil
     @State private var swipeLabelColor: Color = .green
-
+    @State private var hasAppeared = false
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
 
     var body: some View {
@@ -55,7 +55,7 @@ struct SwipeCardView: View {
                             }
                             .padding(.top, 60)
                         } else {
-                            ForEach((0..<min(3, group.assets.count - currentIndex)).reversed(), id: \.self) { index in
+                            ForEach((0..<min(2, group.assets.count - currentIndex)).reversed(), id: \.self) { index in
                                 let actualIndex = currentIndex + index
                                 if actualIndex < preloadedImages.count, let image = preloadedImages[actualIndex] {
                                     ZStack {
@@ -90,9 +90,12 @@ struct SwipeCardView: View {
                                                 .animation(.easeInOut(duration: 0.2), value: swipeLabel)
                                         }
                                     }
-                                    .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
-                                            y: CGFloat(index * 6))
-                                    .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
+                                    .offset(
+                                        x: index == 0 ? offset.width : CGFloat(index * 6),
+                                        y: index == 0 ? offset.width / 10 : CGFloat(index * 6)
+                                    )
+                                    .rotationEffect(index == 0 ? .degrees(Double(offset.width / 15)) : .zero, anchor: .bottomTrailing)
+                                    .animation(hasAppeared && index == 0 ? .interactiveSpring(response: 0.3, dampingFraction: 0.7) : .none, value: offset)
                                     .zIndex(Double(-index))
                                     .gesture(
                                         index == 0 ? DragGesture()
@@ -159,6 +162,7 @@ struct SwipeCardView: View {
         }
         .onAppear {
             viewHasAppeared = true
+            hasAppeared = true // 👈 Add this
             tryStartPreloading()
         }
         .id(forceRefresh)
@@ -201,7 +205,13 @@ struct SwipeCardView: View {
 
     private func resetViewState() {
         currentIndex = UserDefaults.standard.integer(forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
-        offset = .zero
+        if hasAppeared {
+            withAnimation(.none) {
+                offset = .zero
+            }
+        } else {
+            offset = .zero
+        }
         preloadedImages = []
         loadedCount = 0
     }
@@ -232,7 +242,13 @@ struct SwipeCardView: View {
             handleRightSwipe()
         }
         withAnimation(.spring()) {
-            offset = .zero
+            if hasAppeared {
+                withAnimation(.none) {
+                    offset = .zero
+                }
+            } else {
+                offset = .zero
+            }
         }
     }
 
