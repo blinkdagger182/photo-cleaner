@@ -11,7 +11,10 @@ struct SwipeCardView: View {
     @EnvironmentObject var toast: ToastService
 
     @State private var currentIndex: Int = 0
-    @State private var offset = CGSize.zero
+//    @GestureState private var dragOffset: CGSize = .zero
+    @State private var cardOffset: CGSize = .zero
+    @State private var swipeDirection: SwipeDirection? = nil
+
     @State private var preloadedImages: [UIImage?] = []
     @State private var loadedCount = 0
     @State private var isLoading = false
@@ -21,6 +24,14 @@ struct SwipeCardView: View {
     @State private var deletePreviewEntries: [DeletePreviewEntry] = []
     @State private var swipeLabel: String? = nil
     @State private var swipeLabelColor: Color = .green
+    @State private var isTopCardVisible = true
+    @State private var animatedIndex: Int? = nil
+    @State private var isSwipingCard: Bool = false
+    @State private var swipingImage: UIImage? = nil
+    
+    enum SwipeDirection {
+        case left, right
+    }
 
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
 
@@ -30,118 +41,13 @@ struct SwipeCardView: View {
                 VStack(spacing: 20) {
                     Spacer()
 
-                    ZStack {
-                        if group.assets.isEmpty {
-                            Text("No photos available")
-                                .foregroundColor(.gray)
-                        } else if isLoading || preloadedImages.isEmpty {
-                            VStack(spacing: 16) {
-                                skeletonStack(
-                                    width: geometry.size.width * 0.85,
-                                    height: geometry.size.height * 0.4
-                                )
-
-                                VStack(spacing: 8) {
-                                    Text("We are fetching images...")
-                                        .font(.headline)
-                                        .foregroundColor(.gray)
-
-                                    Text("🧘 Patience, young padawan...")
-                                        .font(.subheadline)
-                                        .italic()
-                                        .foregroundColor(.secondary)
-                                }
-                                .multilineTextAlignment(.center)
-                            }
-                            .padding(.top, 60)
-                        } else {
-                            ForEach((0..<min(3, group.assets.count - currentIndex)).reversed(), id: \.self) { index in
-                                let actualIndex = currentIndex + index
-                                if actualIndex < preloadedImages.count, let image = preloadedImages[actualIndex] {
-                                    ZStack {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: geometry.size.width * 0.85)
-                                            .padding()
-                                            .background(Color.white)
-                                            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                                            .shadow(radius: 8)
-
-                                        // Overlay label
-                                        if index == 0, let swipeLabel = swipeLabel {
-                                            Text(swipeLabel.uppercased())
-                                                .font(.system(size: 36, weight: .bold))
-                                                .foregroundColor(swipeLabelColor)
-                                                .padding(.horizontal, 20)
-                                                .padding(.vertical, 10)
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .fill(Color.white.opacity(0.8))
-                                                        .overlay(
-                                                            RoundedRectangle(cornerRadius: 12)
-                                                                .stroke(swipeLabelColor, lineWidth: 3)
-                                                        )
-                                                )
-                                                .rotationEffect(.degrees(-15))
-                                                .opacity(1)
-                                                .offset(x: swipeLabel == "Keep" ? -40 : 40, y: -geometry.size.height / 4)
-                                                .transition(.opacity.combined(with: .move(edge: .top)))
-                                                .animation(.easeInOut(duration: 0.2), value: swipeLabel)
-                                        }
-                                    }
-                                    .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
-                                            y: CGFloat(index * 6))
-                                    .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
-                                    .zIndex(Double(-index))
-                                    .gesture(
-                                        index == 0 ? DragGesture()
-                                            .onChanged { value in
-                                                offset = value.translation
-                                                if offset.width > 50 {
-                                                    swipeLabel = "Keep"
-                                                    swipeLabelColor = .green
-                                                } else if offset.width < -50 {
-                                                    swipeLabel = "Delete"
-                                                    swipeLabelColor = .red
-                                                } else {
-                                                    swipeLabel = nil
-                                                }
-                                            }
-                                            .onEnded { value in
-                                                handleSwipeGesture(value)
-                                                swipeLabel = nil
-                                            }
-                                        : nil
-                                    )
-                                } else {
-                                    spinnerCard(width: geometry.size.width * 0.85, index: index)
-                                }
-                            }
-                        }
-                    }
+                    contentBody(for: geometry)
 
                     Spacer()
 
-                    Text("\(currentIndex + 1)/\(group.assets.count)")
-                        .font(.caption)
-                        .padding(8)
-                        .background(Color.black.opacity(0.6))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+                    progressIndicator
 
-                    HStack(spacing: 40) {
-                        CircleButton(icon: "trash", tint: .red) {
-                            handleLeftSwipe()
-                        }
-                        CircleButton(icon: "bookmark", tint: .yellow) {
-                            handleBookmark()
-                        }
-                        CircleButton(icon: "checkmark", tint: .green) {
-                            handleRightSwipe()
-                        }
-                    }
-                    .padding(.bottom, 32)
+                    swipeControls
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
@@ -176,7 +82,114 @@ struct SwipeCardView: View {
         }
     }
 
-    // MARK: - Helpers
+    @ViewBuilder
+    private func contentBody(for geometry: GeometryProxy) -> some View {
+        if group.assets.isEmpty {
+            Text("No photos available")
+                .foregroundColor(.gray)
+        } else if isLoading || preloadedImages.isEmpty {
+            VStack(spacing: 16) {
+                skeletonStack(width: geometry.size.width * 0.85, height: geometry.size.height * 0.4)
+                Text("We are fetching images...")
+                    .font(.headline)
+                    .foregroundColor(.gray)
+                Text("🧘‍♂️ Patience, young padawan...")
+                    .font(.subheadline)
+                    .italic()
+                    .foregroundColor(.secondary)
+            }
+            .multilineTextAlignment(.center)
+            .padding(.top, 60)
+        } else {
+            ZStack {
+                // Stack of cards AFTER the one being swiped
+                CardStackView(
+                    geometry: geometry,
+                    currentIndex: currentIndex + (isSwipingCard ? 1 : 0),
+                    preloadedImages: preloadedImages,
+                    cardOffset: .constant(.zero),
+                    swipeLabel: .constant(nil),
+                    swipeLabelColor: .constant(.clear),
+                    swipeDirection: .constant(nil),
+                    animateCardOffScreen: {},
+                    isSwipingCard: false // irrelevant here
+                )
+
+                // Actively swiped top card
+                if let img = swipingImage {
+                    SwipeCard(
+                        image: img,
+                        index: 0,
+                        geometry: geometry,
+                        cardOffset: $cardOffset,
+                        swipeLabel: $swipeLabel,
+                        swipeLabelColor: $swipeLabelColor,
+                        swipeDirection: $swipeDirection,
+                        animateCardOffScreen: animateCardOffScreen
+                    )
+                    .zIndex(100)
+                }
+            }
+        }
+    }
+
+
+    private var progressIndicator: some View {
+        Text("\(currentIndex + 1)/\(group.assets.count)")
+            .font(.caption)
+            .padding(8)
+            .background(Color.black.opacity(0.6))
+            .foregroundColor(.white)
+            .cornerRadius(8)
+    }
+
+    private var swipeControls: some View {
+        HStack(spacing: 40) {
+            CircleButton(icon: "trash", tint: .red) {
+                swipeDirection = .left
+                animateCardOffScreen()
+            }
+            CircleButton(icon: "bookmark", tint: .yellow) {
+                handleBookmark()
+            }
+            CircleButton(icon: "checkmark", tint: .green) {
+                swipeDirection = .right
+                animateCardOffScreen()
+            }
+        }
+        .padding(.bottom, 32)
+    }
+
+    private func animateCardOffScreen() {
+        // Set the image being swiped
+        if let image = preloadedImages[safe: currentIndex] {
+            swipingImage = image
+        }
+        isSwipingCard = true
+
+        withAnimation(.easeOut(duration: 0.3)) {
+            switch swipeDirection {
+            case .left: cardOffset.width = -1000
+            case .right: cardOffset.width = 1000
+            default: break
+            }
+            swipeLabel = nil
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            switch swipeDirection {
+            case .left: handleLeftSwipe()
+            case .right: handleRightSwipe()
+            default: break
+            }
+
+            currentIndex += 1
+            cardOffset = .zero
+            swipeDirection = nil
+            isSwipingCard = false
+            swipingImage = nil
+        }
+    }
 
     private func tryStartPreloading() {
         guard viewHasAppeared,
@@ -201,7 +214,7 @@ struct SwipeCardView: View {
 
     private func resetViewState() {
         currentIndex = UserDefaults.standard.integer(forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
-        offset = .zero
+        cardOffset = .zero
         preloadedImages = []
         loadedCount = 0
     }
@@ -218,22 +231,10 @@ struct SwipeCardView: View {
             .shadow(radius: 8)
             .overlay(ProgressView())
             .padding()
-            .offset(x: index == 0 ? offset.width : CGFloat(index * 6),
-                    y: CGFloat(index * 6))
-            .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
+//            .offset(x: index == 0 ? (cardOffset.width + dragOffset.width) : CGFloat(index * 6),
+//                    y: CGFloat(index * 6))
+//            .rotationEffect(index == 0 ? .degrees(Double(cardOffset.width + dragOffset.width) / 20) : .zero)
             .zIndex(Double(-index))
-    }
-
-    private func handleSwipeGesture(_ value: DragGesture.Value) {
-        let threshold: CGFloat = 100
-        if value.translation.width < -threshold {
-            handleLeftSwipe()
-        } else if value.translation.width > threshold {
-            handleRightSwipe()
-        }
-        withAnimation(.spring()) {
-            offset = .zero
-        }
     }
 
     private func handleLeftSwipe() {
@@ -302,10 +303,10 @@ struct SwipeCardView: View {
             await preloadImages(from: loadedCount)
             isLoading = false
         }
-
         if nextIndex < group.assets.count {
             currentIndex = nextIndex
         }
+
     }
 
     private func preloadImages(from startIndex: Int, count: Int = 10) async {
@@ -334,7 +335,9 @@ struct SwipeCardView: View {
             newImages.append(image)
         }
 
-        preloadedImages += newImages
+        DispatchQueue.main.async {
+            preloadedImages.append(contentsOf: newImages)
+        }
         loadedCount = preloadedImages.count
     }
 
@@ -379,6 +382,7 @@ struct SwipeCardView: View {
         deletePreviewEntries = newEntries
         showDeletePreview = true
     }
+
     private func skeletonStack(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
             ForEach((0..<2).reversed(), id: \.self) { index in
@@ -399,8 +403,8 @@ struct SwipeCardView: View {
             }
         }
     }
-
 }
+
 
 struct CircleButton: View {
     let icon: String
@@ -460,5 +464,122 @@ struct ShimmerModifier: ViewModifier {
                     phase = 1.5
                 }
         )
+    }
+}
+struct SwipeCard: View {
+    let image: UIImage
+    let index: Int
+    let geometry: GeometryProxy
+    @GestureState private var dragOffset: CGSize = .zero // ✅ defined internally
+
+    @Binding var cardOffset: CGSize
+    @Binding var swipeLabel: String?
+    @Binding var swipeLabelColor: Color
+    @Binding var swipeDirection: SwipeCardView.SwipeDirection?
+
+    let animateCardOffScreen: () -> Void
+
+    var body: some View {
+        ZStack {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: geometry.size.width * 0.85)
+                .padding()
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                .shadow(radius: 8)
+
+            if index == 0, let swipeLabel = swipeLabel {
+                Text(swipeLabel.uppercased())
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundColor(swipeLabelColor)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(swipeLabelColor, lineWidth: 3)
+                            )
+                    )
+                    .rotationEffect(.degrees(-15))
+                    .offset(x: swipeLabel == "Keep" ? -40 : 40, y: -geometry.size.height / 4)
+                    .opacity(1)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.easeInOut(duration: 0.2), value: swipeLabel)
+            }
+        }
+        .offset(x: index == 0 ? (cardOffset.width + dragOffset.width) : CGFloat(index * 6),
+                y: CGFloat(index * 6))
+        .rotationEffect(index == 0 ? .degrees(Double(cardOffset.width + dragOffset.width) / 20) : .zero)
+        .gesture(
+            index == 0 ? DragGesture()
+                .updating($dragOffset) { value, state, _ in
+                    state = value.translation
+                    if value.translation.width > 50 {
+                        swipeLabel = "Keep"
+                        swipeLabelColor = .green
+                    } else if value.translation.width < -50 {
+                        swipeLabel = "Delete"
+                        swipeLabelColor = .red
+                    } else {
+                        swipeLabel = nil
+                    }
+                }
+                .onEnded { value in
+                    let threshold: CGFloat = 100
+                    if value.translation.width > threshold {
+                        swipeDirection = .right
+                        animateCardOffScreen()
+                    } else if value.translation.width < -threshold {
+                        swipeDirection = .left
+                        animateCardOffScreen()
+                    } else {
+                        withAnimation(.spring()) {
+                            cardOffset = .zero
+                            swipeLabel = nil
+                        }
+                    }
+                }
+            : nil
+        )
+    }
+}
+
+struct CardStackView: View {
+    let geometry: GeometryProxy
+    let currentIndex: Int
+    let preloadedImages: [UIImage?]
+    @Binding var cardOffset: CGSize
+    @Binding var swipeLabel: String?
+    @Binding var swipeLabelColor: Color
+    @Binding var swipeDirection: SwipeCardView.SwipeDirection?
+    let animateCardOffScreen: () -> Void
+    let isSwipingCard: Bool // safe to ignore now
+
+    var body: some View {
+        let cardCount = min(2, max(0, preloadedImages.count - currentIndex))
+        let safeRange = Array(0..<cardCount)
+
+        ZStack {
+            ForEach(safeRange, id: \.self) { index in
+                let actualIndex = currentIndex + index
+                if actualIndex < preloadedImages.count, let image = preloadedImages[actualIndex] {
+                    SwipeCard(
+                        image: image,
+                        index: index,
+                        geometry: geometry,
+                        cardOffset: $cardOffset,
+                        swipeLabel: $swipeLabel,
+                        swipeLabelColor: $swipeLabelColor,
+                        swipeDirection: $swipeDirection,
+                        animateCardOffScreen: animateCardOffScreen
+                    )
+                    .zIndex(Double(-index))
+                }
+            }
+        }
     }
 }
