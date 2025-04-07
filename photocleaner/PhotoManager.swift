@@ -6,6 +6,7 @@ import SwiftUI
 class PhotoManager: ObservableObject {
     @Published var allPhotos: [PHAsset] = []
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
+    @Published var allAssets: [PHAsset] = []
     @Published var photoGroups: [PhotoGroup] = []
     @Published var yearGroups: [YearGroup] = []
     @Published var markedForDeletion: Set<String> = []   // asset.localIdentifier
