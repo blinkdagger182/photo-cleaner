@@ -18,8 +18,8 @@ struct VideoPlayerView: UIViewControllerRepresentable {
         controller.showsPlaybackControls = false
         controller.videoGravity = AVLayerVideoGravity.resizeAspect
 
-        if let asset = NSDataAsset(name: "ClnVideo") {
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ClnVideo.mp4")
+        if let asset = NSDataAsset(name: "ClnAppVideo") {
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("ClnAppVideo.mp4")
             try? asset.data.write(to: tempURL)
 
             let playerItem = AVPlayerItem(url: tempURL)

@@ -6,7 +6,7 @@ struct OnboardingView: View {
     @State private var fadeIn = false
     @State private var fadeOut = false
 
-    private let videoAspectRatio: CGFloat = 888.0 / 1208.0 // ≈ 0.735
+    private let videoAspectRatio: CGFloat = 766.0 / 1080.0 // ≈ 0.709
 
     var body: some View {
         GeometryReader { geometry in
@@ -57,7 +57,7 @@ struct OnboardingView: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(Color.primary.opacity(0.9))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color(UIColor.systemBackground))
                             .cornerRadius(16)
                             .padding(.horizontal, 32)
                     }
