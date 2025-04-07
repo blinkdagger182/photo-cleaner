@@ -34,7 +34,8 @@ struct SplashView: View {
                 VStack(spacing: 16) {
                     Image("CLN")
                         .resizable()
-                        .frame(width: 150, height: 150)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 50)
                         .opacity(fadeOut ? 0 : 1)
 
                     Text(currentTagline)
