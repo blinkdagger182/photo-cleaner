@@ -3,13 +3,13 @@ import Photos
 import UIKit
 
 struct PhotoGroupView: View {
-    let photoGroups: [PhotoGroup]
-    let yearGroups: [YearGroup]
     @EnvironmentObject var photoManager: PhotoManager
+    @EnvironmentObject var toast: ToastService
 
     @State private var selectedGroup: PhotoGroup?
-    @State private var showingPhotoReview = false
     @State private var viewByYear = true
+    @State private var shouldForceRefresh = false
+    @State private var fadeIn = false
 
     let columns = [
         GridItem(.flexible()),
@@ -18,23 +18,40 @@ struct PhotoGroupView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                
-                // Picker is outside ScrollView to prevent tap conflict
-                Picker("View Mode", selection: $viewByYear) {
-                    Text("By Year").tag(true)
-                    Text("My Albums").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
+            ScrollView {
+                VStack(spacing: 0) {
+                    
+                    HStack {
+                        Spacer() // Pushes content to the right
+                        Image("CLN")
+                            .resizable()
+                            .frame(width: 100, height: 100)
+                            .opacity(fadeIn ? 1 : 0)
+                            .onAppear {
+                                withAnimation(.easeIn(duration: 0.5)) {
+                                    fadeIn = true
+                                }
+                            }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 16)
+                    // 🔄 Top Row: Picker and cln. logo
+                    HStack(alignment: .bottom) {
+                        Picker("View Mode", selection: $viewByYear) {
+                            Text("By Year").tag(true)
+                            Text("My Albums").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity)
 
-                ScrollView {
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+
+                    // 📅 Main content
                     VStack(alignment: .leading, spacing: 20) {
-                        
-                        // MARK: - Year View
                         if viewByYear {
-                            ForEach(yearGroups) { yearGroup in
+                            ForEach(photoManager.yearGroups) { yearGroup in
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("\(yearGroup.year)")
                                         .font(.title)
@@ -46,26 +63,24 @@ struct PhotoGroupView: View {
                                             AlbumCell(group: group)
                                                 .onTapGesture {
                                                     selectedGroup = group
-                                                    showingPhotoReview = true
                                                 }
                                         }
                                     }
                                     .padding(.horizontal)
                                 }
                             }
-
-                        // MARK: - My Albums View (Only Saved + Deleted)
                         } else {
                             VStack(alignment: .leading, spacing: 16) {
-                                Section(header: sectionHeader(title: "My Albums")) {
-                                    LazyVGrid(columns: columns, spacing: 20) {
-                                        ForEach(photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
-                                            AlbumCell(group: group)
-                                                .disabled(true) // Non-interactive
-                                        }
+                                sectionHeader(title: "My Albums")
+                                LazyVGrid(columns: columns, spacing: 20) {
+                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
+                                        AlbumCell(group: group)
+                                            .onTapGesture {
+                                                selectedGroup = group
+                                            }
                                     }
-                                    .padding(.horizontal)
                                 }
+                                .padding(.horizontal)
 
                                 Spacer(minLength: 40)
                             }
@@ -73,12 +88,14 @@ struct PhotoGroupView: View {
                     }
                 }
             }
-            .navigationTitle("Albums")
-            .sheet(isPresented: $showingPhotoReview) {
-                if let group = selectedGroup {
-                    SwipeCardView(group: group)
+        }
+        .sheet(item: $selectedGroup) { group in
+            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
+                .onAppear {
+                    print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.assets.count)
                 }
-            }
+                .environmentObject(photoManager)
+                .environmentObject(toast)
         }
     }
 
@@ -88,15 +105,10 @@ struct PhotoGroupView: View {
                 .font(.title2)
                 .bold()
             Spacer()
-            Button("See All") {
-                // TODO: Implement see all logic
-            }
-            .font(.subheadline)
         }
         .padding(.horizontal)
     }
 }
-
 struct AlbumCell: View {
     let group: PhotoGroup
     @State private var thumbnail: UIImage?
@@ -132,13 +144,20 @@ struct AlbumCell: View {
     }
 
     private func loadThumbnail() async {
-        guard let asset = group.thumbnailAsset else { return }
+        guard !group.assets.isEmpty else { return }
+
+        let key = "LastViewedIndex_\(group.id.uuidString)"
+        let savedIndex = UserDefaults.standard.integer(forKey: key)
+        let safeIndex = min(savedIndex, group.assets.count - 1)
+        let asset = group.assets[safeIndex]
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
         options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
 
-        let size = CGSize(width: 200, height: 200)
+        let size = CGSize(width: 600, height: 600)
 
         thumbnail = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
