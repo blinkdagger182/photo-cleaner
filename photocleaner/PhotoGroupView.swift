@@ -113,7 +113,7 @@ struct PhotoGroupView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 sectionHeader(title: "My Albums")
                                 LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved" || $0.title == "Deleted" }, id: \.id) { group in
+                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved"}, id: \.id) { group in
                                         AlbumCell(group: group)
                                             .onTapGesture {
                                                 selectedGroup = group
