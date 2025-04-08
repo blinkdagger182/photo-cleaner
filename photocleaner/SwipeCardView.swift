@@ -17,6 +17,9 @@ struct SwipeCardView: View {
     @State private var isLoading = false
     @State private var viewHasAppeared = false
     @State private var hasStartedLoading = false
+    
+    private let maxBufferSize = 5  // Keep only 5 images in memory
+    private let preloadThreshold = 3  // Start preloading when 3 images away from end
     @State private var showDeletePreview = false
     @State private var deletePreviewEntries: [DeletePreviewEntry] = []
     @State private var swipeLabel: String? = nil
@@ -352,27 +355,75 @@ struct SwipeCardView: View {
     }
 
     private func preloadSingleImage(at index: Int) async {
-        guard index < group.assets.count else { return }
-
-        let asset = group.assets[index]
+        await loadImageForAsset(group.assets[index], at: index)
+    }
+    
+    private func loadImageForAsset(_ asset: PHAsset, at index: Int) async {
         let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
+        options.deliveryMode = .opportunistic
         options.isNetworkAccessAllowed = true
-
-        let image = await withCheckedContinuation { continuation in
+        
+        // First load thumbnail
+        let thumbnailSize = CGSize(width: 300, height: 300)
+        let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: options)
+        
+        // Update UI with thumbnail
+        await MainActor.run {
+            if index < preloadedImages.count {
+                preloadedImages[index] = thumbnail
+            }
+        }
+        
+        // Then load full resolution if needed
+        if index >= currentIndex && index < currentIndex + 3 {
+            let fullImage = await loadImage(for: asset, targetSize: PHImageManagerMaximumSize, options: options)
+            await MainActor.run {
+                if index < preloadedImages.count {
+                    preloadedImages[index] = fullImage
+                }
+            }
+        }
+    }
+    
+    private func loadImage(for asset: PHAsset, targetSize: CGSize, options: PHImageRequestOptions) async -> UIImage? {
+        await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: asset,
-                targetSize: PHImageManagerMaximumSize,
+                targetSize: targetSize,
                 contentMode: .aspectFit,
                 options: options
             ) { image, _ in
                 continuation.resume(returning: image)
             }
         }
-
-        if index < preloadedImages.count {
-            preloadedImages[index] = image
+    }
+    
+    private func cleanupOldImages() {
+        guard currentIndex > maxBufferSize else { return }
+        // Remove processed images
+        for i in 0..<(currentIndex - maxBufferSize) {
+            preloadedImages[i] = nil
         }
+    }
+    
+    private func checkAndPreloadMore() {
+        let remainingItems = group.assets.count - (currentIndex + loadedCount)
+        if remainingItems <= preloadThreshold {
+            Task {
+                await preloadNextBatch()
+            }
+        }
+    }
+    
+    private func preloadNextBatch() async {
+        let batchSize = 5
+        let startIndex = loadedCount
+        let endIndex = min(startIndex + batchSize, group.assets.count)
+        
+        for index in startIndex..<endIndex {
+            await loadImageForAsset(group.assets[index], at: index)
+        }
+        loadedCount = endIndex
     }
 
     private func prepareDeletePreview() {
