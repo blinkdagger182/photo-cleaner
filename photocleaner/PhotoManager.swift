@@ -8,27 +8,27 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var allAssets: [PHAsset] = []
     @Published var photoGroups: [PhotoGroup] = []
     @Published var yearGroups: [YearGroup] = []
-    @Published var markedForDeletion: Set<String> = []   // asset.localIdentifier
+    @Published var markedForDeletion: Set<String> = []  // asset.localIdentifier
     @Published var markedForBookmark: Set<String> = []
 
     private let lastViewedIndexKey = "LastViewedIndex"
-    
-    override init() {
-            super.init()
-            PHPhotoLibrary.shared().register(self)
-        }
 
-        deinit {
-            PHPhotoLibrary.shared().unregisterChangeObserver(self)
-        }
-    
+    override init() {
+        super.init()
+        PHPhotoLibrary.shared().register(self)
+    }
+
+    deinit {
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
+    }
+
     @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
         Task { @MainActor in
             print("🔄 Library changed, reloading photos...")
             await self.loadAssets()
         }
     }
-    
+
     func requestAuthorization() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
 
@@ -49,7 +49,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             }
         }
     }
-    
+
     func fetchPhotoGroupsByYearAndMonth() async -> [YearGroup] {
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
@@ -60,8 +60,10 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
 
         allPhotos.enumerateObjects { asset, _, _ in
             if !self.markedForDeletion.contains(asset.localIdentifier),
-               let date = asset.creationDate,
-               let monthDate = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) {
+                let date = asset.creationDate,
+                let monthDate = calendar.date(
+                    from: calendar.dateComponents([.year, .month], from: date))
+            {
                 groupedByMonth[monthDate, default: []].append(asset)
             }
         }
@@ -83,13 +85,15 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             YearGroup(
                 id: year,
                 year: year,
-                months: photoGroups.sorted { ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast) }
+                months: photoGroups.sorted {
+                    ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast)
+                }
             )
         }
 
         return yearGroups.sorted { ($0.year) > ($1.year) }
     }
-    
+
     func fetchSystemAlbums() async -> [PhotoGroup] {
         await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Saved"])
     }
@@ -98,7 +102,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         var result: [PhotoGroup] = []
 
         for name in albumNames {
-            let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil)
+            let collections = PHAssetCollection.fetchAssetCollections(
+                with: .album, subtype: .any, options: nil)
             collections.enumerateObjects { collection, _, _ in
                 if collection.localizedTitle == name {
                     let assets = PHAsset.fetchAssets(in: collection, options: nil)
@@ -107,7 +112,10 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
                         assetArray.append(asset)
                     }
                     if !assetArray.isEmpty {
-                        result.append(PhotoGroup(assets: assetArray, title: name, monthDate: assetArray.first?.creationDate))
+                        result.append(
+                            PhotoGroup(
+                                assets: assetArray, title: name,
+                                monthDate: assetArray.first?.creationDate))
                     }
                 }
             }
@@ -134,32 +142,43 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
 
-    func fetchOrCreateAlbum(named title: String, completion: @escaping (PHAssetCollection?) -> Void) {
+    func fetchOrCreateAlbum(named title: String, completion: @escaping (PHAssetCollection?) -> Void)
+    {
         let fetchOptions = PHFetchOptions()
         fetchOptions.predicate = NSPredicate(format: "title = %@", title)
-        let collection = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+        let collection = PHAssetCollection.fetchAssetCollections(
+            with: .album, subtype: .any, options: fetchOptions)
 
         if let album = collection.firstObject {
             completion(album)
         } else {
             var placeholder: PHObjectPlaceholder?
-            PHPhotoLibrary.shared().performChanges({
-                placeholder = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: title).placeholderForCreatedAssetCollection
-            }, completionHandler: { success, error in
-                guard success, let placeholder = placeholder else {
-                    completion(nil)
-                    return
-                }
-                let newCollection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [placeholder.localIdentifier], options: nil).firstObject
-                completion(newCollection)
-            })
+            PHPhotoLibrary.shared().performChanges(
+                {
+                    placeholder =
+                        PHAssetCollectionChangeRequest.creationRequestForAssetCollection(
+                            withTitle: title
+                        ).placeholderForCreatedAssetCollection
+                },
+                completionHandler: { success, error in
+                    guard success, let placeholder = placeholder else {
+                        completion(nil)
+                        return
+                    }
+                    let newCollection = PHAssetCollection.fetchAssetCollections(
+                        withLocalIdentifiers: [placeholder.localIdentifier], options: nil
+                    ).firstObject
+                    completion(newCollection)
+                })
         }
     }
 
     func removeAsset(_ asset: PHAsset, fromGroupWithDate monthDate: Date?) {
         guard let monthDate else { return }
         if let index = self.photoGroups.firstIndex(where: { $0.monthDate == monthDate }) {
-            let filteredAssets = self.photoGroups[index].assets.filter { $0.localIdentifier != asset.localIdentifier }
+            let filteredAssets = self.photoGroups[index].assets.filter {
+                $0.localIdentifier != asset.localIdentifier
+            }
             if filteredAssets.isEmpty {
                 self.photoGroups.remove(at: index)
             } else {
@@ -179,7 +198,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             let updated = [asset] + self.photoGroups[index].assets
             self.photoGroups[index] = self.photoGroups[index].copy(withAssets: updated)
         } else {
-            self.photoGroups.insert(PhotoGroup(assets: [asset], title: title, monthDate: inMonth), at: 0)
+            self.photoGroups.insert(
+                PhotoGroup(assets: [asset], title: title, monthDate: inMonth), at: 0)
         }
 
         removeAsset(asset, fromAlbumNamed: "Deleted")
@@ -207,7 +227,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             self.yearGroups = yearResult
         }
     }
-    
+
     func updateLastViewedIndex(for groupID: UUID, index: Int) {
         if let idx = photoGroups.firstIndex(where: { $0.id == groupID }) {
             var group = photoGroups[idx]
@@ -283,18 +303,18 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         await self.refreshAllPhotoGroups()
     }
     func hardDeleteAssets(_ assets: [PHAsset]) async {
-            guard !assets.isEmpty else { return }
+        guard !assets.isEmpty else { return }
 
-            try? await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.deleteAssets(assets as NSArray)
-            }
-
-            for asset in assets {
-                self.unmarkForDeletion(asset)
-            }
-
-            await self.refreshAllPhotoGroups()
+        try? await PHPhotoLibrary.shared().performChanges {
+            PHAssetChangeRequest.deleteAssets(assets as NSArray)
         }
+
+        for asset in assets {
+            self.unmarkForDeletion(asset)
+        }
+
+        await self.refreshAllPhotoGroups()
+    }
     func loadAssets() async {
         async let years = fetchPhotoGroupsByYearAndMonth()
         async let systemAlbums = fetchSystemAlbums()

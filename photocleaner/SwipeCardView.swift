@@ -165,12 +165,27 @@ struct SwipeCardView: View {
         }
         .onAppear {
             viewHasAppeared = true
-            hasAppeared = true // 👈 Add this
+            hasAppeared = true
             tryStartPreloading()
+            
+            // Register for memory warnings
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil,
+                queue: .main) { [self] _ in
+                    clearMemory()
+                }
         }
         .id(forceRefresh)
         .onDisappear {
             saveProgress()
+            clearMemory()
+            // Remove observer
+            NotificationCenter.default.removeObserver(
+                self,
+                name: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil
+            )
         }
         .overlay(toast.overlayView, alignment: .bottom)
         .fullScreenCover(isPresented: $showDeletePreview) {
@@ -362,6 +377,18 @@ struct SwipeCardView: View {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+        
+        // Add resource options to prefetch metadata and avoid warnings
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false        
+        // Calculate appropriate image size based on screen
+        let scale = UIScreen.main.scale
+        let screenSize = UIScreen.main.bounds.size
+        let targetSize = CGSize(
+            width: min(screenSize.width * scale, 1200),  // Cap at 1200px width
+            height: min(screenSize.height * scale, 1200) // Cap at 1200px height
+        )
         
         // First load thumbnail
         let thumbnailSize = CGSize(width: 300, height: 300)
@@ -374,12 +401,12 @@ struct SwipeCardView: View {
             }
         }
         
-        // Then load full resolution if needed
-        if index >= currentIndex && index < currentIndex + 3 {
-            let fullImage = await loadImage(for: asset, targetSize: PHImageManagerMaximumSize, options: options)
+        // Then load screen-sized image (not full resolution) if needed
+        if index >= currentIndex && index < currentIndex + 2 {
+            let screenImage = await loadImage(for: asset, targetSize: targetSize, options: options)
             await MainActor.run {
                 if index < preloadedImages.count {
-                    preloadedImages[index] = fullImage
+                    preloadedImages[index] = screenImage
                 }
             }
         }
@@ -400,9 +427,26 @@ struct SwipeCardView: View {
     
     private func cleanupOldImages() {
         guard currentIndex > maxBufferSize else { return }
+        
         // Remove processed images
-        for i in 0..<(currentIndex - maxBufferSize) {
-            preloadedImages[i] = nil
+        if currentIndex > maxBufferSize {
+            preloadedImages.removeSubrange(0..<(currentIndex - maxBufferSize))
+            
+            // Force a memory cleanup
+            autoreleasepool {
+                // This helps release memory immediately
+            }
+        }
+    }
+    
+    private func clearMemory() {
+        // Keep only the current image, clear everything else
+        if !preloadedImages.isEmpty && currentIndex < preloadedImages.count {
+            let currentImage = preloadedImages[currentIndex]
+            preloadedImages = Array(repeating: nil, count: preloadedImages.count)
+            if currentIndex < preloadedImages.count {
+                preloadedImages[currentIndex] = currentImage
+            }
         }
     }
     
