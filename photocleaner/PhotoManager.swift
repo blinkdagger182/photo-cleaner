@@ -173,19 +173,19 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
 
-    func removeAsset(_ asset: PHAsset, fromGroupWithDate monthDate: Date?) {
-        guard let monthDate else { return }
-        if let index = self.photoGroups.firstIndex(where: { $0.monthDate == monthDate }) {
-            let filteredAssets = self.photoGroups[index].assets.filter {
-                $0.localIdentifier != asset.localIdentifier
-            }
-            if filteredAssets.isEmpty {
-                self.photoGroups.remove(at: index)
-            } else {
-                self.photoGroups[index] = self.photoGroups[index].copy(withAssets: filteredAssets)
-            }
-        }
-    }
+//    func removeAsset(_ asset: PHAsset, fromGroupWithDate monthDate: Date?) {
+//        guard let monthDate else { return }
+//        if let index = self.photoGroups.firstIndex(where: { $0.monthDate == monthDate }) {
+//            let filteredAssets = self.photoGroups[index].assets.filter {
+//                $0.localIdentifier != asset.localIdentifier
+//            }
+//            if filteredAssets.isEmpty {
+//                self.photoGroups.remove(at: index)
+//            } else {
+//                self.photoGroups[index] = self.photoGroups[index].copy(withAssets: filteredAssets)
+//            }
+//        }
+//    }
 
     func restoreToPhotoGroups(_ asset: PHAsset, inMonth: Date?) {
         guard let inMonth else { return }
@@ -298,8 +298,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
     func handleLeftSwipe(asset: PHAsset, monthDate: Date?) async {
         self.markForDeletion(asset)
-        self.removeAsset(asset, fromGroupWithDate: monthDate)
-        self.addAsset(asset, toAlbumNamed: "Deleted")
+//        self.removeAsset(asset, fromGroupWithDate: monthDate)
+//        self.addAsset(asset, toAlbumNamed: "Deleted")
         await self.refreshAllPhotoGroups()
     }
     func hardDeleteAssets(_ assets: [PHAsset]) async {

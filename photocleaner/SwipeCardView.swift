@@ -272,8 +272,8 @@ struct SwipeCardView: View {
 
     private func handleLeftSwipe() {
         let asset = group.assets[currentIndex]
-        photoManager.removeAsset(asset, fromGroupWithDate: group.monthDate)
-        photoManager.addAsset(asset, toAlbumNamed: "Deleted")
+//        photoManager.removeAsset(asset, fromGroupWithDate: group.monthDate)
+//        photoManager.addAsset(asset, toAlbumNamed: "Deleted")
         photoManager.markForDeletion(asset)
 
         toast.show("Marked for deletion. Press Next to permanently delete from storage.", action: "Undo") {
