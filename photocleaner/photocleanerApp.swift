@@ -2,29 +2,17 @@ import SwiftUI
 
 @main
 struct photocleanerApp: App {
-    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
-
-    @StateObject var updateService = UpdateService.shared
-    @StateObject var photoManager = PhotoManager()
-    @StateObject var toast = ToastService()
-
+    // Create a single instance of the AppCoordinator to manage navigation
+    @StateObject private var coordinator = AppCoordinator()
+    
     var body: some Scene {
         WindowGroup {
-            Group {
-                if hasSeenOnboarding {
-                    SplashView()
-                        .task {
-                            await updateService.checkAppVersion()
-                        }
-                } else {
-                    OnboardingView()
-                }
-            }
-            .environmentObject(updateService)
-            .environmentObject(photoManager)
-            .environmentObject(toast)
+            // Use the RootView which handles navigation based on the coordinator's state
+            RootView()
+                .environmentObject(coordinator)
         }
 
+        // Keep the Launch Screen window group
         WindowGroup("Launch Screen", id: "Launch Screen") {
             LaunchScreen()
         }

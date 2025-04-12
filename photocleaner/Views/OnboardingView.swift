@@ -2,7 +2,7 @@ import SwiftUI
 import AVKit
 
 struct OnboardingView: View {
-    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @EnvironmentObject private var coordinator: AppCoordinator
     @State private var fadeIn = false
     @State private var fadeOut = false
 
@@ -49,7 +49,7 @@ struct OnboardingView: View {
                             fadeOut = true
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            hasSeenOnboarding = true
+                            coordinator.completeOnboarding()
                         }
                     }) {
                         Text("Get started")
