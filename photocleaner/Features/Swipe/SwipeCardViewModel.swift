@@ -141,6 +141,29 @@ class SwipeCardViewModel: ObservableObject {
         Task { await moveToNext() }
     }
     
+    /// Shows a toast when a photo is marked for deletion
+    func showDeletionToast() {
+        ToastService.shared.show(
+            message: "Photo marked for deletion",
+            type: .info,
+            action: "Undo",
+            duration: 3.0
+        ) {
+            if let asset = self.assets[safe: self.currentIndex] {
+                self.photoManager.unmarkForDeletion(asset)
+            }
+        }
+    }
+    
+    /// Shows a toast when a photo is bookmarked
+    func showBookmarkToast() {
+        ToastService.shared.show(
+            message: "Photo bookmarked",
+            type: .success,
+            duration: 2.0
+        )
+    }
+    
     @MainActor
     /// Prepares the delete preview
     func prepareDeletePreview() {

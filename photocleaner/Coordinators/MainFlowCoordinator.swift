@@ -17,7 +17,7 @@ class MainFlowCoordinator: ObservableObject {
     private let photoManager = PhotoManager.shared
     private let toastService = ToastService.shared
     
-    init(parent: AppCoordinator) {
+    init(parent: AppCoordinator?) {
         self.parent = parent
     }
     

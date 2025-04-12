@@ -6,54 +6,42 @@ struct OptionalUpdateSheet: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            VStack(spacing: 12) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .resizable()
-                    .frame(width: 60, height: 60)
-                    .foregroundColor(.blue)
-                
-                Text("Update Available")
-                    .font(.title)
-                    .fontWeight(.bold)
-                
-                Text("Version \(version.version) is available")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-            }
+            // Title
+            Text("Update Available")
+                .font(.title2)
+                .fontWeight(.bold)
             
+            // Version info
+            Text("Version \(version.version) is available")
+                .font(.headline)
+            
+            // Notes
             if let notes = version.notes {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("What's New:")
-                        .font(.headline)
-                    
-                    Text(notes)
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
+                Text(notes)
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.1))
+                    )
             }
             
-            Spacer()
-            
+            // Action buttons
             HStack(spacing: 16) {
                 Button("Not Now") {
                     coordinator.hideOptionalUpdateSheet()
                 }
                 .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
                 
                 Button("Update") {
                     coordinator.openAppStore()
-                    coordinator.hideOptionalUpdateSheet()
                 }
                 .buttonStyle(.borderedProminent)
-                .frame(maxWidth: .infinity)
             }
-            .padding(.bottom)
+            .padding(.top)
         }
         .padding()
-        .frame(maxWidth: 500)
+        .frame(maxWidth: 400)
     }
 } 

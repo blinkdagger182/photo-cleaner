@@ -1,0 +1,478 @@
+{
+  "" : {
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleaner-master.dia",
+    "emit-module-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleaner-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleaner-master-emit-module.dia",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleaner-master.swiftdeps"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/ActionBarView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ActionBarView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/App/AppState.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppState~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/App/photocleanerApp.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/photocleanerApp~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/CardView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/CardView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/ContentView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Coordinators/AppCoordinator.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppCoordinator~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Coordinators/MainFlowCoordinator.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainFlowCoordinator~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Coordinators/ModalCoordinator.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ModalCoordinator~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Coordinators/NavigationRoute.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/NavigationRoute~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Coordinators/UpdateCoordinator.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateCoordinator~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/DeleteActionButton.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeleteActionButton~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/DeletePhotoGridView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePhotoGridView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Extensions/Array+Safe.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/Array+Safe~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Extensions/PHAsset+Size.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PHAsset+Size~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/DeletePreview/DeletePreviewView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/DeletePreview/DeletePreviewViewModel.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewViewModel~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Home/AlbumCell.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumCell~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Home/PhotoGroupView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Home/PhotoGroupViewModel.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroupViewModel~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Onboarding/OnboardingView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Onboarding/OnboardingViewModel.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OnboardingViewModel~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Splash/SplashView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Splash/SplashViewModel.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SplashViewModel~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Swipe/PhotoCardView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoCardView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Swipe/ShimmerPlaceholder.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ShimmerPlaceholder~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Swipe/SwipeActionBar.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeActionBar~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Swipe/SwipeCardView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/Swipe/SwipeCardViewModel.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/SwipeCardViewModel~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/UpdateAlerts/ForceUpdateOverlayView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateOverlayView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/UpdateAlerts/OptionalUpdateSheet.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/OptionalUpdateSheet~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Features/UpdateAlerts/View_UpdateAlerts.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/View_UpdateAlerts~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/ForceUpdateView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ForceUpdateView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/LaunchScreen.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LaunchScreen~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Models/AppVersion.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AppVersion~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Models/DeletePreviewEntry.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/DeletePreviewEntry~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Models/PhotoGroup.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoGroup~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Services/AlbumManager.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/AlbumManager~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Services/PhotoLibraryService.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoLibraryService~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Services/PhotoManager.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/PhotoManager~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Services/ToastService.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/ToastService~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Services/UpdateService.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UpdateService~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Utils/UserDefaults.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/UserDefaults~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/VideoPlayerView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/VideoPlayerView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Views/LimitedAccessView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/LimitedAccessView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Views/MainView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/MainView~partial.swiftmodule"
+  },
+  "/Users/newuser/Code/photo-cleaner-start/photocleaner/photocleaner/Views/RootView.swift" : {
+    "const-values" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.d",
+    "diagnostics" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.dia",
+    "index-unit-output-path" : "/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.o",
+    "llvm-bc" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.bc",
+    "object" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.o",
+    "swift-dependencies" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Code/photo-cleaner-start/photocleaner/build/photocleaner.build/Debug-iphoneos/photocleaner.build/Objects-normal/arm64/RootView~partial.swiftmodule"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "" : {
+    "diagnostics" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Supabase-master.dia",
+    "emit-module-dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Supabase-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Supabase-master-emit-module.dia",
+    "swift-dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Supabase-master.swiftdeps"
+  },
+  "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/Sources/Supabase/Deprecated.swift" : {
+    "const-values" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.d",
+    "diagnostics" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.dia",
+    "index-unit-output-path" : "/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.o",
+    "llvm-bc" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.bc",
+    "object" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.o",
+    "swift-dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Deprecated~partial.swiftmodule"
+  },
+  "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/Sources/Supabase/SupabaseClient.swift" : {
+    "const-values" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.d",
+    "diagnostics" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.dia",
+    "index-unit-output-path" : "/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.o",
+    "llvm-bc" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.bc",
+    "object" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.o",
+    "swift-dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/SupabaseClient~partial.swiftmodule"
+  },
+  "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/Sources/Supabase/Types.swift" : {
+    "const-values" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.swiftconstvalues",
+    "dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.d",
+    "diagnostics" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.dia",
+    "index-unit-output-path" : "/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.o",
+    "llvm-bc" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.bc",
+    "object" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.o",
+    "swift-dependencies" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types.swiftdeps",
+    "swiftmodule" : "/Users/newuser/Library/Developer/Xcode/DerivedData/photocleaner-gmpyxmmcbgrdiiaugsyfgnrlhlwh/SourcePackages/checkouts/supabase-swift/build/Supabase.build/Debug-iphoneos/Supabase.build/Objects-normal/arm64/Types~partial.swiftmodule"
+  }
+}

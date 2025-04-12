@@ -9,9 +9,17 @@ enum AppRoute {
     case main
 }
 
+// App state class to track application state
+//class AppState: ObservableObject {
+//    @Published var forceUpdateRequired: Bool = false
+//}
+
 class AppCoordinator: ObservableObject {
     // Published property to control navigation
     @Published var currentRoute: AppRoute
+    
+    // App state
+    let appState = AppState()
     
     // Services and managers
     let updateService: UpdateService
@@ -28,8 +36,8 @@ class AppCoordinator: ObservableObject {
     init() {
         // Initialize services first
         self.updateService = UpdateService.shared
-        self.photoManager = PhotoManager()
-        self.toastService = ToastService()
+        self.photoManager = PhotoManager.shared
+        self.toastService = ToastService.shared
         self.modalCoordinator = ModalCoordinator()
         
         // Initialize currentRoute with a temporary value
