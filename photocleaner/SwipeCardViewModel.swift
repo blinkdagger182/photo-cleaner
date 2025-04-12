@@ -10,7 +10,6 @@ class SwipeCardViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var viewHasAppeared = false
     @Published var hasStartedLoading = false
-    @Published var showDeletePreview = false
     @Published var deletePreviewEntries: [DeletePreviewEntry] = []
     @Published var swipeLabel: String? = nil
     @Published var swipeLabelColor: Color = .green
@@ -22,15 +21,17 @@ class SwipeCardViewModel: ObservableObject {
     private let group: PhotoGroup
     var photoManager: PhotoManager
     private var forceRefreshBinding: Binding<Bool>
+    private var modalCoordinator: ModalCoordinator?
     private let maxBufferSize = 5  // Keep only 5 images in memory
     private let preloadThreshold = 3  // Start preloading when 3 images away from end
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
     
     // MARK: - Initialization
-    init(group: PhotoGroup, photoManager: PhotoManager, forceRefresh: Binding<Bool>) {
+    init(group: PhotoGroup, photoManager: PhotoManager, forceRefresh: Binding<Bool>, modalCoordinator: ModalCoordinator? = nil) {
         self.group = group
         self.photoManager = photoManager
         self.forceRefreshBinding = forceRefresh
+        self.modalCoordinator = modalCoordinator
         
         // Initialize the current index from the stored value
         self.currentIndex = UserDefaults.standard.integer(
@@ -38,11 +39,15 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     /// Convenience initializer for creating the view model with required dependencies
-    static func create(group: PhotoGroup, photoManager: PhotoManager, forceRefresh: Binding<Bool>) -> SwipeCardViewModel {
-        return SwipeCardViewModel(group: group, photoManager: photoManager, forceRefresh: forceRefresh)
+    static func create(group: PhotoGroup, photoManager: PhotoManager, forceRefresh: Binding<Bool>, modalCoordinator: ModalCoordinator? = nil) -> SwipeCardViewModel {
+        return SwipeCardViewModel(group: group, photoManager: photoManager, forceRefresh: forceRefresh, modalCoordinator: modalCoordinator)
     }
     
     // MARK: - Public Methods
+    
+    func setModalCoordinator(_ coordinator: ModalCoordinator) {
+        self.modalCoordinator = coordinator
+    }
     
     /// Called when the view appears
     func onAppear() {
@@ -127,6 +132,7 @@ class SwipeCardViewModel: ObservableObject {
         Task { await moveToNext() }
     }
     
+    @MainActor
     /// Prepares the delete preview
     func prepareDeletePreview() {
         var newEntries: [DeletePreviewEntry] = []
@@ -144,7 +150,11 @@ class SwipeCardViewModel: ObservableObject {
         }
         
         deletePreviewEntries = newEntries
-        showDeletePreview = true
+        
+        // Use the modal coordinator if available, otherwise fallback to the old behavior
+        if let coordinator = modalCoordinator {
+            coordinator.showDeletePreview(entries: newEntries, forceRefresh: forceRefreshBinding)
+        }
     }
     
     /// Called when a photo is restored to the group

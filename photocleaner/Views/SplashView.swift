@@ -56,6 +56,16 @@ struct SplashView: View {
 
                 // Check app version
                 await coordinator.updateService.checkAppVersion()
+                
+                // Show force update if needed
+                if coordinator.updateService.shouldForceUpdate {
+                    coordinator.modalCoordinator.showForceUpdate(notes: coordinator.updateService.updateNotes)
+                } else if coordinator.updateService.shouldShowOptionalUpdate {
+                    coordinator.modalCoordinator.showOptionalUpdate(notes: coordinator.updateService.updateNotes) {
+                        coordinator.updateService.dismissedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+                        coordinator.updateService.shouldShowOptionalUpdate = false
+                    }
+                }
 
                 // Wait for splash duration
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -72,23 +82,6 @@ struct SplashView: View {
                 coordinator.completeStartup()
             }
         }
-        .fullScreenCover(isPresented: Binding(
-            get: { coordinator.updateService.shouldForceUpdate },
-            set: { coordinator.updateService.shouldForceUpdate = $0 }
-        )) {
-            ForceUpdateOverlayView(notes: coordinator.updateService.updateNotes)
-        }
-        .interactiveDismissDisabled(true)
-        .sheet(isPresented: Binding(
-            get: { coordinator.updateService.shouldShowOptionalUpdate },
-            set: { coordinator.updateService.shouldShowOptionalUpdate = $0 }
-        )) {
-            OptionalUpdateSheet(
-                notes: coordinator.updateService.updateNotes
-            ) {
-                coordinator.updateService.dismissedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-                coordinator.updateService.shouldShowOptionalUpdate = false
-            }
-        }
+        .withModalCoordination(coordinator.modalCoordinator)
     }
 }

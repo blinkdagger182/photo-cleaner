@@ -9,6 +9,7 @@ struct SwipeCardView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var coordinator: AppCoordinator
     
     // Use StateObject for the ViewModel
     @StateObject private var viewModel: SwipeCardViewModel
@@ -35,7 +36,7 @@ struct SwipeCardView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             GeometryReader { geometry in
                 VStack(spacing: 20) {
                     Spacer()
@@ -258,6 +259,7 @@ struct SwipeCardView: View {
         .onAppear {
             // Use the photoManager from the environment
             viewModel.photoManager = photoManager
+            viewModel.setModalCoordinator(coordinator.modalCoordinator)
             viewModel.onAppear()
         }
         .id(forceRefresh)
@@ -265,14 +267,6 @@ struct SwipeCardView: View {
             viewModel.onDisappear()
         }
         .overlay(toast.overlayView, alignment: .bottom)
-        .fullScreenCover(isPresented: $viewModel.showDeletePreview) {
-            DeletePreviewView(
-                entries: $viewModel.deletePreviewEntries,
-                forceRefresh: $forceRefresh
-            )
-            .environmentObject(photoManager)
-            .environmentObject(toast)
-        }
     }
     
     // MARK: - Private helpers

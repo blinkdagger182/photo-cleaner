@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ForceUpdateOverlayView: View {
     let notes: String?
+    @EnvironmentObject var modalCoordinator: ModalCoordinator
 
     var body: some View {
         ZStack {
@@ -40,5 +41,6 @@ struct ForceUpdateOverlayView: View {
             }
             .padding()
         }
+        .interactiveDismissDisabled(true)
     }
 }

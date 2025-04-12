@@ -26,5 +26,6 @@ struct RootView: View {
         .environmentObject(coordinator.updateService)
         .environmentObject(coordinator.photoManager)
         .environmentObject(coordinator.toastService)
+        .withModalCoordination(coordinator.modalCoordinator)
     }
 }

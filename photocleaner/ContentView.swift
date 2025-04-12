@@ -6,6 +6,7 @@ import PhotosUI
 struct ContentView: View {
     @EnvironmentObject private var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var coordinator: AppCoordinator
 
     var body: some View {
         Group {
@@ -23,6 +24,7 @@ struct ContentView: View {
                     if !photoManager.allAssets.isEmpty {
                         let _ = print("✅ LimitedAccessView is active") // ✅ trick to inline-print
                         LimitedAccessView()
+                            .environmentObject(coordinator)
                     } else {
                         ContentUnavailableView("No Photos",
                                                systemImage: "photo.on.rectangle",
@@ -32,6 +34,7 @@ struct ContentView: View {
                     PhotoGroupView()
                         .environmentObject(photoManager)
                         .environmentObject(toast)
+                        .environmentObject(coordinator)
                 }
 
             case .denied, .restricted:
@@ -43,9 +46,9 @@ struct ContentView: View {
                 EmptyView()
             }
         }
+        .withModalCoordination(coordinator.modalCoordinator)
     }
 }
-
 
 
 struct RequestAccessView: View {
@@ -71,8 +74,9 @@ struct RequestAccessView: View {
 struct LimitedAccessView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var coordinator: AppCoordinator
 
-    @State private var selectedGroup: PhotoGroup?
+    @State private var shouldForceRefresh = false
 
     var body: some View {
         NavigationStack {
@@ -113,21 +117,21 @@ struct LimitedAccessView: View {
                     )
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        AlbumCell(group: group)
-                            .onTapGesture {
-                                selectedGroup = group
-                            }
+                        NavigationLink(destination: 
+                            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
+                                .environmentObject(photoManager)
+                                .environmentObject(toast)
+                                .environmentObject(coordinator)
+                        ) {
+                            AlbumCell(group: group)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding()
                 }
             }
-
         }
-        .sheet(item: $selectedGroup) { group in
-            SwipeCardView(group: group, forceRefresh: .constant(false))
-                .environmentObject(photoManager)
-                .environmentObject(toast)
-        }
+        .withModalCoordination(coordinator.modalCoordinator)
         .onAppear {
             print("👀 LimitedAccessView is visible")
         }

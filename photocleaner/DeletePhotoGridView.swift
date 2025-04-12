@@ -4,6 +4,7 @@ import Photos
 struct DeletePhotoGridView: View {
     @Binding var entries: [DeletePreviewEntry]
     @Binding var selectedEntries: Set<UUID>
+    @EnvironmentObject var coordinator: AppCoordinator
 
     let columns = [GridItem(.adaptive(minimum: 100))]
 

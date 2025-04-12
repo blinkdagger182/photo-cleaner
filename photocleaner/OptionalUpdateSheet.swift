@@ -11,6 +11,7 @@ import SwiftUI
 struct OptionalUpdateSheet: View {
     let notes: String?
     let onDismiss: () -> Void
+    @EnvironmentObject var modalCoordinator: ModalCoordinator
 
     var body: some View {
         VStack(spacing: 20) {

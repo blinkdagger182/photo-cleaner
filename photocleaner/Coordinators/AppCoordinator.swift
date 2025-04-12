@@ -18,6 +18,9 @@ class AppCoordinator: ObservableObject {
     let photoManager: PhotoManager
     let toastService: ToastService
     
+    // Modal coordinator for handling modals and sheet presentations
+    let modalCoordinator: ModalCoordinator
+    
     // User preferences
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     
@@ -27,6 +30,7 @@ class AppCoordinator: ObservableObject {
         self.updateService = UpdateService.shared
         self.photoManager = PhotoManager()
         self.toastService = ToastService()
+        self.modalCoordinator = ModalCoordinator()
         
         // Initialize currentRoute with a temporary value
         self.currentRoute = .splash

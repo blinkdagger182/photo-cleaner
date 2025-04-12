@@ -17,9 +17,9 @@ struct DeletePreviewEntry: Identifiable, Equatable, Hashable {
 }
 
 struct DeletePreviewView: View {
-    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var modalCoordinator: ModalCoordinator
     @Binding var entries: [DeletePreviewEntry]
     @Binding var forceRefresh: Bool
 
@@ -44,7 +44,7 @@ struct DeletePreviewView: View {
             HStack {
                 Spacer()
                 Button(action: {
-                    dismiss()
+                    modalCoordinator.dismiss()
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 24))
@@ -83,6 +83,7 @@ struct DeletePreviewView: View {
                                     selectedEntries.insert(entry.id)
                                 }
                             }
+                            .cornerRadius(8)
                     }
                 }
                 .padding(.horizontal)
@@ -108,6 +109,8 @@ struct DeletePreviewView: View {
             }
         }
         .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
         .onAppear {
             selectedEntries = Set(entries.map { $0.id })
         }
@@ -126,7 +129,7 @@ struct DeletePreviewView: View {
                 deletionComplete = true
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    dismiss()
+                    modalCoordinator.dismiss()
                     forceRefresh.toggle()
                 }
             }

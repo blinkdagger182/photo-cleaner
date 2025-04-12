@@ -5,6 +5,7 @@ import UIKit
 struct PhotoGroupView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var coordinator: AppCoordinator
 
     @State private var selectedGroup: PhotoGroup?
     @State private var viewByYear = true
@@ -69,7 +70,7 @@ struct PhotoGroupView: View {
                                 }
                             Spacer(minLength: 0)
                         }
-                        .frame(height: 100) // Match left VStack’s approximate height
+                        .frame(height: 100) // Match left VStack's approximate height
                     }
                     .padding(.horizontal)
                     .padding(.top, 16)
@@ -100,10 +101,15 @@ struct PhotoGroupView: View {
 
                                     LazyVGrid(columns: columns, spacing: 16) {
                                         ForEach(yearGroup.months, id: \.id) { group in
-                                            AlbumCell(group: group)
-                                                .onTapGesture {
-                                                    selectedGroup = group
-                                                }
+                                            NavigationLink(destination: 
+                                                SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
+                                                    .environmentObject(photoManager)
+                                                    .environmentObject(toast)
+                                                    .environmentObject(coordinator)
+                                            ) {
+                                                AlbumCell(group: group)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
                                     }
                                     .padding(.horizontal)
@@ -114,10 +120,15 @@ struct PhotoGroupView: View {
                                 sectionHeader(title: "My Albums")
                                 LazyVGrid(columns: columns, spacing: 20) {
                                     ForEach(photoManager.photoGroups.filter { $0.title == "Saved"}, id: \.id) { group in
-                                        AlbumCell(group: group)
-                                            .onTapGesture {
-                                                selectedGroup = group
-                                            }
+                                        NavigationLink(destination: 
+                                            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
+                                                .environmentObject(photoManager)
+                                                .environmentObject(toast)
+                                                .environmentObject(coordinator)
+                                        ) {
+                                            AlbumCell(group: group)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                                 .padding(.horizontal)
@@ -129,14 +140,7 @@ struct PhotoGroupView: View {
                 }
             }
         }
-        .sheet(item: $selectedGroup) { group in
-            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
-                .onAppear {
-                    print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.assets.count)
-                }
-                .environmentObject(photoManager)
-                .environmentObject(toast)
-        }
+        .withModalCoordination(coordinator.modalCoordinator)
     }
 
     private func sectionHeader(title: String) -> some View {

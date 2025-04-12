@@ -1,40 +1,17 @@
 import SwiftUI
 
 extension View {
-    func withUpdateAlerts(using updateService: UpdateService) -> some View {
+    func withUpdateAlerts(using updateService: UpdateService, modalCoordinator: ModalCoordinator) -> some View {
         self
-            .alert("Update Required", isPresented: Binding(get: {
-                updateService.shouldForceUpdate
-            }, set: { _ in })) {
-                Button("Update Now") {
-                    if let url = URL(string: "https://apps.apple.com/app/com.riskcreates.cln") {
-                        UIApplication.shared.open(url)
+            .task {
+                if updateService.shouldForceUpdate {
+                    modalCoordinator.showForceUpdate(notes: updateService.updateNotes)
+                } else if updateService.shouldShowOptionalUpdate {
+                    modalCoordinator.showOptionalUpdate(notes: updateService.updateNotes) {
+                        updateService.dismissedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+                        updateService.shouldShowOptionalUpdate = false
                     }
                 }
-            } message: {
-                Text(updateService.updateNotes ?? "A new version is required.")
-            }
-            .sheet(isPresented: Binding(get: {
-                updateService.shouldShowOptionalUpdate
-            }, set: { newValue in
-                updateService.shouldShowOptionalUpdate = newValue
-            })) {
-                VStack(spacing: 16) {
-                    Text("Update Available")
-                        .font(.title2)
-                    Text(updateService.updateNotes ?? "A new version is available.")
-                    HStack {
-                        Button("Maybe Later") {
-                            updateService.shouldShowOptionalUpdate = false
-                        }
-                        Button("Update") {
-                            if let url = URL(string: "https://apps.apple.com/app/idYOUR_APP_ID") {
-                                UIApplication.shared.open(url)
-                            }
-                        }
-                    }
-                }
-                .padding()
             }
     }
 }
