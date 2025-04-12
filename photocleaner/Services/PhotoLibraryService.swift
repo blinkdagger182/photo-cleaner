@@ -5,6 +5,7 @@ import SwiftUI
 class PhotoLibraryService: NSObject {
     // MARK: - Properties
     private let lastViewedIndexKey = "LastViewedIndex"
+    static let shared = PhotoLibraryService()
     
     // MARK: - Authorization
     func requestAuthorization() async -> PHAuthorizationStatus {

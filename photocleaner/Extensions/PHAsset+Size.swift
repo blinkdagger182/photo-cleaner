@@ -1,3 +1,12 @@
+import Photos
+import UIKit
+
+extension PHAsset {
+    func getImageSize() -> CGSize {
+        return CGSize(width: self.pixelWidth, height: self.pixelHeight)
+    }
+}
+
 //import Photos
 //
 //extension PHAsset {

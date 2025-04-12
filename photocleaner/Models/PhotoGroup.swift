@@ -29,4 +29,4 @@ struct YearGroup: Identifiable {
     let id: Int
     let year: Int
     let months: [PhotoGroup]
-}
+} 

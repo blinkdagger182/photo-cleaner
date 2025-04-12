@@ -1,14 +1,34 @@
 import SwiftUI
 
+enum ToastType {
+    case success
+    case error
+    case info
+    
+    var color: Color {
+        switch self {
+        case .success: return .green
+        case .error: return .red
+        case .info: return .blue
+        }
+    }
+}
+
 @MainActor
 class ToastService: ObservableObject {
     @Published var message: String = ""
     @Published var isVisible: Bool = false
     @Published var actionLabel: String? = nil
+    @Published var type: ToastType = .info
     var actionHandler: (() -> Void)? = nil
+    
+    static let shared = ToastService()
+    
+    private init() {}
 
-    func show(_ message: String, action: String? = nil, duration: TimeInterval = 3.0, onAction: (() -> Void)? = nil) {
+    func show(message: String, type: ToastType = .info, action: String? = nil, duration: TimeInterval = 3.0, onAction: (() -> Void)? = nil) {
         self.message = message
+        self.type = type
         self.actionLabel = action
         self.actionHandler = onAction
         self.isVisible = true
@@ -45,7 +65,7 @@ class ToastService: ObservableObject {
                     }
                 }
                 .padding()
-                .background(Color.black.opacity(0.85))
+                .background(type.color.opacity(0.85))
                 .cornerRadius(10)
                 .padding(.horizontal, 16)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -54,4 +74,4 @@ class ToastService: ObservableObject {
         .animation(.easeInOut(duration: 0.2), value: isVisible)
         .padding(.bottom, 60)
     }
-}
+} 

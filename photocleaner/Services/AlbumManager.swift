@@ -3,6 +3,8 @@ import Photos
 import SwiftUI
 
 class AlbumManager: NSObject {
+    static let shared = AlbumManager()
+    
     // MARK: - Album Operations
     func addAsset(_ asset: PHAsset, toAlbumNamed name: String) {
         fetchOrCreateAlbum(named: name) { collection in

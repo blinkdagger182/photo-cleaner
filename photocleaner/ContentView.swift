@@ -17,6 +17,8 @@ struct ContentView: View {
                         await photoManager.requestAuthorization()
                     }
                 }
+                .environmentObject(photoManager)
+                .environmentObject(toast)
 
             case .authorized, .limited:
                 if photoManager.photoGroups.isEmpty {
@@ -24,6 +26,8 @@ struct ContentView: View {
                     if !photoManager.allAssets.isEmpty {
                         let _ = print("✅ LimitedAccessView is active") // ✅ trick to inline-print
                         LimitedAccessView()
+                            .environmentObject(photoManager)
+                            .environmentObject(toast)
                             .environmentObject(coordinator)
                     } else {
                         ContentUnavailableView("No Photos",
@@ -47,6 +51,8 @@ struct ContentView: View {
             }
         }
         .withModalCoordination(coordinator.modalCoordinator)
+        .environmentObject(photoManager)
+        .environmentObject(toast)
     }
 }
 
@@ -118,10 +124,15 @@ struct LimitedAccessView: View {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         NavigationLink(destination: 
-                            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
-                                .environmentObject(photoManager)
-                                .environmentObject(toast)
-                                .environmentObject(coordinator)
+                            SwipeCardView(viewModel: SwipeCardViewModel(
+                                group: group,
+                                photoManager: photoManager,
+                                forceRefresh: $shouldForceRefresh,
+                                modalCoordinator: coordinator.modalCoordinator
+                            ))
+                            .environmentObject(photoManager)
+                            .environmentObject(toast)
+                            .environmentObject(coordinator)
                         ) {
                             AlbumCell(group: group)
                         }

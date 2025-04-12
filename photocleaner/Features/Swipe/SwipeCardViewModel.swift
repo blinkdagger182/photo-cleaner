@@ -26,6 +26,15 @@ class SwipeCardViewModel: ObservableObject {
     private let preloadThreshold = 3  // Start preloading when 3 images away from end
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
     
+    // Computed properties
+    var assets: [PHAsset] {
+        return group.assets
+    }
+    
+    var title: String {
+        return group.title
+    }
+    
     // MARK: - Initialization
     init(group: PhotoGroup, photoManager: PhotoManager, forceRefresh: Binding<Bool>, modalCoordinator: ModalCoordinator? = nil) {
         self.group = group
@@ -144,7 +153,7 @@ class SwipeCardViewModel: ObservableObject {
                let loadedImage = optionalImage
             {
                 let size = asset.estimatedAssetSize
-                let entry = DeletePreviewEntry(asset: asset, image: loadedImage, fileSize: size)
+                let entry = DeletePreviewEntry(id: UUID(), asset: asset)
                 newEntries.append(entry)
             }
         }
@@ -327,36 +336,17 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     private func moveToNext() async {
-        let nextIndex = currentIndex + 1
-        
-        if nextIndex < group.assets.count {
-            // Store the current image as previous before moving to next
-            if currentIndex < preloadedImages.count, let currentImage = preloadedImages[currentIndex] {
-                await MainActor.run {
-                    self.previousImage = currentImage
+        if currentIndex < group.assets.count - 1 {
+            currentIndex += 1
+            saveProgress()
+        } else {
+            // We're at the end of the group, refresh the UI with force refresh binding
+            if let monthDate = group.monthDate {
+                await photoManager.refreshAllPhotoGroups()
+                
+                if let _ = forceRefreshBinding.wrappedValue {
+                    forceRefreshBinding.wrappedValue.toggle()
                 }
-            }
-            
-            // Update the index to maintain UI responsiveness
-            await MainActor.run {
-                self.currentIndex = nextIndex
-                self.swipeLabel = nil
-            }
-            
-            // Clean up old images to free memory (keeping a few behind for backtracking)
-            await cleanupOldImages()
-            
-            // Check if we need to preload more thumbnails
-            let thumbnailPreloadThreshold = 3
-            if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.assets.count {
-                await preloadThumbnails(from: loadedCount, count: 5)
-            }
-            
-            // Load high quality for current and next image
-            await loadHighQualityImage(at: nextIndex)
-            
-            if nextIndex + 1 < group.assets.count {
-                await loadHighQualityImage(at: nextIndex + 1)
             }
         }
     }
@@ -451,9 +441,7 @@ class SwipeCardViewModel: ObservableObject {
         }
     }
     
-    private func loadImage(for asset: PHAsset, targetSize: CGSize, options: PHImageRequestOptions)
-    async -> UIImage?
-    {
+    private func loadImage(for asset: PHAsset, targetSize: CGSize, options: PHImageRequestOptions) async -> UIImage? {
         await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: asset,
@@ -468,25 +456,8 @@ class SwipeCardViewModel: ObservableObject {
 }
 
 // MARK: - Helper Extensions
-extension Array {
-    subscript(safe index: Index) -> Element? {
-        return indices.contains(index) ? self[index] : nil
-    }
-}
+// The Array+Safe extension is already defined in Extensions/Array+Safe.swift
 
-//extension PHAsset {
-//    var estimatedAssetSize: Int64 {
-//        var resources: [PHAssetResource] = []
-//        PHAssetResource.assetResources(for: self).forEach { resources.append($0) }
-//        let resource = resources.first!
-//        
-//        guard let unsignedInt64 = resource.value(forKey: "fileSize") as? CLong else {
-//            return 0
-//        }
-//        
-//        return Int64(bitPattern: UInt64(unsignedInt64))
-//    }
-//} 
 extension PHAsset {
     var estimatedAssetSize: Int {
         let resources = PHAssetResource.assetResources(for: self)

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ShimmerPlaceholderView: View {
+struct ShimmerPlaceholder: View {
     let width: CGFloat
     let height: CGFloat
     
@@ -73,8 +73,4 @@ struct ShimmerModifier: ViewModifier {
                 }
         )
     }
-}
-
-#Preview {
-    ShimmerPlaceholderView(width: 300, height: 400)
 } 

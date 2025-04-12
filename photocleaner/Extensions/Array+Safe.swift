@@ -1,5 +1,7 @@
-//extension Array {
-//    subscript(safe index: Int) -> Element? {
-//        indices.contains(index) ? self[index] : nil
-//    }
-//}
+import Foundation
+
+extension Array {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
+}

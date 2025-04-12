@@ -13,14 +13,14 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var markedForBookmark: Set<String> = []
 
     // MARK: - Dependencies
-    private let photoLibraryService: PhotoLibraryService
-    private let albumManager: AlbumManager
+    private let photoLibraryService = PhotoLibraryService.shared
+    private let albumManager = AlbumManager.shared
+    
+    // MARK: - Singleton
+    static let shared = PhotoManager()
     
     // MARK: - Initialization
-    init(photoLibraryService: PhotoLibraryService = PhotoLibraryService(), 
-         albumManager: AlbumManager = AlbumManager()) {
-        self.photoLibraryService = photoLibraryService
-        self.albumManager = albumManager
+    private override init() {
         super.init()
         PHPhotoLibrary.shared().register(self)
     }
@@ -169,6 +169,11 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         await self.refreshAllPhotoGroups()
     }
     
+    func deletePhotos(from entries: [DeletePreviewEntry]) async {
+        let assets = entries.map { $0.asset }
+        await hardDeleteAssets(assets)
+    }
+    
     func hardDeleteAssets(_ assets: [PHAsset]) async {
         guard !assets.isEmpty else { return }
 
@@ -197,4 +202,4 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
         }
     }
-}
+} 
