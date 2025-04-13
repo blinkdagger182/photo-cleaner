@@ -340,6 +340,7 @@ struct SwipeCardView: View {
             options.deliveryMode = .fastFormat  // Use fast format for thumbnails
             options.isNetworkAccessAllowed = true
             options.isSynchronous = false
+            options.version = .current
 
             // Use a reasonable thumbnail size
             let thumbnailSize = CGSize(width: 300, height: 300)
@@ -354,11 +355,28 @@ struct SwipeCardView: View {
                     continuation.resume(returning: image)
                 }
             }
+            
+            // Process the image to avoid DisplayP3 color space issues
+            let processedImage = await convertToStandardColorSpaceIfNeeded(image)
 
             // Update UI with thumbnail
             await MainActor.run {
                 if i < preloadedImages.count {
-                    preloadedImages[i] = image
+                    preloadedImages[i] = processedImage
+                }
+            }
+            
+            // Prefetch metadata in the background to prevent warnings
+            Task(priority: .background) {
+                let options = PHContentEditingInputRequestOptions()
+                options.isNetworkAccessAllowed = true
+                options.canHandleAdjustmentData = { _ in return false }
+                
+                _ = await withCheckedContinuation { continuation in
+                    asset.requestContentEditingInput(with: options) { input, _ in
+                        // Just preload metadata, don't need to do anything with the result
+                        continuation.resume(returning: input != nil)
+                    }
                 }
             }
         }
@@ -378,6 +396,8 @@ struct SwipeCardView: View {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
+        options.resizeMode = .exact // Use exact resizing for better performance
+        options.version = .current
 
         // Calculate appropriate image size based on screen
         let scale = UIScreen.main.scale
@@ -397,11 +417,14 @@ struct SwipeCardView: View {
                 continuation.resume(returning: image)
             }
         }
+        
+        // Process the image if it's in DisplayP3 color space to avoid errors
+        let processedImage = await convertToStandardColorSpaceIfNeeded(image)
 
         // Update UI with high quality image
         await MainActor.run {
             if index < preloadedImages.count {
-                preloadedImages[index] = image
+                preloadedImages[index] = processedImage
             }
         }
     }
@@ -608,46 +631,87 @@ struct SwipeCardView: View {
     }
 
     private func loadImageForAsset(_ asset: PHAsset, at index: Int) async {
-    let options = PHImageRequestOptions()
-    options.deliveryMode = .opportunistic
-    options.isNetworkAccessAllowed = true
-    options.isSynchronous = false
-    options.resizeMode = .fast
-    
-    // Calculate appropriate image size based on screen
-    let scale = UIScreen.main.scale
-    let screenSize = UIScreen.main.bounds.size
-    let targetSize = CGSize(
-        width: min(screenSize.width * scale, 1200),
-        height: min(screenSize.height * scale, 1200)
-    )
-
-    // First load thumbnail
-    let thumbnailSize = CGSize(width: 300, height: 300)
-    let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: options)
-
-    // While loading thumbnail, also trigger metadata prefetch for this asset
-    Task {
-        _ = await asset.fetchEstimatedAssetSize()
-    }
-    
-    // Update UI with thumbnail
-    await MainActor.run {
-        if index < preloadedImages.count {
-            preloadedImages[index] = thumbnail
-        }
-    }
-
-    // Then load screen-sized image (not full resolution) if needed
-    if index >= currentIndex && index < currentIndex + 2 {
-        let screenImage = await loadImage(for: asset, targetSize: targetSize, options: options)
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .opportunistic
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+        options.resizeMode = .fast
+        
+        // Calculate appropriate image size based on screen
+        let scale = UIScreen.main.scale
+        let screenSize = UIScreen.main.bounds.size
+        let targetSize = CGSize(
+            width: min(screenSize.width * scale, 1200),
+            height: min(screenSize.height * scale, 1200)
+        )
+        
+        // First load thumbnail
+        let thumbnailSize = CGSize(width: 300, height: 300)
+        
+        // To prevent DisplayP3 color space issues, set the proper configuration
+        let thumbnailOptions = PHImageRequestOptions()
+        thumbnailOptions.deliveryMode = .fastFormat
+        thumbnailOptions.isNetworkAccessAllowed = true
+        thumbnailOptions.isSynchronous = false
+        thumbnailOptions.resizeMode = .fast
+        thumbnailOptions.version = .current
+        
+        let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: thumbnailOptions)
+        
+        // Update UI with thumbnail
         await MainActor.run {
             if index < preloadedImages.count {
-                preloadedImages[index] = screenImage
+                preloadedImages[index] = thumbnail
+            }
+        }
+        
+        // Then load screen-sized image (not full resolution) if needed
+        if index >= currentIndex && index < currentIndex + 2 {
+            // Configure options to avoid DisplayP3 color space issues
+            let screenOptions = PHImageRequestOptions()
+            screenOptions.deliveryMode = .highQualityFormat
+            screenOptions.isNetworkAccessAllowed = true
+            screenOptions.isSynchronous = false
+            screenOptions.resizeMode = .exact // Use exact to ensure proper sizing
+            screenOptions.version = .current
+            
+            let screenImage = await loadImage(for: asset, targetSize: targetSize, options: screenOptions)
+            
+            // Process the image if it's in DisplayP3 color space to avoid headroom errors
+            let processedImage = await convertToStandardColorSpaceIfNeeded(screenImage)
+            
+            await MainActor.run {
+                if index < preloadedImages.count {
+                    preloadedImages[index] = processedImage
+                }
             }
         }
     }
-}
+    
+    private func convertToStandardColorSpaceIfNeeded(_ image: UIImage?) async -> UIImage? {
+        guard let image = image else { return nil }
+        
+        // Check if the image is using DisplayP3 color space
+        if let colorSpace = image.cgImage?.colorSpace,
+           let colorSpaceName = colorSpace.name as String?,
+           colorSpaceName.contains("P3") {
+            // Convert to sRGB to avoid the DisplayP3 headroom errors
+            return await Task.detached {
+                let format = UIGraphicsImageRendererFormat()
+                format.preferredRange = .standard
+                format.scale = image.scale
+                
+                let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+                let convertedImage = renderer.image { context in
+                    image.draw(in: CGRect(origin: .zero, size: image.size))
+                }
+                
+                return convertedImage
+            }.value
+        }
+        
+        return image
+    }
 
     private func loadImage(for asset: PHAsset, targetSize: CGSize, options: PHImageRequestOptions)
         async -> UIImage?
