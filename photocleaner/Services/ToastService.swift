@@ -24,7 +24,7 @@ class ToastService: ObservableObject {
     
     static let shared = ToastService()
     
-    private init() {}
+    public init() {}
 
     func show(message: String, type: ToastType = .info, action: String? = nil, duration: TimeInterval = 3.0, onAction: (() -> Void)? = nil) {
         self.message = message

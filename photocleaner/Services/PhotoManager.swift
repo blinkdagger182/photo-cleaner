@@ -20,7 +20,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     static let shared = PhotoManager()
     
     // MARK: - Initialization
-    private override init() {
+    public override init() {
         super.init()
         PHPhotoLibrary.shared().register(self)
     }

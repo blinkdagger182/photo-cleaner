@@ -344,9 +344,8 @@ class SwipeCardViewModel: ObservableObject {
             if let monthDate = group.monthDate {
                 await photoManager.refreshAllPhotoGroups()
                 
-                if let _ = forceRefreshBinding.wrappedValue {
-                    forceRefreshBinding.wrappedValue.toggle()
-                }
+                // Toggle the force refresh binding to inform the parent view
+                forceRefreshBinding.wrappedValue.toggle()
             }
         }
     }

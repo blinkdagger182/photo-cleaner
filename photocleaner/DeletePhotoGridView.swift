@@ -11,10 +11,9 @@ struct DeletePhotoGridView: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(entries) { entry in
+                ForEach(entries, id: \.id) { entry in
                     let isSelected = selectedEntries.contains(entry.id)
-                    Image(uiImage: entry.image)
-                        .resizable()
+                    AssetImageView(asset: entry.asset)
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 100, height: 100)
                         .clipped()
@@ -38,6 +37,45 @@ struct DeletePhotoGridView: View {
                 }
             }
             .padding()
+        }
+    }
+}
+
+// A reusable view to load an image from a PHAsset
+struct AssetImageView: View {
+    let asset: PHAsset
+    @State private var image: UIImage?
+    
+    var body: some View {
+        Group {
+            if let image = image {
+                Image(uiImage: image)
+                    .resizable()
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.gray.opacity(0.1))
+            }
+        }
+        .onAppear {
+            loadImage()
+        }
+    }
+    
+    private func loadImage() {
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+        
+        PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: CGSize(width: 300, height: 300),
+            contentMode: .aspectFill,
+            options: options
+        ) { result, _ in
+            if let image = result {
+                self.image = image
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ extension View {
 }
 
 struct UpdateAlertsModifier: ViewModifier {
-    let coordinator: UpdateCoordinator
+    @ObservedObject var coordinator: UpdateCoordinator
     
     func body(content: Content) -> some View {
         content

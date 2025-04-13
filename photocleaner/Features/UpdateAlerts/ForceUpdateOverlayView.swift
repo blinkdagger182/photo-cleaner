@@ -1,7 +1,37 @@
 import SwiftUI
 
+// A simpler protocol for the overlay view to use
+protocol UpdateActionHandler {
+    func openAppStore()
+}
+
+// Make UpdateCoordinator conform to the protocol
+extension UpdateCoordinator: UpdateActionHandler {}
+
+// Create a simple handler for modal use
+class SimpleUpdateHandler: UpdateActionHandler {
+    func openAppStore() {
+        if let url = UpdateService.shared.appStoreURL {
+            UIApplication.shared.open(url)
+        }
+    }
+}
+
 struct ForceUpdateOverlayView: View {
-    let coordinator: UpdateCoordinator
+    let coordinator: UpdateActionHandler
+    var notes: String?
+    
+    // Original initializer
+    init(coordinator: UpdateCoordinator) {
+        self.coordinator = coordinator
+        self.notes = nil
+    }
+    
+    // Alternative initializer for modal use
+    init(notes: String?) {
+        self.notes = notes
+        self.coordinator = SimpleUpdateHandler()
+    }
     
     var body: some View {
         ZStack {
@@ -19,7 +49,7 @@ struct ForceUpdateOverlayView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                 
-                Text("This version is no longer supported. Please update to continue using the app.")
+                Text(notes ?? "This version is no longer supported. Please update to continue using the app.")
                     .font(.body)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white)

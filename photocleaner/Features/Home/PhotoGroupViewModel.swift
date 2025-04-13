@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import PhotosUI
 
 class PhotoGroupViewModel: ObservableObject {
     @Published var yearGroups: [YearGroup] = []
@@ -30,19 +31,16 @@ class PhotoGroupViewModel: ObservableObject {
         Task {
             let status = await photoManager.requestAuthorization()
             
-            await MainActor.run {
-                self.isLimitedAuthorization = (status == .limited)
-            }
+//            await MainActor.run {
+//                self.isLimitedAuthorization = (status == .limited)
+//            }
         }
     }
     
     func presentLimitedLibraryPicker() {
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let root = scene.windows.first?.rootViewController {
-            let selector = NSSelectorFromString("presentLimitedLibraryPickerFromViewController:")
-            if PHPhotoLibrary.shared().responds(to: selector) {
-                PHPhotoLibrary.shared().perform(selector, with: root)
-            }
+            PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
         }
     }
     

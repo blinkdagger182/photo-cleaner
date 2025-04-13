@@ -8,12 +8,12 @@ struct RootView: View {
             // Switch between views based on the current route
             switch coordinator.currentRoute {
             case .onboarding:
-                OnboardingView()
+                OnboardingView(viewModel: OnboardingViewModel(coordinator: coordinator))
                     .environmentObject(coordinator)
                     .transition(.opacity)
             
             case .splash:
-                SplashView()
+                SplashView(viewModel: SplashViewModel(coordinator: coordinator))
                     .environmentObject(coordinator)
                     .transition(.opacity)
             

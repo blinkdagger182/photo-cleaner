@@ -10,13 +10,16 @@ class UpdateCoordinator: ObservableObject {
     @Published var currentAppVersion: AppVersion?
     
     // Services
-    private let updateService = UpdateService.shared
+    private var updateService: UpdateService
     
     init(parent: AppCoordinator) {
         self.parent = parent
+        
+        // Use the shared instance directly - it's already on the MainActor
+        self.updateService = UpdateService.shared
     }
     
-    // Check for app updates
+    // Check for updates
     func checkForUpdates() {
         Task {
             do {

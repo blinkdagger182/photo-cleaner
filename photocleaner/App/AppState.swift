@@ -10,9 +10,9 @@ class AppState: ObservableObject {
     @Published var optionalUpdateAvailable = false
     
     // Singleton instance
-    static let shared = AppState()
+//    static let shared = AppState()
     
-    private init() {}
+    init() {}
     
     // Method to complete onboarding
     func completeOnboarding() {
