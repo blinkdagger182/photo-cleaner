@@ -10,6 +10,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var yearGroups: [YearGroup] = []
     @Published var markedForDeletion: Set<String> = []  // asset.localIdentifier
     @Published var markedForBookmark: Set<String> = []
+    @Published var deletedImagesPreview: [DeletePreviewEntry] = [] // Track all deleted images for preview
 
     private let lastViewedIndexKey = "LastViewedIndex"
 
@@ -252,6 +253,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     func unmarkForDeletion(_ asset: PHAsset) {
         Task { @MainActor in
             self.markedForDeletion.remove(asset.localIdentifier)
+            // Also remove from preview entries if exists
+            self.deletedImagesPreview.removeAll { $0.asset.localIdentifier == asset.localIdentifier }
         }
     }
 
@@ -312,6 +315,9 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         for asset in assets {
             self.unmarkForDeletion(asset)
         }
+        
+        // Remove deleted assets from preview
+        removeFromDeletedImagesPreview(assets: assets)
 
         await self.refreshAllPhotoGroups()
     }
@@ -325,6 +331,37 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         await MainActor.run {
             self.yearGroups = fetchedYears
             self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
+        }
+    }
+
+    // New method to add image to deleted preview
+    func addToDeletedImagesPreview(asset: PHAsset, image: UIImage) {
+        // Check if we already have this asset to prevent duplicates
+        if !deletedImagesPreview.contains(where: { $0.asset.localIdentifier == asset.localIdentifier }) {
+            let size = asset.estimatedAssetSize
+            let newEntry = DeletePreviewEntry(asset: asset, image: image, fileSize: size)
+            
+            Task { @MainActor in
+                self.deletedImagesPreview.append(newEntry)
+            }
+        }
+    }
+    
+    // Remove specific assets from preview
+    func removeFromDeletedImagesPreview(assets: [PHAsset]) {
+        let identifiers = assets.map { $0.localIdentifier }
+        
+        Task { @MainActor in
+            self.deletedImagesPreview.removeAll { entry in
+                identifiers.contains(entry.asset.localIdentifier)
+            }
+        }
+    }
+    
+    // Clear all preview entries
+    func clearDeletedImagesPreview() {
+        Task { @MainActor in
+            self.deletedImagesPreview.removeAll()
         }
     }
 

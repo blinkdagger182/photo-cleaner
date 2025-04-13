@@ -461,9 +461,13 @@ struct SwipeCardView: View {
 
     private func handleLeftSwipe() {
         let asset = group.assets[currentIndex]
-        //        photoManager.removeAsset(asset, fromGroupWithDate: group.monthDate)
-        //        photoManager.addAsset(asset, toAlbumNamed: "Deleted")
         photoManager.markForDeletion(asset)
+        
+        // Add the current image to the deletion preview if available
+        if currentIndex < preloadedImages.count, let currentImage = preloadedImages[currentIndex] {
+            // Add image to deleted preview collection
+            photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
+        }
 
         toast.show(
             "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
@@ -532,6 +536,31 @@ struct SwipeCardView: View {
             // Check if we need to preload more thumbnails
             let thumbnailPreloadThreshold = 3
             if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.assets.count {
+                // Prefetch metadata for the next batch
+                let nextBatchStart = loadedCount
+                let nextBatchEnd = min(nextBatchStart + 5, group.assets.count)
+                if nextBatchStart < nextBatchEnd {
+                    // Prefetch asset sizes by fetching them individually in background
+                    for i in nextBatchStart..<nextBatchEnd {
+                        if i < group.assets.count {
+                            let asset = group.assets[i]
+                            // Start fetching asset size in background with lower priority
+                            Task(priority: .background) {
+                                // Pre-fetch metadata to prevent "missing prefetched properties" warnings
+                                let options = PHContentEditingInputRequestOptions()
+                                options.isNetworkAccessAllowed = true
+                                options.canHandleAdjustmentData = { _ in return false }
+                                
+                                _ = await withCheckedContinuation { continuation in
+                                    asset.requestContentEditingInput(with: options) { input, _ in
+                                        continuation.resume(returning: input?.fullSizeImageURL != nil)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 await preloadThumbnails(from: loadedCount, count: 5)
             }
             
@@ -579,43 +608,46 @@ struct SwipeCardView: View {
     }
 
     private func loadImageForAsset(_ asset: PHAsset, at index: Int) async {
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
+    let options = PHImageRequestOptions()
+    options.deliveryMode = .opportunistic
+    options.isNetworkAccessAllowed = true
+    options.isSynchronous = false
+    options.resizeMode = .fast
+    
+    // Calculate appropriate image size based on screen
+    let scale = UIScreen.main.scale
+    let screenSize = UIScreen.main.bounds.size
+    let targetSize = CGSize(
+        width: min(screenSize.width * scale, 1200),
+        height: min(screenSize.height * scale, 1200)
+    )
 
-        // Add resource options to prefetch metadata and avoid warnings
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
-        // Calculate appropriate image size based on screen
-        let scale = UIScreen.main.scale
-        let screenSize = UIScreen.main.bounds.size
-        let targetSize = CGSize(
-            width: min(screenSize.width * scale, 1200),  // Cap at 1200px width
-            height: min(screenSize.height * scale, 1200)  // Cap at 1200px height
-        )
+    // First load thumbnail
+    let thumbnailSize = CGSize(width: 300, height: 300)
+    let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: options)
 
-        // First load thumbnail
-        let thumbnailSize = CGSize(width: 300, height: 300)
-        let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: options)
+    // While loading thumbnail, also trigger metadata prefetch for this asset
+    Task {
+        _ = await asset.fetchEstimatedAssetSize()
+    }
+    
+    // Update UI with thumbnail
+    await MainActor.run {
+        if index < preloadedImages.count {
+            preloadedImages[index] = thumbnail
+        }
+    }
 
-        // Update UI with thumbnail
+    // Then load screen-sized image (not full resolution) if needed
+    if index >= currentIndex && index < currentIndex + 2 {
+        let screenImage = await loadImage(for: asset, targetSize: targetSize, options: options)
         await MainActor.run {
             if index < preloadedImages.count {
-                preloadedImages[index] = thumbnail
-            }
-        }
-
-        // Then load screen-sized image (not full resolution) if needed
-        if index >= currentIndex && index < currentIndex + 2 {
-            let screenImage = await loadImage(for: asset, targetSize: targetSize, options: options)
-            await MainActor.run {
-                if index < preloadedImages.count {
-                    preloadedImages[index] = screenImage
-                }
+                preloadedImages[index] = screenImage
             }
         }
     }
+}
 
     private func loadImage(for asset: PHAsset, targetSize: CGSize, options: PHImageRequestOptions)
         async -> UIImage?
@@ -685,21 +717,22 @@ struct SwipeCardView: View {
     }
 
     private func prepareDeletePreview() {
-        var newEntries: [DeletePreviewEntry] = []
-
+        // First, add any images from current group that might be missing in the preview
         for (index, asset) in group.assets.enumerated() {
-            guard photoManager.isMarkedForDeletion(asset) else { continue }
-
-            if let optionalImage = preloadedImages[safe: index],
-                let loadedImage = optionalImage
-            {
-                let size = asset.estimatedAssetSize
-                let entry = DeletePreviewEntry(asset: asset, image: loadedImage, fileSize: size)
-                newEntries.append(entry)
+            if photoManager.isMarkedForDeletion(asset) {
+                // If the asset is marked but not already in preview, add it
+                let existingEntry = photoManager.deletedImagesPreview.contains { $0.asset.localIdentifier == asset.localIdentifier }
+                
+                if !existingEntry, let optionalImage = preloadedImages[safe: index],
+                    let loadedImage = optionalImage
+                {
+                    photoManager.addToDeletedImagesPreview(asset: asset, image: loadedImage)
+                }
             }
         }
-
-        deletePreviewEntries = newEntries
+    
+        // Use the shared collection of deleted images for preview
+        deletePreviewEntries = photoManager.deletedImagesPreview
         showDeletePreview = true
     }
     private func skeletonStack(width: CGFloat, height: CGFloat) -> some View {
