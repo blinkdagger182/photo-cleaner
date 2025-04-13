@@ -14,6 +14,12 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
 
     private let lastViewedIndexKey = "LastViewedIndex"
     private var isManualDeletion = false // Flag to track deletions through our UI
+    private var isPreloading = false // Flag to prevent reloads during preloading
+    private var lastReloadTime: Date = .distantPast
+    private let reloadThrottleInterval: TimeInterval = 2.0 // Minimum seconds between reloads
+    
+    // Task for debouncing reloads
+    private var pendingReloadTask: Task<Void, Never>?
 
     override init() {
         super.init()
@@ -22,21 +28,57 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
 
     deinit {
         PHPhotoLibrary.shared().unregisterChangeObserver(self)
+        pendingReloadTask?.cancel()
     }
 
     @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
-        // Only reload if the change wasn't triggered by our own deletion process
-        // or if there are pending asset changes to synchronize
-        if !isManualDeletion {
-            Task { @MainActor in
-                print("🔄 External library change detected, reloading photos...")
-                await self.loadAssets()
-            }
-        } else {
-            print("📝 Skipping reload - change was from our DeletePreview")
-            // Reset the flag after handling the change notification
+        // Skip reloads if it's from our own operations or if we're preloading images
+        if isManualDeletion || isPreloading {
+            print("📝 Skipping reload - change was from our own operations")
+            // Reset flag after handling
             isManualDeletion = false
+            return
         }
+        
+        // Throttle reloads to prevent multiple rapid reloads
+        let now = Date()
+        if now.timeIntervalSince(lastReloadTime) < reloadThrottleInterval {
+            // Cancel any pending reload task
+            pendingReloadTask?.cancel()
+            
+            // Schedule a new reload after the throttle interval
+            pendingReloadTask = Task { @MainActor in
+                do {
+                    // Wait until we're outside the throttle interval
+                    let waitTime = reloadThrottleInterval - now.timeIntervalSince(lastReloadTime)
+                    if waitTime > 0 {
+                        try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+                    }
+                    
+                    // Check if task was cancelled during sleep
+                    try Task.checkCancellation()
+                    
+                    print("🔄 External library change detected, reloading photos...")
+                    await self.loadAssets()
+                    lastReloadTime = Date()
+                } catch {
+                    // Task was cancelled, do nothing
+                }
+            }
+            return
+        }
+        
+        // If we're outside the throttle interval, reload immediately
+        lastReloadTime = now
+        Task { @MainActor in
+            print("🔄 External library change detected, reloading photos...")
+            await self.loadAssets()
+        }
+    }
+
+    // Set preloading state to prevent unnecessary reloads
+    func setPreloadingState(_ isPreloading: Bool) {
+        self.isPreloading = isPreloading
     }
 
     func requestAuthorization() async {
@@ -222,6 +264,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
 
     func bookmarkAsset(_ asset: PHAsset) {
+        isManualDeletion = true // Set flag before operation
         addAsset(asset, toAlbumNamed: "Saved")
     }
 
@@ -312,9 +355,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
     func handleLeftSwipe(asset: PHAsset, monthDate: Date?) async {
+        isManualDeletion = true // Set flag before operation
         self.markForDeletion(asset)
-//        self.removeAsset(asset, fromGroupWithDate: monthDate)
-//        self.addAsset(asset, toAlbumNamed: "Deleted")
         await self.refreshAllPhotoGroups()
     }
     func hardDeleteAssets(_ assets: [PHAsset]) async {

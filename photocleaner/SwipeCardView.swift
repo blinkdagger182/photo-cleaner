@@ -9,25 +9,20 @@ struct SwipeCardView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var toast: ToastService
-
-    @State private var currentIndex: Int = 0
-    @State private var offset = CGSize.zero
-    @State private var preloadedImages: [UIImage?] = []
-    @State private var loadedCount = 0
-    @State private var isLoading = false
-    @State private var viewHasAppeared = false
-    @State private var hasStartedLoading = false
-
-    private let maxBufferSize = 5  // Keep only 5 images in memory
-    private let preloadThreshold = 3  // Start preloading when 3 images away from end
-    @State private var showDeletePreview = false
-    @State private var deletePreviewEntries: [DeletePreviewEntry] = []
-    @State private var swipeLabel: String? = nil
-    @State private var swipeLabelColor: Color = .green
+    
+    // Use the new ViewModel to manage state
+    @StateObject private var viewModel: SwipeCardViewModel
+    
+    // Track hasAppeared state to keep animations consistent
     @State private var hasAppeared = false
-    private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
-    @State private var previousImage: UIImage? = nil
-
+    
+    init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
+        self.group = group
+        self._forceRefresh = forceRefresh
+        // Initialize the ViewModel with just the group
+        self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(group: group))
+    }
+    
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
@@ -38,7 +33,7 @@ struct SwipeCardView: View {
                         if group.count == 0 {
                             Text("No photos available")
                                 .foregroundColor(.gray)
-                        } else if isLoading && preloadedImages.isEmpty {
+                        } else if viewModel.isLoading && viewModel.preloadedImages.isEmpty {
                             // Show loading indicator only on initial load
                             VStack(spacing: 16) {
                                 skeletonStack(
@@ -62,14 +57,14 @@ struct SwipeCardView: View {
                         } else {
                             // Show images with proper fallbacks
                             ForEach(
-                                (0..<min(2, max(group.count - currentIndex, 0))).reversed(),
+                                (0..<min(2, max(group.count - viewModel.currentIndex, 0))).reversed(),
                                 id: \.self
                             ) { index in
-                                let actualIndex = currentIndex + index
+                                let actualIndex = viewModel.currentIndex + index
 
                                 ZStack {
-                                    if actualIndex < preloadedImages.count,
-                                        let image = preloadedImages[actualIndex]
+                                    if actualIndex < viewModel.preloadedImages.count,
+                                        let image = viewModel.preloadedImages[actualIndex]
                                     {
                                         // We have the image, display it
                                         Image(uiImage: image)
@@ -85,7 +80,7 @@ struct SwipeCardView: View {
                                             .shadow(radius: 8)
                                     } else if actualIndex < group.count {
                                         // If no image is available yet but we have a previous image, show it with overlay
-                                        if index == 0, let prevImage = previousImage {
+                                        if index == 0, let prevImage = viewModel.previousImage {
                                             Image(uiImage: prevImage)
                                                 .resizable()
                                                 .scaledToFit()
@@ -125,10 +120,10 @@ struct SwipeCardView: View {
                                     }
 
                                     // Overlay label
-                                    if index == 0, let swipeLabel = swipeLabel {
+                                    if index == 0, let swipeLabel = viewModel.swipeLabel {
                                         Text(swipeLabel.uppercased())
                                             .font(.system(size: 36, weight: .bold))
-                                            .foregroundColor(swipeLabelColor)
+                                            .foregroundColor(viewModel.swipeLabelColor)
                                             .padding(.horizontal, 20)
                                             .padding(.vertical, 10)
                                             .background(
@@ -136,7 +131,7 @@ struct SwipeCardView: View {
                                                     .fill(Color.white.opacity(0.8))
                                                     .overlay(
                                                         RoundedRectangle(cornerRadius: 12)
-                                                            .stroke(swipeLabelColor, lineWidth: 3)
+                                                            .stroke(viewModel.swipeLabelColor, lineWidth: 3)
                                                     )
                                             )
                                             .rotationEffect(.degrees(-15))
@@ -150,56 +145,34 @@ struct SwipeCardView: View {
                                     }
                                 }
                                 .offset(
-                                    x: index == 0 ? offset.width : CGFloat(index * 6),
-                                    y: index == 0 ? offset.width / 10 : CGFloat(index * 6)
+                                    x: index == 0 ? viewModel.offset.width : CGFloat(index * 6),
+                                    y: index == 0 ? viewModel.offset.width / 10 : CGFloat(index * 6)
                                 )
                                 .rotationEffect(
-                                    index == 0 ? .degrees(Double(offset.width / 15)) : .zero,
+                                    index == 0 ? .degrees(Double(viewModel.offset.width / 15)) : .zero,
                                     anchor: .bottomTrailing
                                 )
                                 .animation(
                                     hasAppeared && index == 0
                                         ? .interactiveSpring(response: 0.3, dampingFraction: 0.7)
-                                        : .none, value: offset
+                                        : .none, value: viewModel.offset
                                 )
                                 .zIndex(Double(-index))
                                 .gesture(
                                     index == 0
                                         ? DragGesture()
                                             .onChanged { value in
-                                                // Only allow dragging if the image is fully loaded
-                                                if isCurrentImageFullyLoaded() {
-                                                    offset = value.translation
-                                                    if offset.width > 50 {
-                                                        swipeLabel = "Keep"
-                                                        swipeLabelColor = .green
-                                                    } else if offset.width < -50 {
-                                                        swipeLabel = "Delete"
-                                                        swipeLabelColor = .red
-                                                    } else {
-                                                        swipeLabel = nil
-                                                    }
-                                                } else {
-                                                    // Don't update offset but show swipe label briefly
-                                                    if abs(value.translation.width) > 20 && !isToastVisible() {
-                                                        // Reset offset to zero to prevent any card movement
-                                                        offset = .zero
-                                                        toast.show("Please wait for the image to fully load before swiping", duration: 2.0)
-                                                    }
-                                                }
+                                                viewModel.handleDragGesture(value: value)
                                             }
                                             .onEnded { value in
-                                                if isCurrentImageFullyLoaded() {
-                                                    handleSwipeGesture(value)
-                                                }
-                                                swipeLabel = nil
+                                                viewModel.handleDragGestureEnd(value: value)
                                             }
                                         : nil
                                 )
                             }
 
                             // Show a loading indicator when actively loading more images
-                            if isLoading {
+                            if viewModel.isLoading {
                                 HStack {
                                     Spacer()
                                     VStack {
@@ -225,7 +198,7 @@ struct SwipeCardView: View {
 
                     Spacer()
 
-                    Text("\(currentIndex + 1)/\(group.count)")
+                    Text("\(viewModel.currentIndex + 1)/\(group.count)")
                         .font(.caption)
                         .padding(8)
                         .background(Color.black.opacity(0.6))
@@ -234,22 +207,22 @@ struct SwipeCardView: View {
 
                     HStack(spacing: 40) {
                         CircleButton(icon: "trash", tint: .red) {
-                            if isCurrentImageFullyLoaded() {
-                                handleLeftSwipe()
+                            if viewModel.isCurrentImageReadyForInteraction() {
+                                viewModel.handleLeftSwipe()
                             } else {
                                 toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
                             }
                         }
                         CircleButton(icon: "bookmark", tint: .yellow) {
-                            if isCurrentImageFullyLoaded() {
-                                handleBookmark()
+                            if viewModel.isCurrentImageReadyForInteraction() {
+                                viewModel.handleBookmark()
                             } else {
                                 toast.show("Please wait for the image to fully load before saving", duration: 2.0)
                             }
                         }
                         CircleButton(icon: "checkmark", tint: .green) {
-                            if isCurrentImageFullyLoaded() {
-                                handleRightSwipe()
+                            if viewModel.isCurrentImageReadyForInteraction() {
+                                viewModel.handleRightSwipe()
                             } else {
                                 toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
                             }
@@ -265,29 +238,41 @@ struct SwipeCardView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Next") {
-                        prepareDeletePreview()
+                        viewModel.prepareDeletePreview()
                     }
                     .disabled(group.count == 0)
                 }
             }
         }
         .onAppear {
-            viewHasAppeared = true
             hasAppeared = true
-            tryStartPreloading()
+            
+            // Initialize the view model with environment objects
+            viewModel.photoManager = photoManager
+            viewModel.toast = toast
+            
+            // Set the force refresh callback
+            viewModel.forceRefreshCallback = {
+                self.forceRefresh.toggle()
+            }
+            
+            // Notify the view model that the view has appeared
+            viewModel.onAppear()
 
             // Register for memory warnings
             NotificationCenter.default.addObserver(
                 forName: UIApplication.didReceiveMemoryWarningNotification,
                 object: nil,
                 queue: .main
-            ) { [self] _ in
+            ) { _ in
                 clearMemory()
+                // Also clear the PHAsset size cache
+                PHAsset.clearSizeCache()
             }
         }
         .id(forceRefresh)
         .onDisappear {
-            saveProgress()
+            viewModel.onDisappear()
             clearMemory()
             // Remove observer
             NotificationCenter.default.removeObserver(
@@ -297,9 +282,9 @@ struct SwipeCardView: View {
             )
         }
         .overlay(toast.overlayView, alignment: .bottom)
-        .fullScreenCover(isPresented: $showDeletePreview) {
+        .fullScreenCover(isPresented: $viewModel.showDeletePreview) {
             DeletePreviewView(
-                entries: $deletePreviewEntries,
+                entries: $viewModel.deletePreviewEntries,
                 forceRefresh: $forceRefresh
             )
             .environmentObject(photoManager)
@@ -308,531 +293,12 @@ struct SwipeCardView: View {
     }
 
     // MARK: - Helpers
-
-    private func tryStartPreloading() {
-        guard viewHasAppeared,
-            group.count > 0,
-            !hasStartedLoading
-        else {
-            return
-        }
-
-        hasStartedLoading = true
-        isLoading = true
-
-        Task {
-            resetViewState()
-
-            // First, quickly load thumbnails for the first few images
-            await preloadThumbnails(
-                from: currentIndex, count: min(5, group.count - currentIndex))
-
-            // Then load higher quality for current card
-            if currentIndex < group.count {
-                await loadHighQualityImage(at: currentIndex)
-
-                // Preload next card high quality if available
-                if currentIndex + 1 < group.count {
-                    await loadHighQualityImage(at: currentIndex + 1)
-                }
-            }
-
-            isLoading = false
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                forceRefresh.toggle()
-            }
-        }
-    }
     
-    private func preloadThumbnails(from startIndex: Int, count: Int) async {
-        guard startIndex < group.count else { return }
-
-        let endIndex = min(startIndex + count, group.count)
-
-        // Make sure preloadedImages array has enough slots
-        while preloadedImages.count < endIndex {
-            preloadedImages.append(nil)
-        }
-
-        // Load thumbnails quickly
-        for i in startIndex..<endIndex {
-            if i >= preloadedImages.count { continue }
-
-            // Use the asset(at:) method to get the asset from the ordered dictionary
-            guard let asset = group.asset(at: i) else { continue }
-            
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .fastFormat  // Use fast format for thumbnails
-            options.isNetworkAccessAllowed = true
-            options.isSynchronous = false
-            options.version = .current
-
-            // Use a reasonable thumbnail size
-            let thumbnailSize = CGSize(width: 300, height: 300)
-
-            let image = await withCheckedContinuation { continuation in
-                PHImageManager.default().requestImage(
-                    for: asset,
-                    targetSize: thumbnailSize,
-                    contentMode: .aspectFit,
-                    options: options
-                ) { image, _ in
-                    continuation.resume(returning: image)
-                }
-            }
-            
-            // Process the image to avoid DisplayP3 color space issues
-            let processedImage = await convertToStandardColorSpaceIfNeeded(image)
-
-            // Update UI with thumbnail
-            await MainActor.run {
-                if i < preloadedImages.count {
-                    preloadedImages[i] = processedImage
-                }
-            }
-            
-            // Prefetch metadata in the background to prevent warnings
-            Task(priority: .background) {
-                let options = PHContentEditingInputRequestOptions()
-                options.isNetworkAccessAllowed = true
-                options.canHandleAdjustmentData = { _ in return false }
-                
-                _ = await withCheckedContinuation { continuation in
-                    asset.requestContentEditingInput(with: options) { input, _ in
-                        // Just preload metadata, don't need to do anything with the result
-                        continuation.resume(returning: input != nil)
-                    }
-                }
-            }
-        }
-
-        loadedCount = max(loadedCount, endIndex)
-    }
-    
-    private func loadHighQualityImage(at index: Int) async {
-        guard index < group.count else { return }
-
-        // Make sure preloadedImages array has enough slots
-        while preloadedImages.count <= index {
-            preloadedImages.append(nil)
-        }
-
-        // Use the asset(at:) method to get the asset from the ordered dictionary
-        guard let asset = group.asset(at: index) else { return }
-        
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
-        options.resizeMode = .exact // Use exact resizing for better performance
-        options.version = .current
-
-        // Calculate appropriate image size based on screen
-        let scale = UIScreen.main.scale
-        let screenSize = UIScreen.main.bounds.size
-        let targetSize = CGSize(
-            width: min(screenSize.width * scale, 1200),  // Cap at 1200px width
-            height: min(screenSize.height * scale, 1200)  // Cap at 1200px height
-        )
-
-        let image = await withCheckedContinuation { continuation in
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: targetSize,  // Use appropriate size, not max size
-                contentMode: .aspectFit,
-                options: options
-            ) { image, _ in
-                continuation.resume(returning: image)
-            }
-        }
-        
-        // Process the image if it's in DisplayP3 color space to avoid errors
-        let processedImage = await convertToStandardColorSpaceIfNeeded(image)
-
-        // Update UI with high quality image
-        await MainActor.run {
-            if index < preloadedImages.count {
-                preloadedImages[index] = processedImage
-            }
-        }
-    }
-
-    private func resetViewState() {
-        currentIndex = UserDefaults.standard.integer(
-            forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
-        if hasAppeared {
-            withAnimation(.none) {
-                offset = .zero
-            }
-        } else {
-            offset = .zero
-        }
-        preloadedImages = []
-        loadedCount = 0
-    }
-
-    private func saveProgress() {
-        photoManager.updateLastViewedIndex(for: group.id, index: currentIndex)
-        UserDefaults.standard.set(
-            currentIndex, forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
-    }
-
-    private func spinnerCard(width: CGFloat, index: Int) -> some View {
-        RoundedRectangle(cornerRadius: 30)
-            .fill(Color(white: 0.95))
-            .frame(width: width)
-            .shadow(radius: 8)
-            .overlay(ProgressView())
-            .padding()
-            .offset(
-                x: index == 0 ? offset.width : CGFloat(index * 6),
-                y: CGFloat(index * 6)
-            )
-            .rotationEffect(index == 0 ? .degrees(Double(offset.width / 20)) : .zero)
-            .zIndex(Double(-index))
-    }
-
-    private func handleSwipeGesture(_ value: DragGesture.Value) {
-        let threshold: CGFloat = 100
-        if value.translation.width < -threshold {
-            handleLeftSwipe()
-        } else if value.translation.width > threshold {
-            handleRightSwipe()
-        }
-        withAnimation(.spring()) {
-            if hasAppeared {
-                withAnimation(.none) {
-                    offset = .zero
-                }
-            } else {
-                offset = .zero
-            }
-        }
-    }
-
-    private func handleLeftSwipe() {
-        guard let asset = group.asset(at: currentIndex) else { return }
-        
-        photoManager.markForDeletion(asset)
-        
-        // Add the current image to the deletion preview if available
-        if currentIndex < preloadedImages.count, let currentImage = preloadedImages[currentIndex] {
-            // Add image to deleted preview collection
-            photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
-        }
-
-        toast.show(
-            "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-        ) {
-            photoManager.restoreToPhotoGroups(asset, inMonth: group.monthDate)
-            refreshCard(at: currentIndex, with: asset)
-            photoManager.unmarkForDeletion(asset)
-        }
-
-        Task { await moveToNext() }
-    }
-
-    private func handleBookmark() {
-        guard let asset = group.asset(at: currentIndex) else { return }
-        
-        photoManager.bookmarkAsset(asset)
-        photoManager.markForFavourite(asset)
-
-        toast.show("Photo saved", action: "Undo") {
-            photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
-            refreshCard(at: currentIndex, with: asset)
-            photoManager.unmarkForDeletion(asset)
-        }
-
-        Task { await moveToNext() }
-    }
-
-    private func handleRightSwipe() {
-        Task { await moveToNext() }
-    }
-
-    private func refreshCard(at index: Int, with asset: PHAsset) {
-        if index < preloadedImages.count {
-            preloadedImages[index] = nil
-        } else {
-            preloadedImages.insert(nil, at: index)
-        }
-
-        loadedCount = preloadedImages.count
-
-        Task {
-            await preloadSingleImage(at: index)
-        }
-
-        if currentIndex > 0 {
-            currentIndex -= 1
-        }
-    }
-
-    private func moveToNext() async {
-        let nextIndex = currentIndex + 1
-        
-        if nextIndex < group.count {
-            // Store the current image as previous before moving to next
-            if currentIndex < preloadedImages.count, let currentImage = preloadedImages[currentIndex] {
-                previousImage = currentImage
-            }
-            
-            // Update the index to maintain UI responsiveness
-            await MainActor.run {
-                currentIndex = nextIndex
-            }
-            
-            // Clean up old images to free memory (keeping a few behind for backtracking)
-            await cleanupOldImages()
-            
-            // Check if we need to preload more thumbnails
-            let thumbnailPreloadThreshold = 3
-            if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.count {
-                // Prefetch metadata for the next batch
-                let nextBatchStart = loadedCount
-                let nextBatchEnd = min(nextBatchStart + 5, group.count)
-                if nextBatchStart < nextBatchEnd {
-                    // Prefetch asset sizes by fetching them individually in background
-                    for i in nextBatchStart..<nextBatchEnd {
-                        if i < group.count, let asset = group.asset(at: i) {
-                            // Start fetching asset size in background with lower priority
-                            Task(priority: .background) {
-                                // Pre-fetch metadata to prevent "missing prefetched properties" warnings
-                                let options = PHContentEditingInputRequestOptions()
-                                options.isNetworkAccessAllowed = true
-                                options.canHandleAdjustmentData = { _ in return false }
-                                
-                                _ = await withCheckedContinuation { continuation in
-                                    asset.requestContentEditingInput(with: options) { input, _ in
-                                        continuation.resume(returning: input?.fullSizeImageURL != nil)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                await preloadThumbnails(from: loadedCount, count: 5)
-            }
-            
-            // Load high quality for current and next image
-            await loadHighQualityImage(at: nextIndex)
-            
-            if nextIndex + 1 < group.count {
-                await loadHighQualityImage(at: nextIndex + 1)
-            }
-        }
-    }
-
-    private func preloadImages(from startIndex: Int, count: Int = 10) async {
-        guard startIndex < group.count else { return }
-
-        let endIndex = min(startIndex + count, group.count)
-        var newImages: [UIImage?] = []
-
-        for i in startIndex..<endIndex {
-            guard let asset = group.asset(at: i) else { continue }
-            
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .highQualityFormat
-            options.isNetworkAccessAllowed = true
-
-            let image = await withCheckedContinuation { continuation in
-                PHImageManager.default().requestImage(
-                    for: asset,
-                    targetSize: PHImageManagerMaximumSize,
-                    contentMode: .aspectFit,
-                    options: options
-                ) { image, _ in
-                    continuation.resume(returning: image)
-                }
-            }
-
-            newImages.append(image)
-        }
-
-        preloadedImages += newImages
-        loadedCount = preloadedImages.count
-    }
-
-    private func preloadSingleImage(at index: Int) async {
-        guard let asset = group.asset(at: index) else { return }
-        await loadImageForAsset(asset, at: index)
-    }
-
-    private func loadImageForAsset(_ asset: PHAsset, at index: Int) async {
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
-        options.resizeMode = .fast
-        
-        // Calculate appropriate image size based on screen
-        let scale = UIScreen.main.scale
-        let screenSize = UIScreen.main.bounds.size
-        let targetSize = CGSize(
-            width: min(screenSize.width * scale, 1200),
-            height: min(screenSize.height * scale, 1200)
-        )
-        
-        // First load thumbnail
-        let thumbnailSize = CGSize(width: 300, height: 300)
-        
-        // To prevent DisplayP3 color space issues, set the proper configuration
-        let thumbnailOptions = PHImageRequestOptions()
-        thumbnailOptions.deliveryMode = .fastFormat
-        thumbnailOptions.isNetworkAccessAllowed = true
-        thumbnailOptions.isSynchronous = false
-        thumbnailOptions.resizeMode = .fast
-        thumbnailOptions.version = .current
-        
-        let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: thumbnailOptions)
-        
-        // Update UI with thumbnail
-        await MainActor.run {
-            if index < preloadedImages.count {
-                preloadedImages[index] = thumbnail
-            }
-        }
-        
-        // Then load screen-sized image (not full resolution) if needed
-        if index >= currentIndex && index < currentIndex + 2 {
-            // Configure options to avoid DisplayP3 color space issues
-            let screenOptions = PHImageRequestOptions()
-            screenOptions.deliveryMode = .highQualityFormat
-            screenOptions.isNetworkAccessAllowed = true
-            screenOptions.isSynchronous = false
-            screenOptions.resizeMode = .exact // Use exact to ensure proper sizing
-            screenOptions.version = .current
-            
-            let screenImage = await loadImage(for: asset, targetSize: targetSize, options: screenOptions)
-            
-            // Process the image if it's in DisplayP3 color space to avoid headroom errors
-            let processedImage = await convertToStandardColorSpaceIfNeeded(screenImage)
-            
-            await MainActor.run {
-                if index < preloadedImages.count {
-                    preloadedImages[index] = processedImage
-                }
-            }
-        }
-    }
-    
-    private func convertToStandardColorSpaceIfNeeded(_ image: UIImage?) async -> UIImage? {
-        guard let image = image else { return nil }
-        
-        // Check if the image is using DisplayP3 color space
-        if let colorSpace = image.cgImage?.colorSpace,
-           let colorSpaceName = colorSpace.name as String?,
-           colorSpaceName.contains("P3") {
-            // Convert to sRGB to avoid the DisplayP3 headroom errors
-            return await Task.detached {
-                let format = UIGraphicsImageRendererFormat()
-                format.preferredRange = .standard
-                format.scale = image.scale
-                
-                let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
-                let convertedImage = renderer.image { context in
-                    image.draw(in: CGRect(origin: .zero, size: image.size))
-                }
-                
-                return convertedImage
-            }.value
-        }
-        
-        return image
-    }
-
-    private func loadImage(for asset: PHAsset, targetSize: CGSize, options: PHImageRequestOptions)
-        async -> UIImage?
-    {
-        await withCheckedContinuation { continuation in
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: targetSize,
-                contentMode: .aspectFit,
-                options: options
-            ) { image, _ in
-                continuation.resume(returning: image)
-            }
-        }
-    }
-
-    private func cleanupOldImages() async {
-        await MainActor.run {
-            // Keep current and next few images, remove everything before that
-            if currentIndex > maxBufferSize {
-                // Create a new array with nil for old images to free memory
-                var newImages = Array(
-                    repeating: nil as UIImage?, count: currentIndex - maxBufferSize)
-
-                // Append the images we want to keep
-                if currentIndex < preloadedImages.count {
-                    newImages.append(contentsOf: preloadedImages[currentIndex...])
-                }
-
-                preloadedImages = newImages
-
-                // Force a memory cleanup
-                autoreleasepool {}
-            }
-        }
-    }
-
     private func clearMemory() {
-        // Keep only the current image, clear everything else
-        if !preloadedImages.isEmpty && currentIndex < preloadedImages.count {
-            let currentImage = preloadedImages[currentIndex]
-            preloadedImages = Array(repeating: nil, count: preloadedImages.count)
-            if currentIndex < preloadedImages.count {
-                preloadedImages[currentIndex] = currentImage
-            }
-        }
+        // Use memory warning to clear caches
+        viewModel.clearMemory()
     }
 
-    private func checkAndPreloadMore() {
-        let remainingItems = group.count - (currentIndex + loadedCount)
-        if remainingItems <= preloadThreshold {
-            Task {
-                await preloadNextBatch()
-            }
-        }
-    }
-
-    private func preloadNextBatch() async {
-        let batchSize = 5
-        let startIndex = loadedCount
-        let endIndex = min(startIndex + batchSize, group.count)
-
-        for index in startIndex..<endIndex {
-            guard let asset = group.asset(at: index) else { continue }
-            await loadImageForAsset(asset, at: index)
-        }
-        loadedCount = endIndex
-    }
-
-    private func prepareDeletePreview() {
-        // First, add any images from current group that might be missing in the preview
-        for index in 0..<group.count {
-            guard let asset = group.asset(at: index) else { continue }
-            
-            if photoManager.isMarkedForDeletion(asset) {
-                // If the asset is marked but not already in preview, add it
-                let existingEntry = photoManager.deletedImagesPreview.contains { $0.asset.localIdentifier == asset.localIdentifier }
-                
-                if !existingEntry, let optionalImage = preloadedImages[safe: index],
-                    let loadedImage = optionalImage
-                {
-                    photoManager.addToDeletedImagesPreview(asset: asset, image: loadedImage)
-                }
-            }
-        }
-    
-        // Use the shared collection of deleted images for preview
-        deletePreviewEntries = photoManager.deletedImagesPreview
-        showDeletePreview = true
-    }
     private func skeletonStack(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
             ForEach((0..<2).reversed(), id: \.self) { index in
@@ -852,17 +318,6 @@ struct SwipeCardView: View {
                 }
             }
         }
-    }
-
-    // Check if the current image is fully loaded
-    private func isCurrentImageFullyLoaded() -> Bool {
-        guard currentIndex < preloadedImages.count else { return false }
-        return preloadedImages[currentIndex] != nil
-    }
-    
-    // Check if toast is currently visible to prevent showing multiple toasts
-    private func isToastVisible() -> Bool {
-        return toast.isVisible
     }
 }
 
