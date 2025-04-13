@@ -31,12 +31,12 @@ class AppCoordinator: ObservableObject {
     
     // Main flow coordinator for handling main app navigation
     lazy var mainFlowCoordinator: MainFlowCoordinator = {
-        return MainFlowCoordinator(parent: self)
+        return MainFlowCoordinator(parent: self, photoManager: photoManager, toastService: toastService)
     }()
     
     // Update coordinator
     lazy var updateCoordinator: UpdateCoordinator = {
-        return UpdateCoordinator(parent: self)
+        return UpdateCoordinator(parent: self, updateService: updateService)
     }()
     
     // User preferences

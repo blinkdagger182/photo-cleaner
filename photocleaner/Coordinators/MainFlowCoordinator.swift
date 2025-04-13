@@ -14,11 +14,13 @@ class MainFlowCoordinator: ObservableObject {
     @Published var deletePreviews: [DeletePreviewEntry] = []
     
     // Services
-    private let photoManager = PhotoManager.shared
-    private let toastService = ToastService.shared
+    private let photoManager: PhotoManager
+    private let toastService: ToastService
     
-    init(parent: AppCoordinator) {
+    init(parent: AppCoordinator, photoManager: PhotoManager, toastService: ToastService) {
         self.parent = parent
+        self.photoManager = photoManager
+        self.toastService = toastService
     }
     
     // Navigate to a specific photo group for swiping

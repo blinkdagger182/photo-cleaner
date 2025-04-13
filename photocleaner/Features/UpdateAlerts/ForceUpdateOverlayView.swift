@@ -10,8 +10,14 @@ extension UpdateCoordinator: UpdateActionHandler {}
 
 // Create a simple handler for modal use
 class SimpleUpdateHandler: UpdateActionHandler {
+    private let appStoreURL: URL?
+    
+    init(appStoreURL: URL? = nil) {
+        self.appStoreURL = appStoreURL ?? URL(string: "https://apps.apple.com/app/idYOURAPPID")
+    }
+    
     func openAppStore() {
-        if let url = UpdateService.shared.appStoreURL {
+        if let url = appStoreURL {
             UIApplication.shared.open(url)
         }
     }

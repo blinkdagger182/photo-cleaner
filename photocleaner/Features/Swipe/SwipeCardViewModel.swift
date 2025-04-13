@@ -2,6 +2,7 @@ import Photos
 import SwiftUI
 import UIKit
 
+@MainActor
 class SwipeCardViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var currentIndex: Int = 0
@@ -141,7 +142,6 @@ class SwipeCardViewModel: ObservableObject {
         Task { await moveToNext() }
     }
     
-    @MainActor
     /// Prepares the delete preview
     func prepareDeletePreview() {
         var newEntries: [DeletePreviewEntry] = []
@@ -150,9 +150,9 @@ class SwipeCardViewModel: ObservableObject {
             guard photoManager.isMarkedForDeletion(asset) else { continue }
             
             if let optionalImage = preloadedImages[safe: index],
-               let loadedImage = optionalImage
+               optionalImage != nil
             {
-                let size = asset.estimatedAssetSize
+                // We don't need the actual image, just that it exists
                 let entry = DeletePreviewEntry(id: UUID(), asset: asset)
                 newEntries.append(entry)
             }
@@ -199,7 +199,7 @@ class SwipeCardViewModel: ObservableObject {
         hasStartedLoading = true
         isLoading = true
         
-        Task {
+        Task { @MainActor in
             resetViewState()
             
             // First, quickly load thumbnails for the first few images
@@ -216,9 +216,7 @@ class SwipeCardViewModel: ObservableObject {
                 }
             }
             
-            await MainActor.run {
-                self.isLoading = false
-            }
+            self.isLoading = false
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 self.forceRefreshBinding.wrappedValue.toggle()
@@ -250,10 +248,8 @@ class SwipeCardViewModel: ObservableObject {
         let endIndex = min(startIndex + count, group.assets.count)
         
         // Make sure preloadedImages array has enough slots
-        await MainActor.run {
-            while self.preloadedImages.count < endIndex {
-                self.preloadedImages.append(nil)
-            }
+        while self.preloadedImages.count < endIndex {
+            self.preloadedImages.append(nil)
         }
         
         // Load thumbnails quickly
@@ -281,26 +277,20 @@ class SwipeCardViewModel: ObservableObject {
             }
             
             // Update UI with thumbnail
-            await MainActor.run {
-                if i < self.preloadedImages.count {
-                    self.preloadedImages[i] = image
-                }
+            if i < self.preloadedImages.count {
+                self.preloadedImages[i] = image
             }
         }
         
-        await MainActor.run {
-            self.loadedCount = max(self.loadedCount, endIndex)
-        }
+        self.loadedCount = max(self.loadedCount, endIndex)
     }
     
     private func loadHighQualityImage(at index: Int) async {
         guard index < group.assets.count else { return }
         
         // Make sure preloadedImages array has enough slots
-        await MainActor.run {
-            while self.preloadedImages.count <= index {
-                self.preloadedImages.append(nil)
-            }
+        while self.preloadedImages.count <= index {
+            self.preloadedImages.append(nil)
         }
         
         let asset = group.assets[index]
@@ -328,10 +318,8 @@ class SwipeCardViewModel: ObservableObject {
         }
         
         // Update UI with high quality image
-        await MainActor.run {
-            if index < self.preloadedImages.count {
-                self.preloadedImages[index] = image
-            }
+        if index < self.preloadedImages.count {
+            self.preloadedImages[index] = image
         }
     }
     
@@ -341,7 +329,7 @@ class SwipeCardViewModel: ObservableObject {
             saveProgress()
         } else {
             // We're at the end of the group, refresh the UI with force refresh binding
-            if let monthDate = group.monthDate {
+            if group.monthDate != nil {
                 await photoManager.refreshAllPhotoGroups()
                 
                 // Toggle the force refresh binding to inform the parent view
@@ -351,23 +339,21 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     private func cleanupOldImages() async {
-        await MainActor.run {
-            // Keep current and next few images, remove everything before that
-            if currentIndex > maxBufferSize {
-                // Create a new array with nil for old images to free memory
-                var newImages = Array(
-                    repeating: nil as UIImage?, count: currentIndex - maxBufferSize)
-                
-                // Append the images we want to keep
-                if currentIndex < preloadedImages.count {
-                    newImages.append(contentsOf: preloadedImages[currentIndex...])
-                }
-                
-                preloadedImages = newImages
-                
-                // Force a memory cleanup
-                autoreleasepool {}
+        // Keep current and next few images, remove everything before that
+        if currentIndex > maxBufferSize {
+            // Create a new array with nil for old images to free memory
+            var newImages = Array(
+                repeating: nil as UIImage?, count: currentIndex - maxBufferSize)
+            
+            // Append the images we want to keep
+            if currentIndex < preloadedImages.count {
+                newImages.append(contentsOf: preloadedImages[currentIndex...])
             }
+            
+            preloadedImages = newImages
+            
+            // Force a memory cleanup
+            autoreleasepool {}
         }
     }
     
@@ -423,19 +409,15 @@ class SwipeCardViewModel: ObservableObject {
         let thumbnail = await loadImage(for: asset, targetSize: thumbnailSize, options: options)
         
         // Update UI with thumbnail
-        await MainActor.run {
-            if index < self.preloadedImages.count {
-                self.preloadedImages[index] = thumbnail
-            }
+        if index < self.preloadedImages.count {
+            self.preloadedImages[index] = thumbnail
         }
         
         // Then load screen-sized image (not full resolution) if needed
         if index >= currentIndex && index < currentIndex + 2 {
             let screenImage = await loadImage(for: asset, targetSize: targetSize, options: options)
-            await MainActor.run {
-                if index < self.preloadedImages.count {
-                    self.preloadedImages[index] = screenImage
-                }
+            if index < self.preloadedImages.count {
+                self.preloadedImages[index] = screenImage
             }
         }
     }

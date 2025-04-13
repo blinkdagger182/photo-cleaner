@@ -9,10 +9,11 @@ class PhotoGroupViewModel: ObservableObject {
     @Published var isLimitedAuthorization: Bool = false
     
     private let coordinator: MainFlowCoordinator
-    private let photoManager = PhotoManager.shared
+    private let photoManager: PhotoManager
     
-    init(coordinator: MainFlowCoordinator) {
+    init(coordinator: MainFlowCoordinator, photoManager: PhotoManager = PhotoManager.shared) {
         self.coordinator = coordinator
+        self.photoManager = photoManager
         checkAuthorizationStatus()
     }
     
@@ -29,7 +30,7 @@ class PhotoGroupViewModel: ObservableObject {
     
     func checkAuthorizationStatus() {
         Task {
-            let status = await photoManager.requestAuthorization()
+            _ = await photoManager.requestAuthorization()
             
 //            await MainActor.run {
 //                self.isLimitedAuthorization = (status == .limited)

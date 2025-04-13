@@ -12,9 +12,11 @@ extension UpdateCoordinator: UpdateCoordinatorProtocol {}
 // Simple coordinator for modal use
 class ModalUpdateCoordinator: UpdateCoordinatorProtocol {
     var onDismiss: () -> Void
+    private let appStoreURL: URL?
     
-    init(onDismiss: @escaping () -> Void) {
+    init(onDismiss: @escaping () -> Void, appStoreURL: URL? = nil) {
         self.onDismiss = onDismiss
+        self.appStoreURL = appStoreURL ?? URL(string: "https://apps.apple.com/app/idYOURAPPID")
     }
     
     func hideOptionalUpdateSheet() {
@@ -22,7 +24,7 @@ class ModalUpdateCoordinator: UpdateCoordinatorProtocol {
     }
     
     func openAppStore() {
-        if let url = UpdateService.shared.appStoreURL {
+        if let url = appStoreURL {
             UIApplication.shared.open(url)
         }
         onDismiss()

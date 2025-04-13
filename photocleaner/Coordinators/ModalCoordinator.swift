@@ -82,8 +82,13 @@ struct WithModalCoordination: ViewModifier {
         switch route {
         case .deletePreview(let entries, let forceRefresh):
             DeletePreviewView(
-                viewModel: DeletePreviewViewModel(
-                    entries: entries
+                viewModel: DeletePreviewViewModel.create(
+                    entries: entries,
+                    onDismiss: {
+                        // Toggle force refresh to update the view when dismissing
+                        forceRefresh.wrappedValue.toggle()
+                        coordinator.dismiss()
+                    }
                 )
             )
             .environmentObject(photoManager)

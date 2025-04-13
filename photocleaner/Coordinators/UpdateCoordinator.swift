@@ -12,22 +12,20 @@ class UpdateCoordinator: ObservableObject {
     // Services
     private var updateService: UpdateService
     
-    init(parent: AppCoordinator) {
+    init(parent: AppCoordinator, updateService: UpdateService) {
         self.parent = parent
-        
-        // Use the shared instance directly - it's already on the MainActor
-        self.updateService = UpdateService.shared
+        self.updateService = updateService
     }
     
     // Check for updates
     func checkForUpdates() {
         Task {
             do {
-                let (needsForceUpdate, hasOptionalUpdate, version) = try await updateService.checkForUpdates()
+                let (needsForceUpdate, hasOptionalUpdate, latestVersion) = try await updateService.checkForUpdates()
                 
                 await MainActor.run {
-                    if let version = version {
-                        self.currentAppVersion = version
+                    if let latestVersion = latestVersion {
+                        self.currentAppVersion = latestVersion
                     }
                     
                     if needsForceUpdate {
@@ -44,8 +42,10 @@ class UpdateCoordinator: ObservableObject {
     
     // Show optional update sheet
     func showOptionalUpdateSheet() {
-        guard let version = currentAppVersion else { return }
-        self.showingOptionalUpdate = true
+        // Check if version exists before showing update sheet
+        if currentAppVersion != nil {
+            self.showingOptionalUpdate = true
+        }
     }
     
     // Hide optional update sheet
