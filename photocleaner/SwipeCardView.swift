@@ -167,19 +167,31 @@ struct SwipeCardView: View {
                                     index == 0
                                         ? DragGesture()
                                             .onChanged { value in
-                                                offset = value.translation
-                                                if offset.width > 50 {
-                                                    swipeLabel = "Keep"
-                                                    swipeLabelColor = .green
-                                                } else if offset.width < -50 {
-                                                    swipeLabel = "Delete"
-                                                    swipeLabelColor = .red
+                                                // Only allow dragging if the image is fully loaded
+                                                if isCurrentImageFullyLoaded() {
+                                                    offset = value.translation
+                                                    if offset.width > 50 {
+                                                        swipeLabel = "Keep"
+                                                        swipeLabelColor = .green
+                                                    } else if offset.width < -50 {
+                                                        swipeLabel = "Delete"
+                                                        swipeLabelColor = .red
+                                                    } else {
+                                                        swipeLabel = nil
+                                                    }
                                                 } else {
-                                                    swipeLabel = nil
+                                                    // Don't update offset but show swipe label briefly
+                                                    if abs(value.translation.width) > 20 && !isToastVisible() {
+                                                        // Reset offset to zero to prevent any card movement
+                                                        offset = .zero
+                                                        toast.show("Please wait for the image to fully load before swiping", duration: 2.0)
+                                                    }
                                                 }
                                             }
                                             .onEnded { value in
-                                                handleSwipeGesture(value)
+                                                if isCurrentImageFullyLoaded() {
+                                                    handleSwipeGesture(value)
+                                                }
                                                 swipeLabel = nil
                                             }
                                         : nil
@@ -222,13 +234,25 @@ struct SwipeCardView: View {
 
                     HStack(spacing: 40) {
                         CircleButton(icon: "trash", tint: .red) {
-                            handleLeftSwipe()
+                            if isCurrentImageFullyLoaded() {
+                                handleLeftSwipe()
+                            } else {
+                                toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
+                            }
                         }
                         CircleButton(icon: "bookmark", tint: .yellow) {
-                            handleBookmark()
+                            if isCurrentImageFullyLoaded() {
+                                handleBookmark()
+                            } else {
+                                toast.show("Please wait for the image to fully load before saving", duration: 2.0)
+                            }
                         }
                         CircleButton(icon: "checkmark", tint: .green) {
-                            handleRightSwipe()
+                            if isCurrentImageFullyLoaded() {
+                                handleRightSwipe()
+                            } else {
+                                toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
+                            }
                         }
                     }
                     .padding(.bottom, 32)
@@ -818,6 +842,17 @@ struct SwipeCardView: View {
                 }
             }
         }
+    }
+
+    // Check if the current image is fully loaded
+    private func isCurrentImageFullyLoaded() -> Bool {
+        guard currentIndex < preloadedImages.count else { return false }
+        return preloadedImages[currentIndex] != nil
+    }
+    
+    // Check if toast is currently visible to prevent showing multiple toasts
+    private func isToastVisible() -> Bool {
+        return toast.isVisible
     }
 }
 

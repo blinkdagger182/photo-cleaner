@@ -13,6 +13,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var deletedImagesPreview: [DeletePreviewEntry] = [] // Track all deleted images for preview
 
     private let lastViewedIndexKey = "LastViewedIndex"
+    private var isManualDeletion = false // Flag to track deletions through our UI
 
     override init() {
         super.init()
@@ -24,9 +25,17 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
 
     @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
-        Task { @MainActor in
-            print("🔄 Library changed, reloading photos...")
-            await self.loadAssets()
+        // Only reload if the change wasn't triggered by our own deletion process
+        // or if there are pending asset changes to synchronize
+        if !isManualDeletion {
+            Task { @MainActor in
+                print("🔄 External library change detected, reloading photos...")
+                await self.loadAssets()
+            }
+        } else {
+            print("📝 Skipping reload - change was from our DeletePreview")
+            // Reset the flag after handling the change notification
+            isManualDeletion = false
         }
     }
 
@@ -307,6 +316,9 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
     func hardDeleteAssets(_ assets: [PHAsset]) async {
         guard !assets.isEmpty else { return }
+
+        // Set flag before deletion operation
+        isManualDeletion = true
 
         try? await PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.deleteAssets(assets as NSArray)
