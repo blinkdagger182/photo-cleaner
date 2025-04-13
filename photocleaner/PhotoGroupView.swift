@@ -69,7 +69,7 @@ struct PhotoGroupView: View {
                                 }
                             Spacer(minLength: 0)
                         }
-                        .frame(height: 100) // Match left VStack’s approximate height
+                        .frame(height: 100) // Match left VStack's approximate height
                     }
                     .padding(.horizontal)
                     .padding(.top, 16)
@@ -132,7 +132,7 @@ struct PhotoGroupView: View {
         .sheet(item: $selectedGroup) { group in
             SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
                 .onAppear {
-                    print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.assets.count)
+                    print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.count)
                 }
                 .environmentObject(photoManager)
                 .environmentObject(toast)
@@ -173,7 +173,7 @@ struct AlbumCell: View {
                 .font(.subheadline)
                 .lineLimit(1)
 
-            Text("\(group.assets.count)")
+            Text("\(group.count)")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -184,12 +184,12 @@ struct AlbumCell: View {
     }
 
     private func loadThumbnail() async {
-        guard !group.assets.isEmpty else { return }
+        guard group.count > 0 else { return }
 
         let key = "LastViewedIndex_\(group.id.uuidString)"
         let savedIndex = UserDefaults.standard.integer(forKey: key)
-        let safeIndex = min(savedIndex, group.assets.count - 1)
-        let asset = group.assets[safeIndex]
+        let safeIndex = min(savedIndex, group.count - 1)
+        guard let asset = group.asset(at: safeIndex) else { return }
 
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat

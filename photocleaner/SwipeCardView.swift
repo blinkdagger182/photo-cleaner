@@ -35,7 +35,7 @@ struct SwipeCardView: View {
                     Spacer()
 
                     ZStack {
-                        if group.assets.isEmpty {
+                        if group.count == 0 {
                             Text("No photos available")
                                 .foregroundColor(.gray)
                         } else if isLoading && preloadedImages.isEmpty {
@@ -62,7 +62,7 @@ struct SwipeCardView: View {
                         } else {
                             // Show images with proper fallbacks
                             ForEach(
-                                (0..<min(2, max(group.assets.count - currentIndex, 0))).reversed(),
+                                (0..<min(2, max(group.count - currentIndex, 0))).reversed(),
                                 id: \.self
                             ) { index in
                                 let actualIndex = currentIndex + index
@@ -83,7 +83,7 @@ struct SwipeCardView: View {
                                                     cornerRadius: 30, style: .continuous)
                                             )
                                             .shadow(radius: 8)
-                                    } else if actualIndex < group.assets.count {
+                                    } else if actualIndex < group.count {
                                         // If no image is available yet but we have a previous image, show it with overlay
                                         if index == 0, let prevImage = previousImage {
                                             Image(uiImage: prevImage)
@@ -225,7 +225,7 @@ struct SwipeCardView: View {
 
                     Spacer()
 
-                    Text("\(currentIndex + 1)/\(group.assets.count)")
+                    Text("\(currentIndex + 1)/\(group.count)")
                         .font(.caption)
                         .padding(8)
                         .background(Color.black.opacity(0.6))
@@ -267,7 +267,7 @@ struct SwipeCardView: View {
                     Button("Next") {
                         prepareDeletePreview()
                     }
-                    .disabled(group.assets.isEmpty)
+                    .disabled(group.count == 0)
                 }
             }
         }
@@ -311,7 +311,7 @@ struct SwipeCardView: View {
 
     private func tryStartPreloading() {
         guard viewHasAppeared,
-            group.assets.count > 0,
+            group.count > 0,
             !hasStartedLoading
         else {
             return
@@ -325,14 +325,14 @@ struct SwipeCardView: View {
 
             // First, quickly load thumbnails for the first few images
             await preloadThumbnails(
-                from: currentIndex, count: min(5, group.assets.count - currentIndex))
+                from: currentIndex, count: min(5, group.count - currentIndex))
 
             // Then load higher quality for current card
-            if currentIndex < group.assets.count {
+            if currentIndex < group.count {
                 await loadHighQualityImage(at: currentIndex)
 
                 // Preload next card high quality if available
-                if currentIndex + 1 < group.assets.count {
+                if currentIndex + 1 < group.count {
                     await loadHighQualityImage(at: currentIndex + 1)
                 }
             }
@@ -346,9 +346,9 @@ struct SwipeCardView: View {
     }
     
     private func preloadThumbnails(from startIndex: Int, count: Int) async {
-        guard startIndex < group.assets.count else { return }
+        guard startIndex < group.count else { return }
 
-        let endIndex = min(startIndex + count, group.assets.count)
+        let endIndex = min(startIndex + count, group.count)
 
         // Make sure preloadedImages array has enough slots
         while preloadedImages.count < endIndex {
@@ -359,7 +359,9 @@ struct SwipeCardView: View {
         for i in startIndex..<endIndex {
             if i >= preloadedImages.count { continue }
 
-            let asset = group.assets[i]
+            // Use the asset(at:) method to get the asset from the ordered dictionary
+            guard let asset = group.asset(at: i) else { continue }
+            
             let options = PHImageRequestOptions()
             options.deliveryMode = .fastFormat  // Use fast format for thumbnails
             options.isNetworkAccessAllowed = true
@@ -409,14 +411,16 @@ struct SwipeCardView: View {
     }
     
     private func loadHighQualityImage(at index: Int) async {
-        guard index < group.assets.count else { return }
+        guard index < group.count else { return }
 
         // Make sure preloadedImages array has enough slots
         while preloadedImages.count <= index {
             preloadedImages.append(nil)
         }
 
-        let asset = group.assets[index]
+        // Use the asset(at:) method to get the asset from the ordered dictionary
+        guard let asset = group.asset(at: index) else { return }
+        
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
@@ -507,7 +511,8 @@ struct SwipeCardView: View {
     }
 
     private func handleLeftSwipe() {
-        let asset = group.assets[currentIndex]
+        guard let asset = group.asset(at: currentIndex) else { return }
+        
         photoManager.markForDeletion(asset)
         
         // Add the current image to the deletion preview if available
@@ -528,7 +533,8 @@ struct SwipeCardView: View {
     }
 
     private func handleBookmark() {
-        let asset = group.assets[currentIndex]
+        guard let asset = group.asset(at: currentIndex) else { return }
+        
         photoManager.bookmarkAsset(asset)
         photoManager.markForFavourite(asset)
 
@@ -566,7 +572,7 @@ struct SwipeCardView: View {
     private func moveToNext() async {
         let nextIndex = currentIndex + 1
         
-        if nextIndex < group.assets.count {
+        if nextIndex < group.count {
             // Store the current image as previous before moving to next
             if currentIndex < preloadedImages.count, let currentImage = preloadedImages[currentIndex] {
                 previousImage = currentImage
@@ -582,15 +588,14 @@ struct SwipeCardView: View {
             
             // Check if we need to preload more thumbnails
             let thumbnailPreloadThreshold = 3
-            if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.assets.count {
+            if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.count {
                 // Prefetch metadata for the next batch
                 let nextBatchStart = loadedCount
-                let nextBatchEnd = min(nextBatchStart + 5, group.assets.count)
+                let nextBatchEnd = min(nextBatchStart + 5, group.count)
                 if nextBatchStart < nextBatchEnd {
                     // Prefetch asset sizes by fetching them individually in background
                     for i in nextBatchStart..<nextBatchEnd {
-                        if i < group.assets.count {
-                            let asset = group.assets[i]
+                        if i < group.count, let asset = group.asset(at: i) {
                             // Start fetching asset size in background with lower priority
                             Task(priority: .background) {
                                 // Pre-fetch metadata to prevent "missing prefetched properties" warnings
@@ -614,20 +619,21 @@ struct SwipeCardView: View {
             // Load high quality for current and next image
             await loadHighQualityImage(at: nextIndex)
             
-            if nextIndex + 1 < group.assets.count {
+            if nextIndex + 1 < group.count {
                 await loadHighQualityImage(at: nextIndex + 1)
             }
         }
     }
 
     private func preloadImages(from startIndex: Int, count: Int = 10) async {
-        guard startIndex < group.assets.count else { return }
+        guard startIndex < group.count else { return }
 
-        let endIndex = min(startIndex + count, group.assets.count)
+        let endIndex = min(startIndex + count, group.count)
         var newImages: [UIImage?] = []
 
         for i in startIndex..<endIndex {
-            let asset = group.assets[i]
+            guard let asset = group.asset(at: i) else { continue }
+            
             let options = PHImageRequestOptions()
             options.deliveryMode = .highQualityFormat
             options.isNetworkAccessAllowed = true
@@ -651,7 +657,8 @@ struct SwipeCardView: View {
     }
 
     private func preloadSingleImage(at index: Int) async {
-        await loadImageForAsset(group.assets[index], at: index)
+        guard let asset = group.asset(at: index) else { return }
+        await loadImageForAsset(asset, at: index)
     }
 
     private func loadImageForAsset(_ asset: PHAsset, at index: Int) async {
@@ -785,7 +792,7 @@ struct SwipeCardView: View {
     }
 
     private func checkAndPreloadMore() {
-        let remainingItems = group.assets.count - (currentIndex + loadedCount)
+        let remainingItems = group.count - (currentIndex + loadedCount)
         if remainingItems <= preloadThreshold {
             Task {
                 await preloadNextBatch()
@@ -796,17 +803,20 @@ struct SwipeCardView: View {
     private func preloadNextBatch() async {
         let batchSize = 5
         let startIndex = loadedCount
-        let endIndex = min(startIndex + batchSize, group.assets.count)
+        let endIndex = min(startIndex + batchSize, group.count)
 
         for index in startIndex..<endIndex {
-            await loadImageForAsset(group.assets[index], at: index)
+            guard let asset = group.asset(at: index) else { continue }
+            await loadImageForAsset(asset, at: index)
         }
         loadedCount = endIndex
     }
 
     private func prepareDeletePreview() {
         // First, add any images from current group that might be missing in the preview
-        for (index, asset) in group.assets.enumerated() {
+        for index in 0..<group.count {
+            guard let asset = group.asset(at: index) else { continue }
+            
             if photoManager.isMarkedForDeletion(asset) {
                 // If the asset is marked but not already in preview, add it
                 let existingEntry = photoManager.deletedImagesPreview.contains { $0.asset.localIdentifier == asset.localIdentifier }

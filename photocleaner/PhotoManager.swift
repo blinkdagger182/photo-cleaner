@@ -282,16 +282,19 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         markedForBookmark.contains(asset.localIdentifier)
     }
     func fetchAlbumCoverImage(for group: PhotoGroup, completion: @escaping (UIImage?) -> Void) {
-        guard !group.assets.isEmpty else {
+        guard group.count > 0 else {
             completion(nil)
             return
         }
 
         let key = "LastViewedIndex_\(group.id.uuidString)"
         let savedIndex = UserDefaults.standard.integer(forKey: key)
-        let safeIndex = min(savedIndex, group.assets.count - 1)
-
-        let asset = group.assets[safeIndex]
+        let safeIndex = min(savedIndex, group.count - 1)
+        
+        guard let asset = group.asset(at: safeIndex) else {
+            completion(nil)
+            return
+        }
 
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
