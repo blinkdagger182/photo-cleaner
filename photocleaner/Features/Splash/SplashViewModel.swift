@@ -4,10 +4,11 @@ class SplashViewModel: ObservableObject {
     @Published var isLoading = false
     
     private let coordinator: AppCoordinator
-    private let photoManager = PhotoManager.shared
+    private let photoManager: PhotoManager
     
     init(coordinator: AppCoordinator) {
         self.coordinator = coordinator
+        self.photoManager = coordinator.photoManager
     }
     
     func loadInitialData() {

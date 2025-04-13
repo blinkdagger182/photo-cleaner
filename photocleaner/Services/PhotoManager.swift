@@ -57,6 +57,12 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             }
         }
     }
+    
+    /// Find a photo group by its UUID string
+    func getPhotoGroup(withId id: String) -> PhotoGroup? {
+        guard let uuid = UUID(uuidString: id) else { return nil }
+        return photoGroups.first { $0.id == uuid }
+    }
 
     func fetchPhotoGroupsByYearAndMonth() async -> [YearGroup] {
         return await photoLibraryService.fetchPhotoGroupsByYearAndMonth(markedForDeletion: markedForDeletion)
