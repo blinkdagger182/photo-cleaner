@@ -107,8 +107,11 @@ class SwipeCardViewModel: ObservableObject {
         toast.show(
             "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
         ) {
+            // Capture the index at the time of the action
+            let actionIndex = self.currentIndex
             self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-            self.refreshCard(at: self.currentIndex, with: asset)
+            // Pass the captured index to refreshCard
+            self.refreshCard(at: actionIndex, with: asset)
             self.photoManager.unmarkForDeletion(asset)
         }
         
@@ -126,9 +129,13 @@ class SwipeCardViewModel: ObservableObject {
         photoManager.markForFavourite(asset)
         
         toast.show("Photo saved", action: "Undo") {
+            // Capture the index at the time of the action
+            let actionIndex = self.currentIndex
             self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
-            self.refreshCard(at: self.currentIndex, with: asset)
-            self.photoManager.unmarkForDeletion(asset)
+            // Pass the captured index to refreshCard
+            self.refreshCard(at: actionIndex, with: asset)
+            // This was likely a mistake, should unmark favourite, not deletion
+            self.photoManager.unmarkForFavourite(asset)
         }
         
         Task { await moveToNext() }
@@ -157,8 +164,10 @@ class SwipeCardViewModel: ObservableObject {
     func isCurrentImageReadyForInteraction() -> Bool {
         guard currentIndex < preloadedImages.count else { return false }
         
-        // Check if the current image is loaded in high quality
-        return preloadedImages[currentIndex] != nil && highQualityImagesStatus[currentIndex] == true
+        // Check if the current image is loaded in high quality or at least exists
+        // This ensures we don't get stuck on a loading spinner if the image is visible
+        return preloadedImages[currentIndex] != nil && 
+              (highQualityImagesStatus[currentIndex] == true || highQualityImagesStatus[currentIndex] == nil)
     }
     
     // MARK: - Private Methods
@@ -287,10 +296,6 @@ class SwipeCardViewModel: ObservableObject {
         
         Task {
             await loadImage(at: index, quality: .screen)
-        }
-        
-        if currentIndex > 0 {
-            currentIndex -= 1
         }
     }
     
@@ -486,7 +491,7 @@ class SwipeCardViewModel: ObservableObject {
             
             // Also prefetch metadata in background to avoid warnings
             if !Task.isCancelled {
-                await prefetchAssetMetadata(asset: asset)
+//                await prefetchAssetMetadata(asset: asset)
             }
             
             return processedImage
@@ -501,17 +506,17 @@ class SwipeCardViewModel: ObservableObject {
         }
     }
     
-    private func prefetchAssetMetadata(asset: PHAsset) async {
-        let options = PHContentEditingInputRequestOptions()
-        options.isNetworkAccessAllowed = true
-        options.canHandleAdjustmentData = { _ in return false }
+    // private func prefetchAssetMetadata(asset: PHAsset) async {
+    //     let options = PHContentEditingInputRequestOptions()
+    //     options.isNetworkAccessAllowed = true
+    //     options.canHandleAdjustmentData = { _ in return false }
         
-        _ = await withCheckedContinuation { continuation in
-            asset.requestContentEditingInput(with: options) { input, _ in
-                continuation.resume(returning: input != nil)
-            }
-        }
-    }
+    //     _ = await withCheckedContinuation { continuation in
+    //         asset.requestContentEditingInput(with: options) { input, _ in
+    //             continuation.resume(returning: input != nil)
+    //         }
+    //     }
+    // }
     
     private func convertToStandardColorSpaceIfNeeded(_ image: UIImage?) async -> UIImage? {
         guard let image = image else { return nil }

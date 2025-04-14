@@ -13,7 +13,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var deletedImagesPreview: [DeletePreviewEntry] = [] // Track all deleted images for preview
 
     private let lastViewedIndexKey = "LastViewedIndex"
-    private var isManualDeletion = false // Flag to track deletions through our UI
+    private var isPerformingInternalChange = false // Flag to track internal changes through our UI
     private var isPreloading = false // Flag to prevent reloads during preloading
     private var lastReloadTime: Date = .distantPast
     private let reloadThrottleInterval: TimeInterval = 2.0 // Minimum seconds between reloads
@@ -33,10 +33,10 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
 
     @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
         // Skip reloads if it's from our own operations or if we're preloading images
-        if isManualDeletion || isPreloading {
+        if isPerformingInternalChange || isPreloading {
             print("📝 Skipping reload - change was from our own operations")
             // Reset flag after handling
-            isManualDeletion = false
+            isPerformingInternalChange = false
             return
         }
         
@@ -177,6 +177,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
 
     func addAsset(_ asset: PHAsset, toAlbumNamed name: String) {
+        isPerformingInternalChange = true // Set flag before operation
         fetchOrCreateAlbum(named: name) { collection in
             guard let collection = collection else { return }
             PHPhotoLibrary.shared().performChanges {
@@ -186,6 +187,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
 
     func removeAsset(_ asset: PHAsset, fromAlbumNamed name: String) {
+        isPerformingInternalChange = true // Set flag before operation
         fetchOrCreateAlbum(named: name) { collection in
             guard let collection = collection else { return }
             PHPhotoLibrary.shared().performChanges {
@@ -205,6 +207,9 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             completion(album)
         } else {
             var placeholder: PHObjectPlaceholder?
+            
+            isPerformingInternalChange = true // Set flag before creating the album
+            
             PHPhotoLibrary.shared().performChanges(
                 {
                     placeholder =
@@ -264,7 +269,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
 
     func bookmarkAsset(_ asset: PHAsset) {
-        isManualDeletion = true // Set flag before operation
+        isPerformingInternalChange = true // Set flag before operation
         addAsset(asset, toAlbumNamed: "Saved")
     }
 
@@ -355,7 +360,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
     func handleLeftSwipe(asset: PHAsset, monthDate: Date?) async {
-        isManualDeletion = true // Set flag before operation
+        isPerformingInternalChange = true // Set flag before operation
         self.markForDeletion(asset)
         await self.refreshAllPhotoGroups()
     }
@@ -363,7 +368,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         guard !assets.isEmpty else { return }
 
         // Set flag before deletion operation
-        isManualDeletion = true
+        isPerformingInternalChange = true
 
         try? await PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.deleteAssets(assets as NSArray)
