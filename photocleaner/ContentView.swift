@@ -6,7 +6,8 @@ import PhotosUI
 struct ContentView: View {
     @EnvironmentObject private var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
-
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = true
+    
     var body: some View {
         Group {
             switch photoManager.authorizationStatus {
@@ -38,6 +39,16 @@ struct ContentView: View {
                 ContentUnavailableView("No Access to Photos",
                                        systemImage: "lock.fill",
                                        description: Text("Please enable photo access in Settings"))
+                .overlay(
+                    Button("Open Settings") {
+                        if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(settingsURL)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(),
+                    alignment: .bottom
+                )
 
             @unknown default:
                 EmptyView()

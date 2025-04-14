@@ -15,6 +15,8 @@ struct photocleanerApp: App {
                     SplashView()
                         .task {
                             await updateService.checkAppVersion()
+                            
+                            await photoManager.checkCurrentStatus()
                         }
                 } else {
                     OnboardingView()

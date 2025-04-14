@@ -1,10 +1,14 @@
 import SwiftUI
 import AVKit
+import Photos
 
 struct OnboardingView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var fadeIn = false
     @State private var fadeOut = false
+    @State private var showPermissionDeniedAlert = false
+    
+    @EnvironmentObject private var photoManager: PhotoManager
 
     private let videoAspectRatio: CGFloat = 766.0 / 1080.0 // ≈ 0.709
 
@@ -45,11 +49,31 @@ struct OnboardingView: View {
                     Spacer()
 
                     Button(action: {
-                        withAnimation(.easeInOut(duration: 0.6)) {
-                            fadeOut = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            hasSeenOnboarding = true
+                        Task {
+                            // Check if we need to request permission
+                            if photoManager.authorizationStatus == .notDetermined {
+                                // Request photo library access
+                                await photoManager.requestAuthorization()
+                                
+                                // Handle the result
+                                switch photoManager.authorizationStatus {
+                                case .authorized, .limited:
+                                    // If authorized, complete onboarding
+                                    completeOnboarding()
+                                case .denied, .restricted:
+                                    // If denied, show an alert
+                                    showPermissionDeniedAlert = true
+                                default:
+                                    break
+                                }
+                            } else if photoManager.authorizationStatus == .authorized || 
+                                      photoManager.authorizationStatus == .limited {
+                                // Already authorized, just complete onboarding
+                                completeOnboarding()
+                            } else {
+                                // Already denied, show the alert
+                                showPermissionDeniedAlert = true
+                            }
                         }
                     }) {
                         Text("Get started")
@@ -70,7 +94,31 @@ struct OnboardingView: View {
                         fadeIn = true
                     }
                 }
+                .task {
+                    // Delay checking photo library status until the view is fully appeared
+                    // This prevents premature triggering of the system permission alert
+                    await photoManager.checkCurrentStatus()
+                }
+                .alert("Photo Access Required", isPresented: $showPermissionDeniedAlert) {
+                    Button("Open Settings") {
+                        if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(settingsURL)
+                        }
+                    }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("This app needs access to your photos to help you organize and clean up your library. Please enable access in Settings.")
+                }
             }
+        }
+    }
+    
+    private func completeOnboarding() {
+        withAnimation(.easeInOut(duration: 0.6)) {
+            fadeOut = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            hasSeenOnboarding = true
         }
     }
 }

@@ -2,8 +2,8 @@ import SwiftUI
 
 struct SplashView: View {
     @State private var isActive = false
-    @StateObject private var photoManager = PhotoManager()
-    @StateObject private var toast = ToastService()
+    @EnvironmentObject private var photoManager: PhotoManager
+    @EnvironmentObject private var toast: ToastService
     @EnvironmentObject var updateService: UpdateService
     @Environment(\.colorScheme) var colorScheme
 
@@ -19,7 +19,7 @@ struct SplashView: View {
         "Lighten up.",
         "Clean phone. Clear mind.",
         "cln. starts now.",
-        "It’s cln. time."
+        "It's cln. time."
     ]
     @State private var currentIndex = 0
     @State private var currentTagline = ""
@@ -59,7 +59,9 @@ struct SplashView: View {
                         }
                     }
 
-                    await photoManager.requestAuthorization()
+                    // We only check status here, not request permission
+                    // For returning users, we'll request if needed in ContentView
+                    await photoManager.checkCurrentStatus()
 
                     try? await Task.sleep(nanoseconds: 4_000_000_000)
 

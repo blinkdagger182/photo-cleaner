@@ -17,18 +17,30 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     private var isPreloading = false // Flag to prevent reloads during preloading
     private var lastReloadTime: Date = .distantPast
     private let reloadThrottleInterval: TimeInterval = 2.0 // Minimum seconds between reloads
+    private var isObservingPhotoLibrary = false // Flag to track if we're already observing
     
     // Task for debouncing reloads
     private var pendingReloadTask: Task<Void, Never>?
 
     override init() {
         super.init()
-        PHPhotoLibrary.shared().register(self)
+        // Removed PHPhotoLibrary registration to prevent premature permission requests
     }
 
     deinit {
-        PHPhotoLibrary.shared().unregisterChangeObserver(self)
+        if isObservingPhotoLibrary {
+            PHPhotoLibrary.shared().unregisterChangeObserver(self)
+        }
         pendingReloadTask?.cancel()
+    }
+    
+    // Add a method to start observing photo library changes only after permissions are granted
+    private func startObservingPhotoChanges() {
+        if !isObservingPhotoLibrary {
+            print("📸 Starting to observe photo library changes.")
+            PHPhotoLibrary.shared().register(self)
+            isObservingPhotoLibrary = true
+        }
     }
 
     @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
@@ -81,6 +93,36 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         self.isPreloading = isPreloading
     }
 
+    /// Checks the current photo authorization status without requesting permission
+    func checkCurrentStatus() async {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        await MainActor.run {
+            self.authorizationStatus = status
+        }
+        
+        // If already authorized, load the assets
+        if status == .authorized || status == .limited {
+            await loadAssets()
+            startObservingPhotoChanges() // Start observing only after we have permission
+        }
+    }
+    
+    /// Loads assets after authorization is granted
+    private func loadAssets() async {
+        async let years = fetchPhotoGroupsByYearAndMonth()
+        async let systemAlbums = fetchSystemAlbums()
+
+        let fetchedYears = await years
+        let fetchedSystemAlbums = await systemAlbums
+
+        await MainActor.run {
+            self.yearGroups = fetchedYears
+            self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
+        }
+    }
+
+    /// Explicitly requests user authorization to access photos
     func requestAuthorization() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
 
@@ -89,16 +131,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
 
         if status == .authorized || status == .limited {
-            async let years = fetchPhotoGroupsByYearAndMonth()
-            async let systemAlbums = fetchSystemAlbums()
-
-            let fetchedYears = await years
-            let fetchedSystemAlbums = await systemAlbums
-
-            await MainActor.run {
-                self.yearGroups = fetchedYears
-                self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
-            }
+            await loadAssets()
+            startObservingPhotoChanges() // Start observing only after we have permission
         }
     }
 
@@ -390,18 +424,6 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         removeFromDeletedImagesPreview(assets: assets)
 
         await self.refreshAllPhotoGroups()
-    }
-    func loadAssets() async {
-        async let years = fetchPhotoGroupsByYearAndMonth()
-        async let systemAlbums = fetchSystemAlbums()
-
-        let fetchedYears = await years
-        let fetchedSystemAlbums = await systemAlbums
-
-        await MainActor.run {
-            self.yearGroups = fetchedYears
-            self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
-        }
     }
 
     // New method to add image to deleted preview
