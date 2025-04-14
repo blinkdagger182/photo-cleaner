@@ -95,6 +95,15 @@ class SwipeCardViewModel: ObservableObject {
     
     func handleLeftSwipe() {
         guard let asset = group.asset(at: currentIndex) else { return }
+        // Capture the index *before* showing the toast
+        let capturedIndex = currentIndex 
+        
+        // Start loading next image immediately
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
         
         photoManager.markForDeletion(asset)
         
@@ -104,41 +113,71 @@ class SwipeCardViewModel: ObservableObject {
             photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
         }
         
+        // Move to next immediately instead of waiting for toast dismissal
+        Task { await self.moveToNext() }
+        
         toast.show(
             "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
         ) {
-            // Capture the index at the time of the action
-            let actionIndex = self.currentIndex
+            // Undo Action - Use capturedIndex
             self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-            // Pass the captured index to refreshCard
-            self.refreshCard(at: actionIndex, with: asset)
+            // self.refreshCard(at: capturedIndex, with: asset) // Use capturedIndex - REMOVED
             self.photoManager.unmarkForDeletion(asset)
+            // Animate the state reset using capturedIndex
+            withAnimation {
+                self.currentIndex = capturedIndex // Use capturedIndex
+                self.offset = .zero
+            }
+        } onDismiss: {
+            // No need to move to next as it already happened
         }
-        
-        Task { await moveToNext() }
     }
     
     func handleRightSwipe() {
+        // Capture the index before moving to next
+        let capturedIndex = currentIndex
+        
+        // Start loading next image immediately
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
         Task { await moveToNext() }
     }
     
     func handleBookmark() {
         guard let asset = group.asset(at: currentIndex) else { return }
+        // Capture the index *before* showing the toast
+        let capturedIndex = currentIndex
+        
+        // Start loading next image immediately
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
         
         photoManager.bookmarkAsset(asset)
         photoManager.markForFavourite(asset)
         
-        toast.show("Photo saved", action: "Undo") {
-            // Capture the index at the time of the action
-            let actionIndex = self.currentIndex
-            self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
-            // Pass the captured index to refreshCard
-            self.refreshCard(at: actionIndex, with: asset)
-            // This was likely a mistake, should unmark favourite, not deletion
-            self.photoManager.unmarkForFavourite(asset)
-        }
+        // Move to next immediately instead of waiting for toast dismissal
+        Task { await self.moveToNext() }
         
-        Task { await moveToNext() }
+        toast.show("Photo saved", action: "Undo") {
+            // Undo Action - Use capturedIndex
+            self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
+            // self.refreshCard(at: capturedIndex, with: asset) // Use capturedIndex - REMOVED
+            self.photoManager.unmarkForFavourite(asset)
+            // Animate the state reset using capturedIndex
+            withAnimation {
+                self.currentIndex = capturedIndex // Use capturedIndex
+                self.offset = .zero
+            }
+        } onDismiss: {
+            // No need to move to next as it already happened
+        }
     }
     
     func prepareDeletePreview() {

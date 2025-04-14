@@ -252,9 +252,17 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         let title = formatter.string(from: inMonth)
 
         if let index = self.photoGroups.firstIndex(where: { $0.monthDate == inMonth }) {
-            let updated = [asset] + self.photoGroups[index].assets
-            self.photoGroups[index] = self.photoGroups[index].copy(withAssets: updated)
+            // Check if the asset already exists in the group
+            if !self.photoGroups[index].assets.contains(where: { $0.localIdentifier == asset.localIdentifier }) {
+                // Only update if the asset is not already present
+                let updated = [asset] + self.photoGroups[index].assets
+                self.photoGroups[index] = self.photoGroups[index].copy(withAssets: updated)
+            } 
+            // If the asset is already there, we don't need to modify the group's assets.
+            // We still need to proceed to unmark it and remove from the 'Deleted' album later.
         } else {
+            // Asset's original month group doesn't exist (shouldn't normally happen if restoring)
+            // Create a new group for it.
             self.photoGroups.insert(
                 PhotoGroup(assets: [asset], title: title, monthDate: inMonth), at: 0)
         }

@@ -6,17 +6,22 @@ class ToastService: ObservableObject {
     @Published var isVisible: Bool = false
     @Published var actionLabel: String? = nil
     var actionHandler: (() -> Void)? = nil
+    var dismissHandler: (() -> Void)? = nil
 
-    func show(_ message: String, action: String? = nil, duration: TimeInterval = 3.0, onAction: (() -> Void)? = nil) {
+    func show(_ message: String, action: String? = nil, duration: TimeInterval = 3.0, onAction: (() -> Void)? = nil, onDismiss: (() -> Void)? = nil) {
         self.message = message
         self.actionLabel = action
         self.actionHandler = onAction
+        self.dismissHandler = onDismiss
         self.isVisible = true
 
         // Auto-dismiss after `duration`
         Task {
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            if isVisible { isVisible = false }
+            if isVisible {
+                self.dismissHandler?()
+                isVisible = false
+            }
         }
     }
 
