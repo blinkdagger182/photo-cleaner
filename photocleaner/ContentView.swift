@@ -45,8 +45,14 @@ struct ContentView: View {
                             UIApplication.shared.open(settingsURL)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .padding(),
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.primary.opacity(0.9))
+                    .foregroundColor(Color(UIColor.systemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 20),
                     alignment: .bottom
                 )
 
