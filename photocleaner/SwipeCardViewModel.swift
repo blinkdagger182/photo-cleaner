@@ -27,6 +27,10 @@ class SwipeCardViewModel: ObservableObject {
     private var loadedCount = 0
     private var imageFetchTasks: [Int: Task<UIImage?, Never>] = [:]
     
+    // Track high-quality image loading status separately
+    private var highQualityImagesStatus: [Int: Bool] = [:]
+    private let highQualityPreloadCount = 3  // Number of high-quality images to preload ahead
+    
     // Add a reference to the forceRefresh binding
     var forceRefreshCallback: (() -> Void)?
     
@@ -152,7 +156,9 @@ class SwipeCardViewModel: ObservableObject {
     
     func isCurrentImageReadyForInteraction() -> Bool {
         guard currentIndex < preloadedImages.count else { return false }
-        return preloadedImages[currentIndex] != nil
+        
+        // Check if the current image is loaded in high quality
+        return preloadedImages[currentIndex] != nil && highQualityImagesStatus[currentIndex] == true
     }
     
     // MARK: - Private Methods
@@ -172,17 +178,16 @@ class SwipeCardViewModel: ObservableObject {
             // First, load thumbnails for the first few images
             await loadImagesInRange(
                 from: currentIndex,
-                count: min(5, group.count - currentIndex),
+                count: min(maxBufferSize, group.count - currentIndex),
                 quality: .thumbnail
             )
             
-            // Then load higher quality for current card and next card
-            if currentIndex < group.count {
-                await loadImage(at: currentIndex, quality: .screen)
-                
-                // Preload next card high quality if available
-                if currentIndex + 1 < group.count {
-                    await loadImage(at: currentIndex + 1, quality: .screen)
+            // Then load higher quality for current card and next few cards
+            let preloadCount = min(highQualityPreloadCount, group.count - currentIndex)
+            for i in 0..<preloadCount {
+                let index = currentIndex + i
+                if index < group.count {
+                    await loadImage(at: index, quality: .screen)
                 }
             }
             
@@ -210,6 +215,7 @@ class SwipeCardViewModel: ObservableObject {
         }
         preloadedImages = []
         loadedCount = 0
+        highQualityImagesStatus = [:]
     }
     
     private func saveProgress() {
@@ -245,7 +251,7 @@ class SwipeCardViewModel: ObservableObject {
             if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.count {
                 // Load the next batch of thumbnails
                 let nextBatchStart = loadedCount
-                let nextBatchCount = min(5, group.count - nextBatchStart)
+                let nextBatchCount = min(maxBufferSize, group.count - nextBatchStart)
                 
                 if nextBatchCount > 0 {
                     await loadImagesInRange(
@@ -256,11 +262,12 @@ class SwipeCardViewModel: ObservableObject {
                 }
             }
             
-            // Load high quality for current and next image
-            await loadImage(at: nextIndex, quality: .screen)
-            
-            if nextIndex + 1 < group.count {
-                await loadImage(at: nextIndex + 1, quality: .screen)
+            // Proactively load high-quality images for the next few indices
+            for offset in 0..<highQualityPreloadCount {
+                let indexToLoad = nextIndex + offset
+                if indexToLoad < group.count && highQualityImagesStatus[indexToLoad] != true {
+                    await loadImage(at: indexToLoad, quality: .screen)
+                }
             }
             
             // Reset preloading flag after all loading is complete
@@ -271,6 +278,7 @@ class SwipeCardViewModel: ObservableObject {
     private func refreshCard(at index: Int, with asset: PHAsset) {
         if index < preloadedImages.count {
             preloadedImages[index] = nil
+            highQualityImagesStatus[index] = false
         } else {
             preloadedImages.insert(nil, at: index)
         }
@@ -294,8 +302,11 @@ class SwipeCardViewModel: ObservableObject {
         if !preloadedImages.isEmpty && currentIndex < preloadedImages.count {
             let currentImage = preloadedImages[currentIndex]
             preloadedImages = Array(repeating: nil, count: preloadedImages.count)
+            highQualityImagesStatus = [:]
+            
             if currentIndex < preloadedImages.count {
                 preloadedImages[currentIndex] = currentImage
+                highQualityImagesStatus[currentIndex] = true
             }
         }
         
@@ -307,16 +318,31 @@ class SwipeCardViewModel: ObservableObject {
         await MainActor.run {
             // Keep current and next few images, remove everything before that
             if currentIndex > maxBufferSize {
+                // Determine the cutoff point - we want to keep only from (currentIndex - n) onwards
+                let cutoffIndex = currentIndex - maxBufferSize
+                
                 // Create a new array with nil for old images to free memory
-                var newImages = Array(
-                    repeating: nil as UIImage?, count: currentIndex - maxBufferSize)
+                var newImages = Array(repeating: nil as UIImage?, count: cutoffIndex)
                 
                 // Append the images we want to keep
                 if currentIndex < preloadedImages.count {
-                    newImages.append(contentsOf: preloadedImages[currentIndex...])
+                    newImages.append(contentsOf: preloadedImages[cutoffIndex...])
                 }
                 
                 preloadedImages = newImages
+                
+                // Also clean up the high-quality status dictionary
+                var newStatus: [Int: Bool] = [:]
+                for (index, status) in highQualityImagesStatus where index >= cutoffIndex {
+                    newStatus[index] = status
+                }
+                highQualityImagesStatus = newStatus
+                
+                // Cancel tasks for indices that are no longer needed
+                for (index, task) in imageFetchTasks where index < cutoffIndex {
+                    task.cancel()
+                    imageFetchTasks.removeValue(forKey: index)
+                }
                 
                 // Force a memory cleanup
                 autoreleasepool {}
@@ -368,9 +394,12 @@ class SwipeCardViewModel: ObservableObject {
             
             // Process results as they complete
             for await (index, image) in group {
-                await MainActor.run {
-                    if index < self.preloadedImages.count {
-                        self.preloadedImages[index] = image
+                if quality == .thumbnail {
+                    // Only update if there's no high-quality image already
+                    await MainActor.run {
+                        if index < self.preloadedImages.count && self.highQualityImagesStatus[index] != true {
+                            self.preloadedImages[index] = image
+                        }
                     }
                 }
             }
@@ -382,7 +411,14 @@ class SwipeCardViewModel: ObservableObject {
     private func loadImage(at index: Int, quality: ImageQuality) async -> UIImage? {
         guard index < group.count, let asset = group.asset(at: index) else { return nil }
         
-        // Cancel any existing task for this index
+        // For high-quality requests, check if we already have this loaded
+        if quality == .screen && highQualityImagesStatus[index] == true {
+            return preloadedImages[index]
+        }
+        
+        // Cancel any existing task for this index if it's the same quality level or upgrading from thumbnail
+        // We don't want to cancel a high-quality request when a thumbnail request comes in
+        let taskKey = "\(index)-\(quality == .screen ? "high" : "low")"
         imageFetchTasks[index]?.cancel()
         
         // Create and store a new task
@@ -430,11 +466,20 @@ class SwipeCardViewModel: ObservableObject {
             // Process the image if needed to avoid DisplayP3 color space issues
             let processedImage = await convertToStandardColorSpaceIfNeeded(image)
             
-            // Update UI with image if this is a screen-quality request
-            if quality == .screen {
+            // Update UI with image
+            if !Task.isCancelled {
                 await MainActor.run {
+                    // Check if we're still in a valid range
                     if index < self.preloadedImages.count {
-                        self.preloadedImages[index] = processedImage
+                        // If this is a high-quality image, always update
+                        if quality == .screen {
+                            self.preloadedImages[index] = processedImage
+                            self.highQualityImagesStatus[index] = true
+                        } 
+                        // If it's a thumbnail, only update if we don't have the high-quality yet
+                        else if self.highQualityImagesStatus[index] != true {
+                            self.preloadedImages[index] = processedImage
+                        }
                     }
                 }
             }
