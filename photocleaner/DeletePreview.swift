@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import AVFoundation
 
 struct DeletePreviewEntry: Identifiable, Equatable, Hashable {
     let id = UUID()
@@ -124,7 +125,10 @@ struct DeletePreviewView: View {
             await MainActor.run {
                 isDeleting = false
                 deletionComplete = true
-
+                
+                // Play success sound when deletion completes and we show the green tick
+                SoundManager.shared.playSound(named: "air-whoosh")
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     dismiss()
                     forceRefresh.toggle()
