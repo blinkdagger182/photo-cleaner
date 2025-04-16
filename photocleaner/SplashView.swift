@@ -50,8 +50,7 @@ struct SplashView: View {
                 .background(Color(.systemBackground)) // Adaptive background
                 .ignoresSafeArea()
                 .task {
-                    currentTagline = splashTaglines[currentIndex]
-
+                    // Start tagline cycling immediately
                     Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
                         withAnimation(.easeInOut(duration: 0.3)) {
                             currentIndex = (currentIndex + 1) % splashTaglines.count
@@ -59,12 +58,10 @@ struct SplashView: View {
                         }
                     }
 
-                    // We only check status here, not request permission
-                    // For returning users, we'll request if needed in ContentView
+                    // Check status without delay
                     await photoManager.checkCurrentStatus()
 
-                    try? await Task.sleep(nanoseconds: 4_000_000_000)
-
+                    // Proceed as soon as status check is done (no fixed 4s delay)
                     withAnimation(.easeOut(duration: 0.5)) {
                         fadeOut = true
                     }

@@ -183,27 +183,27 @@ struct SwipeCardView: View {
                             }
 
                             // Show a loading indicator when actively loading more images
-                            if viewModel.isLoading {
-                                HStack {
-                                    Spacer()
-                                    VStack {
-                                        Spacer()
-                                        ProgressView()
-                                            .scaleEffect(1.5)
-                                        Text("Loading more...")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                            .padding(.top, 8)
-                                        Spacer()
-                                    }
-                                    Spacer()
-                                }
-                                .frame(width: 150, height: 100)
-                                .background(Color.white.opacity(0.9))
-                                .cornerRadius(12)
-                                .shadow(radius: 8)
-                                .padding(.bottom, 50)
-                            }
+                            // if viewModel.isLoading {
+                            //     HStack {
+                            //         Spacer()
+                            //         VStack {
+                            //             Spacer()
+                            //             ProgressView()
+                            //                 .scaleEffect(1.5)
+                            //             Text("Loading more...")
+                            //                 .font(.caption)
+                            //                 .foregroundColor(.gray)
+                            //                 .padding(.top, 8)
+                            //             Spacer()
+                            //         }
+                            //         Spacer()
+                            //     }
+                            //     .frame(width: 150, height: 100)
+                            //     .background(Color.white.opacity(0.9))
+                            //     .cornerRadius(12)
+                            //     .shadow(radius: 8)
+                            //     .padding(.bottom, 50)
+                            // }
                         }
                     }
 
