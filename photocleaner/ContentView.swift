@@ -27,7 +27,22 @@ struct ContentView: View {
                     } else {
                         ContentUnavailableView("No Photos",
                                                systemImage: "photo.on.rectangle",
-                                               description: Text("Your photo library is empty"))
+                                               description: Text("Your photo library is empty")).overlay(
+                        Button("Open Settings") {
+                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settingsURL)
+                            }
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.primary.opacity(0.9))
+                        .foregroundColor(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 20),
+                        alignment: .bottom
+                    )
                     }
                 } else {
                     PhotoGroupView()
