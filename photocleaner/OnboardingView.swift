@@ -4,12 +4,12 @@ import Photos
 
 // MARK: - Interactive Swipe Card Stack View
 struct FrostedCardStackView: View {
-    let images = ["onboard-1", "image2", "image3"]
+    let images = ["onboard-1", "onboard-2", "onboard-3"]
     @State private var topIndex: Int = 0
     @State private var removedIndices: Set<Int> = []
     
     // Configuration for card stacking effect
-    private let cardOffset: CGFloat = -20
+    private let cardOffset: CGFloat = -30
     private let cardScale: CGFloat = 0.05
 
     var body: some View {
@@ -101,15 +101,29 @@ struct SwipeCard: View {
     @State private var offset: CGSize = .zero
     @GestureState private var dragOffset: CGSize = .zero
     @State private var isDragging: Bool = false
+    
+    // Animation hint states
+    @State private var isShowingLeftHint = false
+    @State private var isShowingRightHint = false
+    @State private var animationOffset: CGFloat = 0
+    @State private var animationLoopCount = 0
+    @State private var animationTimer: Timer?
 
     // Card dimensions with 4:5 ratio - using fixed width
     private let cardWidth: CGFloat = 300
     private let cardHeight: CGFloat = 375 // 4:5 ratio (300 * 1.25)
     
+    // Animation configurations
+    private let hintAnimationOffset: CGFloat = 40
+    private let animationDelay: Double = 0.7
+    private let animationDuration: Double = 0.6
+    private let pauseBetweenAnimations: Double = 5.0 // Longer pause between animation cycles
+    private let maxAnimationLoops = 3 // Show animation a maximum of 3 times
+    
     // Calculate current offset and rotation
     private var currentOffset: CGSize {
         CGSize(
-            width: offset.width + (isDragging ? dragOffset.width : 0),
+            width: offset.width + (isDragging ? dragOffset.width : 0) + animationOffset,
             height: 0 // Keep fixed vertical position
         )
     }
@@ -125,9 +139,12 @@ struct SwipeCard: View {
         return min(percentage, 1.0)
     }
     
-    // Opacity for tags
+    // Opacity for tags - now considers hint animation states
     private var tagOpacity: CGFloat {
-        min(dragPercentage * 2, 1.0)
+        if isShowingLeftHint || isShowingRightHint {
+            return 1.0
+        }
+        return min(dragPercentage * 2, 1.0)
     }
     
     // Card depth appearance based on position
@@ -146,6 +163,17 @@ struct SwipeCard: View {
             .rotationEffect(.degrees(currentRotation))
             .gesture(dragGestureProvider)
             .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.6), value: dragOffset)
+            .onAppear {
+                // Only show animation hint for the top card
+                if showOverlay && cardPosition == 0 {
+                    startHintAnimation()
+                }
+            }
+            .onDisappear {
+                // Stop the animation timer when the view disappears
+                animationTimer?.invalidate()
+                animationTimer = nil
+            }
     }
     
     // Main card view with all overlays
@@ -153,6 +181,8 @@ struct SwipeCard: View {
         cardContainer
             .overlay(alignment: .topLeading) { keepLabel }
             .overlay(alignment: .topTrailing) { deleteLabel }
+            .overlay(alignment: .trailing) { rightArrowHint }
+            .overlay(alignment: .leading) { leftArrowHint }
             .frame(maxWidth: .infinity)
     }
     
@@ -188,7 +218,7 @@ struct SwipeCard: View {
     // Keep label overlay
     @ViewBuilder
     private var keepLabel: some View {
-        if currentOffset.width > 0 {
+        if currentOffset.width > 0 || isShowingRightHint {
             SwipeTagLabel(text: "KEEP", color: .green, angle: -15, xOffset: 20)
                 .opacity(tagOpacity)
                 .animation(.easeOut(duration: 0.2), value: tagOpacity)
@@ -198,10 +228,36 @@ struct SwipeCard: View {
     // Delete label overlay
     @ViewBuilder
     private var deleteLabel: some View {
-        if currentOffset.width < 0 {
+        if currentOffset.width < 0 || isShowingLeftHint {
             SwipeTagLabel(text: "DELETE", color: .red, angle: 15, xOffset: -20)
                 .opacity(tagOpacity)
                 .animation(.easeOut(duration: 0.2), value: tagOpacity)
+        }
+    }
+    
+    // Right arrow hint overlay
+    @ViewBuilder
+    private var rightArrowHint: some View {
+        if isShowingRightHint {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.green)
+                .padding(.trailing, 30)
+                .opacity(tagOpacity)
+                .transition(.opacity)
+        }
+    }
+    
+    // Left arrow hint overlay
+    @ViewBuilder
+    private var leftArrowHint: some View {
+        if isShowingLeftHint {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.red)
+                .padding(.leading, 30)
+                .opacity(tagOpacity)
+                .transition(.opacity)
         }
     }
     
@@ -216,9 +272,72 @@ struct SwipeCard: View {
                 .onEnded(handleDragGestureEnd) : nil
     }
     
-    // Handle the end of drag gesture
+    // Start the hint animation sequence
+    private func startHintAnimation() {
+        // Initial delay before first animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDelay) {
+            runAnimationSequence()
+        }
+    }
+    
+    // Run a single animation sequence (left, center, right, center)
+    private func runAnimationSequence() {
+        // Don't run more animations if the user has started dragging
+        guard !isDragging && animationLoopCount < maxAnimationLoops else { return }
+        
+        // 1. Animate to the left
+        withAnimation(.easeInOut(duration: animationDuration)) {
+            animationOffset = -hintAnimationOffset
+            isShowingLeftHint = true
+        }
+        
+        // 2. Animate back to center
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration + 0.3) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                animationOffset = 0
+                isShowingLeftHint = false
+            }
+            
+            // 3. Animate to the right
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                withAnimation(.easeInOut(duration: animationDuration)) {
+                    animationOffset = hintAnimationOffset
+                    isShowingRightHint = true
+                }
+                
+                // 4. Animate back to center
+                DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration + 0.3) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        animationOffset = 0
+                        isShowingRightHint = false
+                    }
+                    
+                    // Increment the loop count
+                    animationLoopCount += 1
+                    
+                    // Schedule the next animation with increasing pause duration
+                    let adjustedPause = pauseBetweenAnimations + Double(animationLoopCount) * 2.0
+                    
+                    // Schedule next animation cycle if we haven't reached the maximum
+                    if animationLoopCount < maxAnimationLoops {
+                        animationTimer?.invalidate()
+                        animationTimer = Timer.scheduledTimer(withTimeInterval: adjustedPause, repeats: false) { _ in
+                            runAnimationSequence()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Handle the end of drag gesture - also stop animation cycles
     private func handleDragGestureEnd(value: DragGesture.Value) {
         isDragging = false
+        
+        // Stop animation cycles when user interacts
+        animationTimer?.invalidate()
+        animationTimer = nil
+        animationLoopCount = maxAnimationLoops // Prevent further animations
         
         if abs(value.translation.width) > 100 {
             // Swipe it out with animation
