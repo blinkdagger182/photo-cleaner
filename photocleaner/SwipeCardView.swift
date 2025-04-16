@@ -16,6 +16,10 @@ struct SwipeCardView: View {
     // Track hasAppeared state to keep animations consistent
     @State private var hasAppeared = false
     
+    // Zoom state
+    @State private var currentScale: CGFloat = 1.0
+    @State private var finalScale: CGFloat = 1.0
+
     init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
         self.group = group
         self._forceRefresh = forceRefresh
@@ -70,14 +74,8 @@ struct SwipeCardView: View {
                                         Image(uiImage: image)
                                             .resizable()
                                             .scaledToFit()
-                                            .frame(width: geometry.size.width * 0.85)
-                                            .padding()
-                                            .background(Color.white)
-                                            .clipShape(
-                                                RoundedRectangle(
-                                                    cornerRadius: 30, style: .continuous)
-                                            )
-                                            .shadow(radius: 8)
+                                            .scaleEffect(finalScale * currentScale)
+                                            .gesture(index == 0 ? magnification : nil)
                                     } else if actualIndex < group.count {
                                         // If no image is available yet but we have a previous image, show it with overlay
                                         if index == 0, let prevImage = viewModel.previousImage {
@@ -144,6 +142,13 @@ struct SwipeCardView: View {
                                             .animation(.easeInOut(duration: 0.2), value: swipeLabel)
                                     }
                                 }
+                                .frame(maxWidth: .infinity)
+                                .background(Color.white)
+                                .clipShape(
+                                    RoundedRectangle(
+                                        cornerRadius: 30, style: .continuous)
+                                )
+                                .shadow(radius: 8)
                                 .offset(
                                     x: index == 0 ? viewModel.offset.width : CGFloat(index * 6),
                                     y: index == 0 ? viewModel.offset.width / 10 : CGFloat(index * 6)
@@ -158,14 +163,20 @@ struct SwipeCardView: View {
                                         : .none, value: viewModel.offset
                                 )
                                 .zIndex(Double(-index))
-                                .gesture(
+                                .highPriorityGesture(
                                     index == 0
                                         ? DragGesture()
                                             .onChanged { value in
-                                                viewModel.handleDragGesture(value: value)
+                                                // Only process drag if not currently zooming
+                                                if currentScale <= 1.0 {
+                                                    viewModel.handleDragGesture(value: value)
+                                                }
                                             }
                                             .onEnded { value in
-                                                viewModel.handleDragGestureEnd(value: value)
+                                                // Only process drag end if not currently zooming
+                                                if currentScale <= 1.0 {
+                                                    viewModel.handleDragGestureEnd(value: value)
+                                                }
                                             }
                                         : nil
                                 )
@@ -290,6 +301,30 @@ struct SwipeCardView: View {
             .environmentObject(photoManager)
             .environmentObject(toast)
         }
+    }
+
+    // MARK: - Gestures
+    var magnification: some Gesture {
+        MagnificationGesture(minimumScaleDelta: 0.01)
+            .onChanged { value in
+                // Only allow zooming with two fingers
+                if value != 1.0 {  // This helps identify a true pinch gesture
+                    // Allow zooming to a larger scale (Instagram-like)
+                    self.finalScale = max(value, 1.0)
+                    
+                    // Reset any drag offset when zooming starts
+                    if self.currentScale == 1.0 && self.finalScale > 1.0 {
+                        viewModel.offset = .zero
+                    }
+                }
+            }
+            .onEnded { _ in
+                // Always animate back to original size when gesture ends (Instagram-like behavior)
+                withAnimation(.spring()) {
+                    self.currentScale = 1.0
+                    self.finalScale = 1.0
+                }
+            }
     }
 
     // MARK: - Helpers
