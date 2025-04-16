@@ -13,54 +13,57 @@ struct FrostedCardStackView: View {
     private let cardScale: CGFloat = 0.05 // Scale reduction per card in stack
 
     var body: some View {
-        ZStack {
-            // Show cards from the stack (only those not yet removed)
-            ForEach(0..<images.count, id: \.self) { index in
-                if index >= topIndex && index < topIndex + 3 {
-                    let stackPosition = index - topIndex
-                    let imageName = images[index]
-                    let isTopCard = index == topIndex
-                    
-                    SwipeCard(
-                        imageName: imageName,
-                        showOverlay: isTopCard,
-                        cardPosition: stackPosition
-                    ) {
-                        // Mark this card as removed and animate next card
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                            removedIndices.insert(index)
-                            topIndex += 1
+        GeometryReader { geometry in
+            ZStack {
+                // Show cards from the stack (only those not yet removed)
+                ForEach(0..<images.count, id: \.self) { index in
+                    if index >= topIndex && index < topIndex + 3 {
+                        let stackPosition = index - topIndex
+                        let imageName = images[index]
+                        let isTopCard = index == topIndex
+                        
+                        SwipeCard(
+                            imageName: imageName,
+                            showOverlay: isTopCard,
+                            cardPosition: stackPosition,
+                            screenSize: geometry.size
+                        ) {
+                            // Mark this card as removed and animate next card
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                removedIndices.insert(index)
+                                topIndex += 1
+                            }
                         }
+                        .scaleEffect(1 - CGFloat(stackPosition) * cardScale)
+                        .offset(y: CGFloat(stackPosition) * cardOffset) // This creates the upward stack
+                        .zIndex(Double(100 - index)) // Ensure proper stacking with unique z values
+                        .disabled(!isTopCard) // Only top card is interactive
                     }
-                    .scaleEffect(1 - CGFloat(stackPosition) * cardScale)
-                    .offset(y: CGFloat(stackPosition) * cardOffset)
-                    .zIndex(Double(100 - index)) // Ensure proper stacking with unique z values
-                    .disabled(!isTopCard) // Only top card is interactive
+                }
+                
+                // Show final logo when all cards are swiped
+                if topIndex >= images.count {
+                    VStack {
+                        Image("CLN")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 50)
+                            .clipShape(RoundedRectangle(cornerRadius: 24))
+                            .shadow(radius: 8)
+                            .transition(.scale.combined(with: .opacity))
+                        
+                        Text("Designed for peace of mind.")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .padding(.top)
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut, value: topIndex)
                 }
             }
-            
-            // Show final logo when all cards are swiped
-            if topIndex >= images.count {
-                VStack {
-                    Image("CLN")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 100)
-                        .clipShape(RoundedRectangle(cornerRadius: 24))
-                        .shadow(radius: 8)
-                        .transition(.scale.combined(with: .opacity))
-                    
-                    Text("Ready to clean your photos!")
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .padding(.top)
-                }
-                .transition(.opacity)
-                .animation(.easeInOut, value: topIndex)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.top, geometry.size.height * 0.05) // Adaptive top padding
         }
-        .frame(height: 220) // Fixed height container
-        .padding(.top, 30)
     }
 }
 
@@ -69,15 +72,21 @@ struct SwipeCard: View {
     let imageName: String
     var showOverlay: Bool
     var cardPosition: Int // Position in stack (0 = top)
+    var screenSize: CGSize
     var onSwiped: () -> Void
 
     @State private var offset: CGSize = .zero
     @GestureState private var dragOffset: CGSize = .zero
     @State private var isDragging: Bool = false
 
-    // Card dimensions
-    private let cardWidth: CGFloat = 320
-    private let cardHeight: CGFloat = 180
+    // Card dimensions with 4:5 ratio - adaptive to screen size
+    private var cardWidth: CGFloat {
+        min(300, screenSize.width * 0.8)
+    }
+    
+    private var cardHeight: CGFloat {
+        cardWidth * 1.25 // 4:5 ratio
+    }
     
     // Calculate current offset and rotation
     private var currentOffset: CGSize {
@@ -106,36 +115,42 @@ struct SwipeCard: View {
     }
 
     var body: some View {
-        ZStack {
-            // Card content
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: cardWidth, height: cardHeight)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 36))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 36)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(radius: 5)
-        }
-        .overlay(alignment: .topLeading) {
-            // KEEP label
-            if currentOffset.width > 0 {
-                SwipeTagLabel(text: "KEEP", color: .green, angle: -15, xOffset: 20)
-                    .opacity(tagOpacity)
-                    .animation(.easeOut(duration: 0.2), value: tagOpacity)
+        VStack(spacing: 0) {
+            ZStack {
+                // Card content
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: cardWidth, height: cardHeight)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 36))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 36)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(radius: 5)
             }
-        }
-        .overlay(alignment: .topTrailing) {
-            // DELETE label
-            if currentOffset.width < 0 {
-                SwipeTagLabel(text: "DELETE", color: .red, angle: 15, xOffset: -20)
-                    .opacity(tagOpacity)
-                    .animation(.easeOut(duration: 0.2), value: tagOpacity)
+            .frame(maxWidth: .infinity) // Center the card horizontally
+            
+            // Tag labels below the card
+            ZStack {
+                if currentOffset.width > 0 {
+                    // KEEP label
+                    SwipeTagLabel(text: "KEEP", color: .green, angle: -15, xOffset: -20)
+                        .opacity(tagOpacity)
+                        .animation(.easeOut(duration: 0.2), value: tagOpacity)
+                        .padding(.top, 20) // Padding between card and tag
+                } else if currentOffset.width < 0 {
+                    // DELETE label
+                    SwipeTagLabel(text: "DELETE", color: .red, angle: 15, xOffset: 20)
+                        .opacity(tagOpacity)
+                        .animation(.easeOut(duration: 0.2), value: tagOpacity)
+                        .padding(.top, 20) // Padding between card and tag
+                }
             }
+            .frame(height: 60) // Reserve space for the tag label
         }
+        .frame(maxWidth: .infinity) // Center the entire stack horizontally
         .offset(x: currentOffset.width, y: 0) // Only move horizontally when dragging
         .rotationEffect(.degrees(currentRotation))
         .gesture(
@@ -190,7 +205,7 @@ struct SwipeTagLabel: View {
                     .stroke(color, lineWidth: 4)
             )
             .rotationEffect(.degrees(angle))
-            .offset(x: xOffset, y: 20)
+            .offset(x: xOffset, y: 0)
     }
 }
 
@@ -205,9 +220,12 @@ struct CyclingTaglineView: View {
 
     var body: some View {
         Text(taglines[currentIndex])
-            .font(.headline)
+            .font(.title3)
+            .fontWeight(.medium)
             .foregroundColor(.primary)
             .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
             .padding(.horizontal)
             .onAppear {
                 Timer.scheduledTimer(withTimeInterval: 1.8, repeats: true) { _ in
@@ -226,28 +244,36 @@ struct OnboardingView: View {
     @State private var showPermissionDeniedAlert = false
 
     var body: some View {
-        ZStack {
-            Color(.systemBackground).ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color(.systemBackground).ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                FrostedCardStackView()
-
-                CyclingTaglineView()
-                    .padding(.top, 16)
-
-                Spacer()
-
-                Button(action: handleGetStartedAction) {
-                    Text("Get Started")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.primary.opacity(0.9))
-                        .foregroundColor(Color(UIColor.systemBackground))
-                        .cornerRadius(16)
-                        .padding(.horizontal, 32)
+                VStack {
+                    // Card stack with adaptive height
+                    FrostedCardStackView()
+                        .frame(height: geometry.size.height * 0.6)
+                    
+                    // Centered tagline with proper spacing
+                    CyclingTaglineView()
+                        .padding(.top, 30)
+                        .padding(.horizontal)
+                    
+                    Spacer()
+                    
+                    // Keep Get Started button at the bottom
+                    Button(action: handleGetStartedAction) {
+                        Text("Get Started")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.primary.opacity(0.9))
+                            .foregroundColor(Color(UIColor.systemBackground))
+                            .cornerRadius(16)
+                            .padding(.horizontal, 32)
+                    }
+                    .padding(.bottom, 40)
                 }
-                .padding(.bottom, 40)
+                .padding(.top, geometry.size.height * 0.05)
             }
         }
         .task {
@@ -292,4 +318,27 @@ struct OnboardingView: View {
             hasSeenOnboarding = true
         }
     }
+}
+
+// Add this right before your #Preview
+extension PhotoManager {
+    static var preview: PhotoManager {
+        let manager = PhotoManager()
+        // Set any needed initial state for preview here
+        return manager
+    }
+}
+
+extension ToastService {
+    static var preview: ToastService {
+        let service = ToastService()
+        // Set any needed initial state for preview here
+        return service
+    }
+}
+
+#Preview {
+    OnboardingView()
+        .environmentObject(PhotoManager.preview)
+        .environmentObject(ToastService.preview)
 }
