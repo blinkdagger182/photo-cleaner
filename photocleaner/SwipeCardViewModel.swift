@@ -121,11 +121,10 @@ class SwipeCardViewModel: ObservableObject {
         ) {
             // Undo Action - Use capturedIndex
             self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-            // self.refreshCard(at: capturedIndex, with: asset) // Use capturedIndex - REMOVED
             self.photoManager.unmarkForDeletion(asset)
             // Animate the state reset using capturedIndex
             withAnimation {
-                self.currentIndex = capturedIndex // Use capturedIndex
+                self.currentIndex = capturedIndex
                 self.offset = .zero
             }
         } onDismiss: {
@@ -197,7 +196,98 @@ class SwipeCardViewModel: ObservableObject {
         
         // Use the shared collection of deleted images for preview
         deletePreviewEntries = photoManager.deletedImagesPreview
+        
+        // If we don't have any entries in the preview but we have marked for deletion assets,
+        // we should try to load them from the photo library
+        if deletePreviewEntries.isEmpty && !photoManager.markedForDeletion.isEmpty {
+            Task {
+                await loadMissingDeletedPreviews()
+                
+                // Set up an observer to update our local copy when the photoManager's collection changes
+                setupPreviewEntriesObserver()
+            }
+        } else {
+            // Set up an observer to update our local copy when the photoManager's collection changes
+            setupPreviewEntriesObserver()
+        }
+        
         showDeletePreview = true
+    }
+    
+    func onDeletePreviewDismissed() {
+        // Set flag to stop the observer
+        showDeletePreview = false
+    }
+    
+    private func setupPreviewEntriesObserver() {
+        // Since we already have Task-based concurrency, we'll manually check every second
+        // You could alternatively use a Combine publisher, but this is simpler
+        Task {
+            while showDeletePreview {
+                // Check if the entries count has changed
+                if photoManager.deletedImagesPreview.count != deletePreviewEntries.count {
+                    await MainActor.run {
+                        deletePreviewEntries = photoManager.deletedImagesPreview
+                    }
+                }
+                
+                // Wait a short time before checking again
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                
+                // Break the loop if the view is dismissed
+                if !showDeletePreview {
+                    break
+                }
+            }
+        }
+    }
+    
+    private func loadMissingDeletedPreviews() async {
+        // Convert Set<String> of identifiers to an array
+        let identifiers = Array(photoManager.markedForDeletion)
+        
+        // Fetch assets for these identifiers
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        
+        if assets.count > 0 {
+            print("Loading \(assets.count) missing deleted previews")
+            
+            // Process each asset to add it to the preview
+            assets.enumerateObjects { asset, _, _ in
+                // Load a thumbnail for each asset
+                Task {
+                    let image = await self.loadThumbnailForAsset(asset)
+                    if let image = image {
+                        // Add to the photoManager's preview collection
+                        self.photoManager.addToDeletedImagesPreview(asset: asset, image: image)
+                        
+                        // Update our local copy
+                        await MainActor.run {
+                            self.deletePreviewEntries = self.photoManager.deletedImagesPreview
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func loadThumbnailForAsset(_ asset: PHAsset) async -> UIImage? {
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .fastFormat
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+        
+        return await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: CGSize(width: 300, height: 300),
+                contentMode: .aspectFill,
+                options: options
+            ) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
     }
     
     func isCurrentImageReadyForInteraction() -> Bool {

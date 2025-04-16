@@ -23,7 +23,8 @@ struct DeletePreviewView: View {
     @EnvironmentObject var toast: ToastService
     @Binding var entries: [DeletePreviewEntry]
     @Binding var forceRefresh: Bool
-
+    @State private var isLoading = false
+    
     @State private var selectedEntries: Set<UUID> = []
     @State private var isDeleting = false
     @State private var deletionComplete = false
@@ -59,34 +60,46 @@ struct DeletePreviewView: View {
                 .multilineTextAlignment(.center)
                 .font(.subheadline)
 
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
-                    ForEach(entries) { entry in
-                        let isSelected = selectedEntries.contains(entry.id)
-                        Image(uiImage: entry.image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 100, height: 100)
-                            .clipped()
-                            .overlay(
-                                isSelected ? Color.black.opacity(0.25) : Color.clear
-                            )
-                            .overlay(
-                                isSelected ? Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.blue)
-                                    .padding(6) : nil,
-                                alignment: .topTrailing
-                            )
-                            .onTapGesture {
-                                if isSelected {
-                                    selectedEntries.remove(entry.id)
-                                } else {
-                                    selectedEntries.insert(entry.id)
-                                }
-                            }
-                    }
+            if entries.isEmpty {
+                // Show a loading state if there are no entries yet
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading deleted photos...")
+                        .foregroundColor(.secondary)
                 }
-                .padding(.horizontal)
+                .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
+                        ForEach(entries) { entry in
+                            let isSelected = selectedEntries.contains(entry.id)
+                            Image(uiImage: entry.image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 100, height: 100)
+                                .clipped()
+                                .overlay(
+                                    isSelected ? Color.black.opacity(0.25) : Color.clear
+                                )
+                                .overlay(
+                                    isSelected ? Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.blue)
+                                        .padding(6) : nil,
+                                    alignment: .topTrailing
+                                )
+                                .onTapGesture {
+                                    if isSelected {
+                                        selectedEntries.remove(entry.id)
+                                    } else {
+                                        selectedEntries.insert(entry.id)
+                                    }
+                                }
+                                .cornerRadius(8)
+                        }
+                    }
+                    .padding()
+                }
             }
 
             if deletionComplete {
@@ -106,11 +119,24 @@ struct DeletePreviewView: View {
                         .cornerRadius(12)
                         .padding(.horizontal)
                 }
+                .disabled(entries.isEmpty || selectedEntries.isEmpty)
+                .opacity(entries.isEmpty || selectedEntries.isEmpty ? 0.5 : 1)
             }
         }
         .padding()
         .onAppear {
+            // Start in a loading state if entries is empty but we have marked assets
+            isLoading = entries.isEmpty && !photoManager.markedForDeletion.isEmpty
+            
+            // Select all entries by default when view appears
             selectedEntries = Set(entries.map { $0.id })
+        }
+        .onChange(of: entries) { newEntries in
+            // When entries are loaded, update the selected entries
+            if !newEntries.isEmpty && selectedEntries.isEmpty {
+                selectedEntries = Set(newEntries.map { $0.id })
+                isLoading = false
+            }
         }
     }
 

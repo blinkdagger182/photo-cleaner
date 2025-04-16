@@ -13,6 +13,8 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var deletedImagesPreview: [DeletePreviewEntry] = [] // Track all deleted images for preview
 
     private let lastViewedIndexKey = "LastViewedIndex"
+    private let markedForDeletionFileName = "MarkedForDeletion.json"
+    private let deletedPreviewIdentifiersFileName = "DeletedPreviewIdentifiers.json"
     private var isPerformingInternalChange = false // Flag to track internal changes through our UI
     private var isPreloading = false // Flag to prevent reloads during preloading
     private var lastReloadTime: Date = .distantPast
@@ -25,6 +27,13 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     override init() {
         super.init()
         // Removed PHPhotoLibrary registration to prevent premature permission requests
+        
+        // Load marked for deletion identifiers from persistent storage
+        // Do this asynchronously so it doesn't block init
+        Task {
+            await loadMarkedForDeletion()
+            await loadDeletedPreviewIdentifiers()
+        }
     }
 
     deinit {
@@ -43,6 +52,155 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
 
+    // MARK: - Persistence for Marked for Deletion
+    
+    /// Returns the URL for the marked for deletion file in the documents directory
+    private func getMarkedForDeletionURL() -> URL {
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return documentsDirectory.appendingPathComponent(markedForDeletionFileName)
+    }
+    
+    /// Returns the URL for the deleted preview identifiers file in the documents directory
+    private func getDeletedPreviewIdentifiersURL() -> URL {
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return documentsDirectory.appendingPathComponent(deletedPreviewIdentifiersFileName)
+    }
+    
+    /// Loads saved marked for deletion identifiers from persistent storage
+    private func loadMarkedForDeletion() async {
+        // Execute file operations on a background queue
+        return await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                let fileURL = self.getMarkedForDeletionURL()
+                
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    print("📝 No marked for deletion file exists yet")
+                    continuation.resume()
+                    return
+                }
+                
+                do {
+                    let data = try Data(contentsOf: fileURL)
+                    let identifiers = try JSONDecoder().decode([String].self, from: data)
+                    
+                    await MainActor.run {
+                        self.markedForDeletion = Set(identifiers)
+                        print("📝 Loaded \(identifiers.count) identifiers marked for deletion")
+                    }
+                } catch {
+                    print("❌ Error loading marked for deletion: \(error.localizedDescription)")
+                }
+                
+                continuation.resume()
+            }
+        }
+    }
+    
+    /// Loads saved preview identifiers from persistent storage and reconstructs the preview entries
+    private func loadDeletedPreviewIdentifiers() async {
+        // Execute file operations on a background queue
+        return await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                let fileURL = self.getDeletedPreviewIdentifiersURL()
+                
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    print("📝 No deleted preview identifiers file exists yet")
+                    continuation.resume()
+                    return
+                }
+                
+                do {
+                    let data = try Data(contentsOf: fileURL)
+                    let identifiers = try JSONDecoder().decode([String].self, from: data)
+                    
+                    // Only proceed if we have identifiers to load
+                    if !identifiers.isEmpty {
+                        print("📝 Loading \(identifiers.count) deleted preview identifiers")
+                        
+                        // Fetch the PHAssets for these identifiers
+                        let assets = PHAsset.fetchAssets(
+                            withLocalIdentifiers: identifiers,
+                            options: nil
+                        )
+                        
+                        // We need to reconstruct the DeletePreviewEntry objects with images
+                        assets.enumerateObjects { asset, _, _ in
+                            // We only add assets that still exist in the photo library
+                            // and are still marked for deletion
+                            if self.markedForDeletion.contains(asset.localIdentifier) {
+                                // Load a low-resolution thumbnail for the preview
+                                Task {
+                                    let image = await self.loadThumbnailImage(for: asset)
+                                    if let image = image {
+                                        await MainActor.run {
+                                            let size = asset.estimatedAssetSize
+                                            let entry = DeletePreviewEntry(asset: asset, image: image, fileSize: size)
+                                            self.deletedImagesPreview.append(entry)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch {
+                    print("❌ Error loading deleted preview identifiers: \(error.localizedDescription)")
+                }
+                
+                continuation.resume()
+            }
+        }
+    }
+    
+    /// Saves the current marked for deletion identifiers to persistent storage
+    private func saveMarkedForDeletion() {
+        let identifiers = Array(markedForDeletion)
+        let fileURL = getMarkedForDeletionURL()
+        
+        do {
+            let data = try JSONEncoder().encode(identifiers)
+            try data.write(to: fileURL)
+            print("📝 Saved \(identifiers.count) identifiers marked for deletion")
+        } catch {
+            print("❌ Error saving marked for deletion: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Saves just the identifiers of assets in the deletedImagesPreview array
+    private func saveDeletedPreviewIdentifiers() {
+        let identifiers = deletedImagesPreview.map { $0.asset.localIdentifier }
+        let fileURL = getDeletedPreviewIdentifiersURL()
+        
+        do {
+            let data = try JSONEncoder().encode(identifiers)
+            try data.write(to: fileURL)
+            print("📝 Saved \(identifiers.count) deleted preview identifiers")
+        } catch {
+            print("❌ Error saving deleted preview identifiers: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Helper method to load a thumbnail image for an asset
+    private func loadThumbnailImage(for asset: PHAsset) async -> UIImage? {
+        return await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .fastFormat
+            options.resizeMode = .fast
+            options.isNetworkAccessAllowed = true
+            options.isSynchronous = false
+            
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: CGSize(width: 300, height: 300),
+                contentMode: .aspectFill,
+                options: options
+            ) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+    
+    // MARK: - Lifecycle and Change Observation
+    
     @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
         // Skip reloads if it's from our own operations or if we're preloading images
         if isPerformingInternalChange || isPreloading {
@@ -347,6 +505,25 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     }
     func markForDeletion(_ asset: PHAsset) {
         markedForDeletion.insert(asset.localIdentifier)
+        
+        // Save to persistent storage
+        Task.detached(priority: .background) {
+            self.saveMarkedForDeletion()
+        }
+    }
+
+    /// Batch version of markForDeletion for efficiency when marking multiple assets
+    func markMultipleForDeletion(_ assets: [PHAsset]) {
+        Task { @MainActor in
+            for asset in assets {
+                markedForDeletion.insert(asset.localIdentifier)
+            }
+            
+            // Save all changes at once
+            Task.detached(priority: .background) {
+                self.saveMarkedForDeletion()
+            }
+        }
     }
 
     func unmarkForDeletion(_ asset: PHAsset) {
@@ -354,6 +531,32 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             self.markedForDeletion.remove(asset.localIdentifier)
             // Also remove from preview entries if exists
             self.deletedImagesPreview.removeAll { $0.asset.localIdentifier == asset.localIdentifier }
+            
+            // Save to persistent storage
+            Task.detached(priority: .background) {
+                self.saveMarkedForDeletion()
+            }
+        }
+    }
+
+    /// Batch version of unmarkForDeletion for efficiency when unmarking multiple assets
+    func unmarkMultipleForDeletion(_ assets: [PHAsset]) {
+        let identifiers = assets.map { $0.localIdentifier }
+        
+        Task { @MainActor in
+            for identifier in identifiers {
+                markedForDeletion.remove(identifier)
+            }
+            
+            // Remove from preview entries
+            deletedImagesPreview.removeAll { entry in
+                identifiers.contains(entry.asset.localIdentifier)
+            }
+            
+            // Save all changes at once
+            Task.detached(priority: .background) {
+                self.saveMarkedForDeletion()
+            }
         }
     }
 
@@ -424,6 +627,12 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         removeFromDeletedImagesPreview(assets: assets)
 
         await self.refreshAllPhotoGroups()
+        
+        // Save changes to persistence after removing deleted assets from markedForDeletion
+        Task.detached(priority: .background) {
+            self.saveMarkedForDeletion()
+            self.saveDeletedPreviewIdentifiers()
+        }
     }
 
     // New method to add image to deleted preview
@@ -435,6 +644,11 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             
             Task { @MainActor in
                 self.deletedImagesPreview.append(newEntry)
+                
+                // Save the updated identifiers list
+                Task.detached(priority: .background) {
+                    self.saveDeletedPreviewIdentifiers()
+                }
             }
         }
     }
@@ -447,6 +661,11 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             self.deletedImagesPreview.removeAll { entry in
                 identifiers.contains(entry.asset.localIdentifier)
             }
+            
+            // Save the updated identifiers list
+            Task.detached(priority: .background) {
+                self.saveDeletedPreviewIdentifiers()
+            }
         }
     }
     
@@ -454,6 +673,11 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     func clearDeletedImagesPreview() {
         Task { @MainActor in
             self.deletedImagesPreview.removeAll()
+            
+            // Save the updated (empty) identifiers list
+            Task.detached(priority: .background) {
+                self.saveDeletedPreviewIdentifiers()
+            }
         }
     }
 

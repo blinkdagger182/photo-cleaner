@@ -293,7 +293,10 @@ struct SwipeCardView: View {
             )
         }
         .overlay(toast.overlayView, alignment: .bottom)
-        .fullScreenCover(isPresented: $viewModel.showDeletePreview) {
+        .fullScreenCover(isPresented: $viewModel.showDeletePreview, onDismiss: {
+            // Clean up any observers when the preview is dismissed
+            viewModel.onDeletePreviewDismissed()
+        }) {
             DeletePreviewView(
                 entries: $viewModel.deletePreviewEntries,
                 forceRefresh: $forceRefresh
