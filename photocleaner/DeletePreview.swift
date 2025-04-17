@@ -146,18 +146,28 @@ struct DeletePreviewView: View {
         let assetsToDelete = toDelete.map { $0.asset }
 
         Task {
-            await photoManager.hardDeleteAssets(assetsToDelete)
+            // Wait for the hardDeleteAssets operation and get the success status
+            let deletionSucceeded = await photoManager.hardDeleteAssets(assetsToDelete)
 
             await MainActor.run {
-                isDeleting = false
-                deletionComplete = true
-                
-                // Play success sound when deletion completes and we show the green tick
-                SoundManager.shared.playSound(named: "air-whoosh")
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    dismiss()
-                    forceRefresh.toggle()
+                if deletionSucceeded {
+                    // Deletion was successful - update UI accordingly
+                    isDeleting = false
+                    deletionComplete = true
+                    
+                    // Play success sound when deletion completes and we show the green tick
+                    SoundManager.shared.playSound(named: "air-whoosh")
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        dismiss()
+                        forceRefresh.toggle()
+                    }
+                } else {
+                    // Deletion failed or was canceled by user - reset UI and inform user
+                    isDeleting = false
+                    
+                    // Show toast message about deletion failure/cancellation
+                    toast.show("Deletion was canceled or failed. Your photos were not deleted.", duration: 2.0)
                 }
             }
         }

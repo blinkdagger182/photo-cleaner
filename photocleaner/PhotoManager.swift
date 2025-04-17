@@ -609,29 +609,65 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         self.markForDeletion(asset)
         await self.refreshAllPhotoGroups()
     }
-    func hardDeleteAssets(_ assets: [PHAsset]) async {
-        guard !assets.isEmpty else { return }
+    
+    /// Attempts to delete the specified assets from the Photos library.
+    /// Returns true if deletion was successful, false if it failed or was canceled by the user.
+    func hardDeleteAssets(_ assets: [PHAsset]) async -> Bool {
+        guard !assets.isEmpty else { return false }
 
         // Set flag before deletion operation
         isPerformingInternalChange = true
-
-        try? await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.deleteAssets(assets as NSArray)
-        }
-
-        for asset in assets {
-            self.unmarkForDeletion(asset)
-        }
         
-        // Remove deleted assets from preview
-        removeFromDeletedImagesPreview(assets: assets)
-
-        await self.refreshAllPhotoGroups()
-        
-        // Save changes to persistence after removing deleted assets from markedForDeletion
-        Task.detached(priority: .background) {
-            self.saveMarkedForDeletion()
-            self.saveDeletedPreviewIdentifiers()
+        // Use withCheckedContinuation to wrap the completion handler in async/await
+        return await withCheckedContinuation { continuation in
+            PHPhotoLibrary.shared().performChanges({
+                // Request to delete the assets
+                PHAssetChangeRequest.deleteAssets(assets as NSArray)
+            }, completionHandler: { success, error in
+                if success {
+                    // Deletion was successful - proceed with updating app state
+                    Task {
+                        do {
+                            await MainActor.run {
+                                // Remove assets from markedForDeletion
+                                for asset in assets {
+                                    self.markedForDeletion.remove(asset.localIdentifier)
+                                    
+                                    // Also remove from preview entries if exists
+                                    self.deletedImagesPreview.removeAll { 
+                                        $0.asset.localIdentifier == asset.localIdentifier 
+                                    }
+                                }
+                            }
+                            
+                            // Refresh photo groups to reflect changes
+                            await self.refreshAllPhotoGroups()
+                            
+                            // Save changes to persistence
+                            Task.detached(priority: .background) {
+                                self.saveMarkedForDeletion()
+                                self.saveDeletedPreviewIdentifiers()
+                            }
+                            
+                            // Return success
+                            continuation.resume(returning: true)
+                        } catch {
+                            print("❌ Error updating app state after deletion: \(error.localizedDescription)")
+                            continuation.resume(returning: false)
+                        }
+                    }
+                } else {
+                    // Deletion failed or was canceled by user
+                    if let error = error {
+                        print("❌ Photo deletion failed: \(error.localizedDescription)")
+                    } else {
+                        print("❌ Photo deletion was canceled by user")
+                    }
+                    
+                    // Don't modify app state - just return failure
+                    continuation.resume(returning: false)
+                }
+            })
         }
     }
 
