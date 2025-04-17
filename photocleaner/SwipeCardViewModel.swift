@@ -12,7 +12,6 @@ class SwipeCardViewModel: ObservableObject {
     @Published var previousImage: UIImage? = nil
     @Published var swipeLabel: String? = nil
     @Published var swipeLabelColor: Color = .green
-    @Published var deletePreviewEntries: [DeletePreviewEntry] = []
     @Published var showDeletePreview = false
     
     // MARK: - Internal Properties
@@ -58,7 +57,8 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     func onDisappear() {
-        saveProgress()
+        print("SwipeCardViewModel: saving progress with currentIndex = \(currentIndex)")
+        saveProgress() // Save the currentIndex for this specific group
         clearMemory()
         cancelAllImageTasks()
     }
@@ -180,7 +180,7 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     func prepareDeletePreview() {
-        // First, add any images from current group that might be missing in the preview
+        // First, ensure any images from current group are added to the PhotoManager's tracking
         for index in 0..<group.count {
             guard let asset = group.asset(at: index) else { continue }
             
@@ -194,100 +194,13 @@ class SwipeCardViewModel: ObservableObject {
             }
         }
         
-        // Use the shared collection of deleted images for preview
-        deletePreviewEntries = photoManager.deletedImagesPreview
-        
-        // If we don't have any entries in the preview but we have marked for deletion assets,
-        // we should try to load them from the photo library
-        if deletePreviewEntries.isEmpty && !photoManager.markedForDeletion.isEmpty {
-            Task {
-                await loadMissingDeletedPreviews()
-                
-                // Set up an observer to update our local copy when the photoManager's collection changes
-                setupPreviewEntriesObserver()
-            }
-        } else {
-            // Set up an observer to update our local copy when the photoManager's collection changes
-            setupPreviewEntriesObserver()
-        }
-        
+        // Simply show the delete preview
         showDeletePreview = true
     }
     
     func onDeletePreviewDismissed() {
-        // Set flag to stop the observer
+        // Just set the flag to false
         showDeletePreview = false
-    }
-    
-    private func setupPreviewEntriesObserver() {
-        // Since we already have Task-based concurrency, we'll manually check every second
-        // You could alternatively use a Combine publisher, but this is simpler
-        Task {
-            while showDeletePreview {
-                // Check if the entries count has changed
-                if photoManager.deletedImagesPreview.count != deletePreviewEntries.count {
-                    await MainActor.run {
-                        deletePreviewEntries = photoManager.deletedImagesPreview
-                    }
-                }
-                
-                // Wait a short time before checking again
-                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-                
-                // Break the loop if the view is dismissed
-                if !showDeletePreview {
-                    break
-                }
-            }
-        }
-    }
-    
-    private func loadMissingDeletedPreviews() async {
-        // Convert Set<String> of identifiers to an array
-        let identifiers = Array(photoManager.markedForDeletion)
-        
-        // Fetch assets for these identifiers
-        let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
-        
-        if assets.count > 0 {
-            print("Loading \(assets.count) missing deleted previews")
-            
-            // Process each asset to add it to the preview
-            assets.enumerateObjects { asset, _, _ in
-                // Load a thumbnail for each asset
-                Task {
-                    let image = await self.loadThumbnailForAsset(asset)
-                    if let image = image {
-                        // Add to the photoManager's preview collection
-                        self.photoManager.addToDeletedImagesPreview(asset: asset, image: image)
-                        
-                        // Update our local copy
-                        await MainActor.run {
-                            self.deletePreviewEntries = self.photoManager.deletedImagesPreview
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private func loadThumbnailForAsset(_ asset: PHAsset) async -> UIImage? {
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
-        options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
-        
-        return await withCheckedContinuation { continuation in
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: CGSize(width: 300, height: 300),
-                contentMode: .aspectFill,
-                options: options
-            ) { image, _ in
-                continuation.resume(returning: image)
-            }
-        }
     }
     
     func isCurrentImageReadyForInteraction() -> Bool {

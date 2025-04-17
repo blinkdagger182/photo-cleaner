@@ -297,12 +297,9 @@ struct SwipeCardView: View {
             // Clean up any observers when the preview is dismissed
             viewModel.onDeletePreviewDismissed()
         }) {
-            DeletePreviewView(
-                entries: $viewModel.deletePreviewEntries,
-                forceRefresh: $forceRefresh
-            )
-            .environmentObject(photoManager)
-            .environmentObject(toast)
+            DeletePreviewView(forceRefresh: $forceRefresh)
+                .environmentObject(photoManager)
+                .environmentObject(toast)
         }
     }
 

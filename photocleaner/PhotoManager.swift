@@ -717,4 +717,29 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
 
+    // MARK: - Handling Invalid Assets
+    
+    /// Removes identifiers from the markedForDeletion set if they no longer exist in the photo library
+    func removeInvalidDeletionIdentifiers(_ invalidIdentifiers: [String]) {
+        Task { @MainActor in
+            // Remove from markedForDeletion
+            for identifier in invalidIdentifiers {
+                markedForDeletion.remove(identifier)
+            }
+            
+            // Remove from preview entries
+            deletedImagesPreview.removeAll { entry in
+                invalidIdentifiers.contains(entry.asset.localIdentifier)
+            }
+            
+            // Save all changes to persistent storage
+            Task.detached(priority: .background) {
+                self.saveMarkedForDeletion()
+                self.saveDeletedPreviewIdentifiers()
+            }
+            
+            print("🧹 Removed \(invalidIdentifiers.count) invalid identifiers from deletion list")
+        }
+    }
+
 }
