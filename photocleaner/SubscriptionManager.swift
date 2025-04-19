@@ -1,6 +1,5 @@
 import Foundation
 import RevenueCat
-import RevenueCatUI
 import Combine
 import SwiftUI
 
@@ -22,9 +21,6 @@ class SubscriptionManager: ObservableObject {
     // Paywall configuration
     let offeringIdentifier = "default"  // Replace with your offering identifier from RevenueCat dashboard
     
-    // Font provider for consistent styling
-    lazy var fontProvider = CustomPaywallFontProvider(fontName: "SFProDisplay")
-    
     private init() {
         // Setup RevenueCat SDK
         setupRevenueCat()
@@ -36,7 +32,7 @@ class SubscriptionManager: ObservableObject {
     // Configure RevenueCat with your API key
     private func setupRevenueCat() {
         Purchases.logLevel = .debug
-        Purchases.configure(withAPIKey: "YOUR_REVENUECAT_API_KEY")
+        Purchases.configure(withAPIKey: "sk_FFRJqIeJQEneFZhxHIbpEMsoBrGrb")
         
         // Register for notifications using the string-based notification name
         NotificationCenter.default.publisher(for: NSNotification.Name("com.revenuecat.purchases.customer_info_updated"))

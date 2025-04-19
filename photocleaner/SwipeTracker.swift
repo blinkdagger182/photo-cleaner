@@ -11,6 +11,7 @@ class SwipeTracker: ObservableObject {
     
     // Published properties
     @Published var swipeCount: Int = 0
+    @Published var shouldShowPaywall = false
     
     // Check if user has reached the threshold
     var hasReachedLimit: Bool {
@@ -54,6 +55,9 @@ class SwipeTracker: ObservableObject {
             
             // Update the last reset date to today
             UserDefaults.standard.set(Date(), forKey: lastResetDateKey)
+            
+            // Reset the paywall flag as well
+            shouldShowPaywall = false
         }
     }
     
@@ -66,14 +70,22 @@ class SwipeTracker: ObservableObject {
         swipeCount += 1
         saveState()
         
-        // Note: We no longer need to set a flag to show the paywall
-        // RevenueCat will handle that via the presentPaywallIfNeeded modifier
+        // Check if we've reached the threshold
+        if swipeCount >= swipeThreshold {
+            shouldShowPaywall = true
+        }
+    }
+    
+    // Reset the paywall flag (e.g. after dismissing it)
+    func resetPaywallFlag() {
+        shouldShowPaywall = false
     }
     
     // Reset counter (usually after a successful purchase)
     func resetSwipeCount() {
         swipeCount = 0
         saveState()
+        shouldShowPaywall = false
     }
     
     // For debugging/development - get the number of swipes remaining before paywall

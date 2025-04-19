@@ -1,6 +1,5 @@
 import SwiftUI
 import RevenueCat
-import RevenueCatUI
 
 @main
 struct photocleanerApp: App {
@@ -55,9 +54,10 @@ struct photocleanerApp: App {
         // You can customize the paywall appearance here
         // For example, set custom colors, fonts, etc.
         
-        // Enable PaywallLogger for development
+        // Enable logging for development
         #if DEBUG
-        PaywallLogger.enabled = true
+        // Debug logging will use the standard RevenueCat debugging
+        Purchases.logLevel = .debug
         #endif
     }
 }

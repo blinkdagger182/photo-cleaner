@@ -17,8 +17,7 @@ let package = Package(
         .target(
             name: "photocleaner",
             dependencies: [
-                .product(name: "RevenueCat", package: "purchases-ios"),
-                .product(name: "RevenueCatUI", package: "purchases-ios")
+                .product(name: "RevenueCat", package: "purchases-ios")
             ]
         )
     ]
