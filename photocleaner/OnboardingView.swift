@@ -452,14 +452,12 @@ struct OnboardingView: View {
             // Card stack with adaptive height
             FrostedCardStackView()
                 .frame(height: geometry.size.height * 0.6)
-            
+            Spacer()
             // Centered tagline with proper spacing
             CyclingTaglineView()
-                .padding(.top, 30)
+                .padding(.top, 10)
                 .padding(.horizontal)
-            
             Spacer()
-            
             // Get started button
             getStartedButton
         }
