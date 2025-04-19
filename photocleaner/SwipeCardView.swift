@@ -19,6 +19,10 @@ struct SwipeCardView: View {
     // Zoom state
     @State private var currentScale: CGFloat = 1.0
     @State private var finalScale: CGFloat = 1.0
+    
+    // Paywall state
+    @ObservedObject private var swipeTracker = SwipeTracker.shared
+    @State private var showPaywall = false
 
     init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
         self.group = group
@@ -254,6 +258,16 @@ struct SwipeCardView: View {
                     .disabled(group.count == 0)
                 }
             }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+            }
+            .onChange(of: swipeTracker.shouldShowPaywall) { shouldShow in
+                if shouldShow {
+                    showPaywall = true
+                    // Reset the flag so it doesn't keep showing
+                    swipeTracker.resetPaywallFlag()
+                }
+            }
         }
         .onAppear {
             hasAppeared = true
@@ -279,6 +293,12 @@ struct SwipeCardView: View {
                 clearMemory()
                 // Also clear the PHAsset size cache
                 PHAsset.clearSizeCache()
+            }
+
+            // Check if paywall should be shown (maybe they reached limit before opening this view)
+            if swipeTracker.shouldShowPaywall && !SubscriptionManager.shared.isSubscribed {
+                showPaywall = true
+                swipeTracker.resetPaywallFlag()
             }
         }
         .id(forceRefresh)

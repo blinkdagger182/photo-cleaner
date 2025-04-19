@@ -1,4 +1,5 @@
 import SwiftUI
+import RevenueCat
 
 @main
 struct photocleanerApp: App {
@@ -7,6 +8,10 @@ struct photocleanerApp: App {
     @StateObject var updateService = UpdateService.shared
     @StateObject var photoManager = PhotoManager()
     @StateObject var toast = ToastService()
+    
+    // Access the shared instances to initialize them at app startup
+    private let subscriptionManager = SubscriptionManager.shared
+    private let swipeTracker = SwipeTracker.shared
 
     var body: some Scene {
         WindowGroup {
@@ -15,8 +20,13 @@ struct photocleanerApp: App {
                     SplashView()
                         .task {
                             await updateService.checkAppVersion()
-                            
                             await photoManager.checkCurrentStatus()
+                            
+                            // Check subscription status on app launch
+                            subscriptionManager.refreshSubscriptionStatus()
+                            
+                            // Check if we need to reset the swipe counter
+                            swipeTracker.checkAndResetIfNeeded()
                         }
                 } else {
                     OnboardingView()

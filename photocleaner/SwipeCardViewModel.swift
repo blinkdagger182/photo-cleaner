@@ -105,6 +105,9 @@ class SwipeCardViewModel: ObservableObject {
             }
         }
         
+        // Increment swipe counter
+        SwipeTracker.shared.incrementSwipeCount()
+        
         photoManager.markForDeletion(asset)
         
         // Add the current image to the deletion preview if available
@@ -142,6 +145,9 @@ class SwipeCardViewModel: ObservableObject {
                 await loadImage(at: capturedIndex + 1, quality: .screen)
             }
         }
+        
+        // Increment swipe counter
+        SwipeTracker.shared.incrementSwipeCount()
         
         Task { await moveToNext() }
     }

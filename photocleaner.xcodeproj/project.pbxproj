@@ -12,6 +12,8 @@
 		B23D8FD82DA2418F003F1AC9 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD72DA2418F003F1AC9 /* PostgREST */; };
 		B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD92DA2418F003F1AC9 /* Realtime */; };
 		B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FDB2DA2418F003F1AC9 /* Storage */; };
+		B2B4F6AB2DB33ADA003244CC /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B2B4F6AA2DB33ADA003244CC /* RevenueCat */; };
+		B2B4F6AD2DB33ADA003244CC /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = B2B4F6AC2DB33ADA003244CC /* RevenueCatUI */; };
 		B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B2FD4B622DA244CF005DD7C5 /* Supabase */; };
 		B2FD4BE32DA41E94005DD7C5 /* PhotosUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B2FD4BE22DA41E93005DD7C5 /* PhotosUI.framework */; };
 /* End PBXBuildFile section */
@@ -38,6 +40,8 @@
 				B23D8FD62DA2418F003F1AC9 /* Functions in Frameworks */,
 				B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */,
 				B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */,
+				B2B4F6AB2DB33ADA003244CC /* RevenueCat in Frameworks */,
+				B2B4F6AD2DB33ADA003244CC /* RevenueCatUI in Frameworks */,
 				B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */,
 				B2FD4BE32DA41E94005DD7C5 /* PhotosUI.framework in Frameworks */,
 				B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */,
@@ -98,6 +102,8 @@
 				B23D8FD92DA2418F003F1AC9 /* Realtime */,
 				B23D8FDB2DA2418F003F1AC9 /* Storage */,
 				B2FD4B622DA244CF005DD7C5 /* Supabase */,
+				B2B4F6AA2DB33ADA003244CC /* RevenueCat */,
+				B2B4F6AC2DB33ADA003244CC /* RevenueCatUI */,
 			);
 			productName = photocleaner;
 			productReference = B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */;
@@ -129,6 +135,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				B2B4F6A92DB33ADA003244CC /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B23D8F8E2D9E8250003F1AC9 /* Products */;
@@ -388,6 +395,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		B2B4F6A92DB33ADA003244CC /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.22.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -415,6 +430,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Storage;
+		};
+		B2B4F6AA2DB33ADA003244CC /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B2B4F6A92DB33ADA003244CC /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		B2B4F6AC2DB33ADA003244CC /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B2B4F6A92DB33ADA003244CC /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
 		};
 		B2FD4B622DA244CF005DD7C5 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
