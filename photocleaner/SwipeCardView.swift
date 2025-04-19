@@ -19,6 +19,14 @@ struct SwipeCardView: View {
     // Zoom state
     @State private var currentScale: CGFloat = 1.0
     @State private var finalScale: CGFloat = 1.0
+    
+    // Fly-off animation state
+    @State private var showFlyOffLabel: Bool = false
+    @State private var flyOffLabelText: String = ""
+    @State private var flyOffLabelColor: Color = .clear
+    @State private var flyOffLabelOffset: CGSize = .zero
+    @State private var flyOffLabelRotation: Angle = .zero
+    @State private var flyOffLabelOpacity: Double = 0.0
 
     init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
         self.group = group
@@ -117,30 +125,7 @@ struct SwipeCardView: View {
                                         }
                                     }
 
-                                    // Overlay label
-                                    if index == 0, let swipeLabel = viewModel.swipeLabel {
-                                        Text(swipeLabel.uppercased())
-                                            .font(.system(size: 36, weight: .bold))
-                                            .foregroundColor(viewModel.swipeLabelColor)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 10)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .fill(Color.white.opacity(0.8))
-                                                    .overlay(
-                                                        RoundedRectangle(cornerRadius: 12)
-                                                            .stroke(viewModel.swipeLabelColor, lineWidth: 3)
-                                                    )
-                                            )
-                                            .rotationEffect(.degrees(-15))
-                                            .opacity(1)
-                                            .offset(
-                                                x: swipeLabel == "Keep" ? -40 : 40,
-                                                y: -geometry.size.height / 4
-                                            )
-                                            .transition(.opacity.combined(with: .move(edge: .top)))
-                                            .animation(.easeInOut(duration: 0.2), value: swipeLabel)
-                                    }
+                                    // Remove the overlay label from here
                                 }
                                 .frame(maxWidth: .infinity)
                                 .background(Color.white)
@@ -180,6 +165,53 @@ struct SwipeCardView: View {
                                             }
                                         : nil
                                 )
+                            }
+                            
+                            // Add Static drag label with same style as before, but above cards
+                            if viewModel.offset != .zero, let swipeLabel = viewModel.swipeLabel {
+                                Text(swipeLabel.uppercased())
+                                    .font(.system(size: 36, weight: .bold))
+                                    .foregroundColor(viewModel.swipeLabelColor)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color.white.opacity(0.8))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(viewModel.swipeLabelColor, lineWidth: 3)
+                                            )
+                                    )
+                                    .rotationEffect(.degrees(-15))
+                                    .opacity(1)
+                                    .offset(
+                                        x: swipeLabel == "Keep" ? -40 : 40,
+                                        y: -geometry.size.height / 4
+                                    )
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                    .animation(.easeInOut(duration: 0.2), value: swipeLabel)
+                                    .zIndex(100) // Ensure it's above cards
+                            }
+                            
+                            // Fly-off animation label
+                            if showFlyOffLabel {
+                                Text(flyOffLabelText.uppercased())
+                                    .font(.system(size: 36, weight: .bold))
+                                    .foregroundColor(flyOffLabelColor)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color.white.opacity(0.8))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(flyOffLabelColor, lineWidth: 3)
+                                            )
+                                    )
+                                    .rotationEffect(flyOffLabelRotation)
+                                    .opacity(flyOffLabelOpacity)
+                                    .offset(flyOffLabelOffset)
+                                    .zIndex(101) // Above everything
                             }
 
                             // Show a loading indicator when actively loading more images
@@ -265,6 +297,35 @@ struct SwipeCardView: View {
             // Set the force refresh callback
             viewModel.forceRefreshCallback = {
                 self.forceRefresh.toggle()
+            }
+            
+            // Set up the fly-off animation callback
+            viewModel.triggerLabelFlyOff = { text, color, direction in
+                // Start with the label visible at the card's position
+                self.flyOffLabelText = text
+                self.flyOffLabelColor = color
+                self.flyOffLabelOffset = .zero
+                self.flyOffLabelRotation = .degrees(-15)
+                self.flyOffLabelOpacity = 1.0
+                self.showFlyOffLabel = true
+                
+                // Animate the label flying off
+                withAnimation(.easeOut(duration: 0.5)) {
+                    // Determine the fly-off direction based on the swipe direction
+                    let isRightSwipe = direction.width > 0
+                    // Calculate a fly-off trajectory that's more dramatic
+                    self.flyOffLabelOffset = CGSize(
+                        width: isRightSwipe ? 200 : -200,
+                        height: -200
+                    )
+                    self.flyOffLabelRotation = .degrees(isRightSwipe ? 15 : -45)
+                    self.flyOffLabelOpacity = 0.0
+                }
+                
+                // Reset the state after animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    self.showFlyOffLabel = false
+                }
             }
             
             // Notify the view model that the view has appeared

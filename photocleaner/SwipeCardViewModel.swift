@@ -26,6 +26,9 @@ class SwipeCardViewModel: ObservableObject {
     private var loadedCount = 0
     private var imageFetchTasks: [Int: Task<UIImage?, Never>] = [:]
     
+    // Callback for fly-off animation
+    var triggerLabelFlyOff: ((String, Color, CGSize) -> Void)? = nil
+    
     // Track high-quality image loading status separately
     private var highQualityImagesStatus: [Int: Bool] = [:]
     private let highQualityPreloadCount = 3  // Number of high-quality images to preload ahead
@@ -98,6 +101,9 @@ class SwipeCardViewModel: ObservableObject {
         // Capture the index *before* showing the toast
         let capturedIndex = currentIndex 
         
+        // Trigger fly-off animation for delete action
+        triggerLabelFlyOff?("Delete", Color.red, CGSize(width: -150, height: 0))
+        
         // Start loading next image immediately
         Task {
             if capturedIndex + 1 < group.count {
@@ -135,6 +141,9 @@ class SwipeCardViewModel: ObservableObject {
     func handleRightSwipe() {
         // Capture the index before moving to next
         let capturedIndex = currentIndex
+        
+        // Trigger fly-off animation for keep action
+        triggerLabelFlyOff?("Keep", Color.green, CGSize(width: 150, height: 0))
         
         // Start loading next image immediately
         Task {
@@ -400,8 +409,24 @@ class SwipeCardViewModel: ObservableObject {
     private func handleSwipeGesture(_ value: DragGesture.Value) {
         let threshold: CGFloat = 100
         if value.translation.width < -threshold {
+            // Capture the label and direction before triggering fly-off
+            let label = "Delete"
+            let color = Color.red
+            let direction = value.translation
+            
+            // Trigger fly-off animation before handling the swipe
+            triggerLabelFlyOff?(label, color, direction)
+            
             handleLeftSwipe()
         } else if value.translation.width > threshold {
+            // Capture the label and direction before triggering fly-off
+            let label = "Keep"
+            let color = Color.green
+            let direction = value.translation
+            
+            // Trigger fly-off animation before handling the swipe
+            triggerLabelFlyOff?(label, color, direction)
+            
             handleRightSwipe()
         }
         withAnimation(.spring()) {
