@@ -32,7 +32,7 @@ class SubscriptionManager: ObservableObject {
     // Configure RevenueCat with your API key
     private func setupRevenueCat() {
         Purchases.logLevel = .debug
-        Purchases.configure(withAPIKey: "sk_FFRJqIeJQEneFZhxHIbpEMsoBrGrb")
+        Purchases.configure(withAPIKey: "appl_SAJcTFqLeBLEYlRIVBtSSPDBJRe")
         
         // Register for notifications using the string-based notification name
         NotificationCenter.default.publisher(for: NSNotification.Name("com.revenuecat.purchases.customer_info_updated"))

@@ -1,5 +1,6 @@
 import SwiftUI
 import RevenueCat
+import RevenueCatUI
 
 @main
 struct photocleanerApp: App {
@@ -56,7 +57,7 @@ struct photocleanerApp: App {
         
         // Enable logging for development
         #if DEBUG
-        // Debug logging will use the standard RevenueCat debugging
+        // Debug logging for RevenueCat SDK
         Purchases.logLevel = .debug
         #endif
     }

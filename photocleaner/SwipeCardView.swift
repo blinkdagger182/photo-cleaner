@@ -261,9 +261,17 @@ struct SwipeCardView: View {
                     .disabled(group.count == 0)
                 }
             }
-            .sheet(isPresented: $showPaywall) {
-                PaywallView()
-            }
+            // Add RevenueCat's hosted paywall
+            .presentPaywall(isPresented: $showPaywall,
+                           offering: subscriptionManager.offeringIdentifier,
+                           requiredEntitlementIdentifier: subscriptionManager.entitlementID,
+                           purchaseCompleted: { customerInfo in
+                               subscriptionManager.handlePurchaseCompletion(customerInfo)
+                           },
+                           restoreCompleted: { customerInfo in
+                               subscriptionManager.handleRestoreCompletion(customerInfo)
+                           },
+                           displayCloseButton: true)
             .onChange(of: swipeTracker.shouldShowPaywall) { shouldShow in
                 if shouldShow {
                     showPaywall = true
