@@ -135,13 +135,14 @@ struct SwipeCardView: View {
                                 )
                                 .shadow(radius: 8)
                                 .offset(
-                                    x: index == 0 ? viewModel.offset.width : CGFloat(index * 6),
-                                    y: index == 0 ? viewModel.offset.width / 10 : CGFloat(index * 6)
+                                    x: index == 0 ? viewModel.offset.width : 0,
+                                    y: index == 0 ? viewModel.offset.width / 10 : 5
                                 )
                                 .rotationEffect(
                                     index == 0 ? .degrees(Double(viewModel.offset.width / 15)) : .zero,
                                     anchor: .bottomTrailing
                                 )
+                                .opacity(index == 1 ? 0.4 : 1.0)
                                 .animation(
                                     hasAppeared && index == 0
                                         ? .interactiveSpring(response: 0.3, dampingFraction: 0.7)
