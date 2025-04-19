@@ -92,7 +92,7 @@ struct SwipeCardView: View {
                                                 .scaledToFit()
                                                 .frame(width: geometry.size.width * 0.85)
                                                 .padding()
-                                                .background(Color.white)
+                                                .background(Color.black)
                                                 .clipShape(
                                                     RoundedRectangle(
                                                         cornerRadius: 30, style: .continuous)
@@ -128,7 +128,7 @@ struct SwipeCardView: View {
                                     // Remove the overlay label from here
                                 }
                                 .frame(maxWidth: .infinity)
-                                .background(Color.white)
+                                .background(Color.black)
                                 .clipShape(
                                     RoundedRectangle(
                                         cornerRadius: 30, style: .continuous)
@@ -136,7 +136,7 @@ struct SwipeCardView: View {
                                 .shadow(radius: 8)
                                 .offset(
                                     x: index == 0 ? viewModel.offset.width : 0,
-                                    y: index == 0 ? viewModel.offset.width / 10 : 5
+                                    y: index == 0 ? viewModel.offset.width / 10 : -10
                                 )
                                 .rotationEffect(
                                     index == 0 ? .degrees(Double(viewModel.offset.width / 15)) : .zero,
@@ -172,15 +172,15 @@ struct SwipeCardView: View {
                             if viewModel.offset != .zero, let swipeLabel = viewModel.swipeLabel {
                                 Text(swipeLabel.uppercased())
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(viewModel.swipeLabelColor)
+                                    .foregroundColor(swipeLabel == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 10)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white.opacity(0.8))
+                                            .fill(Color.clear)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(viewModel.swipeLabelColor, lineWidth: 3)
+                                                    .stroke(swipeLabel == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green, lineWidth: 3)
                                             )
                                     )
                                     .rotationEffect(.degrees(-15))
@@ -198,15 +198,15 @@ struct SwipeCardView: View {
                             if showFlyOffLabel {
                                 Text(flyOffLabelText.uppercased())
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(flyOffLabelColor)
+                                    .foregroundColor(flyOffLabelText == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 10)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white.opacity(0.8))
+                                            .fill(Color.clear)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(flyOffLabelColor, lineWidth: 3)
+                                                    .stroke(flyOffLabelText == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green, lineWidth: 3)
                                             )
                                     )
                                     .rotationEffect(flyOffLabelRotation)
@@ -250,7 +250,7 @@ struct SwipeCardView: View {
                         .cornerRadius(8)
 
                     HStack(spacing: 40) {
-                        CircleButton(icon: "trash", tint: .red) {
+                        CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
                             if viewModel.isCurrentImageReadyForInteraction() {
                                 viewModel.handleLeftSwipe()
                             } else {

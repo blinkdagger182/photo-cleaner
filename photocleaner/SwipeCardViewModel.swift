@@ -82,7 +82,7 @@ class SwipeCardViewModel: ObservableObject {
                 swipeLabelColor = .green
             } else if offset.width < -50 {
                 swipeLabel = "Delete"
-                swipeLabelColor = .red
+                swipeLabelColor = Color(red: 0.55, green: 0.35, blue: 0.98)
             } else {
                 swipeLabel = nil
             }
@@ -112,7 +112,7 @@ class SwipeCardViewModel: ObservableObject {
         feedbackGenerator.impactOccurred()
         
         // Trigger fly-off animation for delete action
-        triggerLabelFlyOff?("Delete", Color.red, CGSize(width: -150, height: 0))
+        triggerLabelFlyOff?("Delete", Color(red: 0.55, green: 0.35, blue: 0.98), CGSize(width: -150, height: 0))
         
         // Start loading next image immediately
         Task {
@@ -424,7 +424,7 @@ class SwipeCardViewModel: ObservableObject {
             
             // Capture the label and direction before triggering fly-off
             let label = "Delete"
-            let color = Color.red
+            let color = Color(red: 0.55, green: 0.35, blue: 0.98)
             let direction = value.translation
             
             // Trigger fly-off animation before handling the swipe
