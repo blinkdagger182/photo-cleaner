@@ -1,6 +1,7 @@
 import Photos
 import SwiftUI
 import Combine
+import UIKit
 
 @MainActor
 class SwipeCardViewModel: ObservableObject {
@@ -26,6 +27,9 @@ class SwipeCardViewModel: ObservableObject {
     private var loadedCount = 0
     private var imageFetchTasks: [Int: Task<UIImage?, Never>] = [:]
     
+    // Haptic feedback generator
+    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+    
     // Callback for fly-off animation
     var triggerLabelFlyOff: ((String, Color, CGSize) -> Void)? = nil
     
@@ -45,6 +49,9 @@ class SwipeCardViewModel: ObservableObject {
         // Initialize currentIndex from saved value
         self.currentIndex = UserDefaults.standard.integer(
             forKey: lastViewedIndexKeyPrefix + group.id.uuidString)
+            
+        // Prepare haptic feedback generator
+        feedbackGenerator.prepare()
     }
     
     // MARK: - Public Methods
@@ -100,6 +107,9 @@ class SwipeCardViewModel: ObservableObject {
         guard let asset = group.asset(at: currentIndex) else { return }
         // Capture the index *before* showing the toast
         let capturedIndex = currentIndex 
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
         
         // Trigger fly-off animation for delete action
         triggerLabelFlyOff?("Delete", Color.red, CGSize(width: -150, height: 0))
@@ -409,6 +419,9 @@ class SwipeCardViewModel: ObservableObject {
     private func handleSwipeGesture(_ value: DragGesture.Value) {
         let threshold: CGFloat = 100
         if value.translation.width < -threshold {
+            // Trigger haptic feedback for delete action
+            feedbackGenerator.impactOccurred()
+            
             // Capture the label and direction before triggering fly-off
             let label = "Delete"
             let color = Color.red
