@@ -1,5 +1,6 @@
 import Foundation
 import RevenueCat
+import RevenueCatUI
 import Combine
 import SwiftUI
 
@@ -18,6 +19,12 @@ class SubscriptionManager: ObservableObject {
     private let entitlementID = "premium_access"
     private var cancellables = Set<AnyCancellable>()
     
+    // Paywall configuration
+    let offeringIdentifier = "default"  // Replace with your offering identifier from RevenueCat dashboard
+    
+    // Font provider for consistent styling
+    lazy var fontProvider = CustomPaywallFontProvider(fontName: "SFProDisplay")
+    
     private init() {
         // Setup RevenueCat SDK
         setupRevenueCat()
@@ -29,7 +36,7 @@ class SubscriptionManager: ObservableObject {
     // Configure RevenueCat with your API key
     private func setupRevenueCat() {
         Purchases.logLevel = .debug
-        Purchases.configure(withAPIKey: "sk_FFRJqIeJQEneFZhxHIbpEMsoBrGrb")
+        Purchases.configure(withAPIKey: "YOUR_REVENUECAT_API_KEY")
         
         // Register for notifications using the string-based notification name
         NotificationCenter.default.publisher(for: NSNotification.Name("com.revenuecat.purchases.customer_info_updated"))
@@ -71,6 +78,11 @@ class SubscriptionManager: ObservableObject {
                 
                 self.customerInfo = customerInfo
                 self.isSubscribed = customerInfo?.entitlements[self.entitlementID]?.isActive == true
+                
+                // If the user is now subscribed, reset the swipe counter
+                if self.isSubscribed {
+                    SwipeTracker.shared.resetSwipeCount()
+                }
             }
         }
     }
@@ -109,9 +121,42 @@ class SubscriptionManager: ObservableObject {
             // Update subscription status
             self.customerInfo = customerInfo
             isSubscribed = customerInfo.entitlements[entitlementID]?.isActive == true
+            
+            // Reset swipe counter if restored successfully
+            if isSubscribed {
+                SwipeTracker.shared.resetSwipeCount()
+            }
         } catch {
             errorMessage = error.localizedDescription
             purchaseInProgress = false
+        }
+    }
+    
+    // Check if the paywall should be shown
+    func shouldShowPaywall() -> Bool {
+        // Only show if not subscribed and has reached the limit
+        return !isSubscribed && SwipeTracker.shared.hasReachedLimit
+    }
+    
+    // Handle purchase completion
+    func handlePurchaseCompletion(_ customerInfo: CustomerInfo) {
+        self.customerInfo = customerInfo
+        isSubscribed = customerInfo.entitlements[entitlementID]?.isActive == true
+        
+        // Reset the swipe counter after successful purchase
+        if isSubscribed {
+            SwipeTracker.shared.resetSwipeCount()
+        }
+    }
+    
+    // Handle restore completion
+    func handleRestoreCompletion(_ customerInfo: CustomerInfo) {
+        self.customerInfo = customerInfo
+        isSubscribed = customerInfo.entitlements[entitlementID]?.isActive == true
+        
+        // Reset the swipe counter after successful restore
+        if isSubscribed {
+            SwipeTracker.shared.resetSwipeCount()
         }
     }
 } 

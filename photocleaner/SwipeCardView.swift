@@ -20,9 +20,11 @@ struct SwipeCardView: View {
     @State private var currentScale: CGFloat = 1.0
     @State private var finalScale: CGFloat = 1.0
     
+    // Subscription manager access
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+    
     // Paywall state
     @ObservedObject private var swipeTracker = SwipeTracker.shared
-    @State private var showPaywall = false
 
     init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
         self.group = group
@@ -321,6 +323,25 @@ struct SwipeCardView: View {
                 .environmentObject(photoManager)
                 .environmentObject(toast)
         }
+        // Add the RevenueCat hosted paywall using the presentPaywallIfNeeded modifier
+        .presentPaywallIfNeeded(
+            requiredEntitlementIdentifier: subscriptionManager.entitlementID,
+            offering: subscriptionManager.offeringIdentifier,
+            fonts: subscriptionManager.fontProvider,
+            purchaseCompleted: { customerInfo in
+                subscriptionManager.handlePurchaseCompletion(customerInfo)
+            },
+            restoreCompleted: { customerInfo in
+                subscriptionManager.handleRestoreCompletion(customerInfo)
+            },
+            displayCloseButton: true
+        ) { customerInfo in
+            // Return true if we should show the paywall - which happens when:
+            // 1. The user is not subscribed (no active entitlement)
+            // 2. The SwipeTracker indicates we've reached the limit
+            return subscriptionManager.shouldShowPaywall()
+        }
+        .tint(Color.blue) // Match app's tint color
     }
 
     // MARK: - Gestures

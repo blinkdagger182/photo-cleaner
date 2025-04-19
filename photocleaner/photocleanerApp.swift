@@ -1,5 +1,6 @@
 import SwiftUI
 import RevenueCat
+import RevenueCatUI
 
 @main
 struct photocleanerApp: App {
@@ -9,8 +10,10 @@ struct photocleanerApp: App {
     @StateObject var photoManager = PhotoManager()
     @StateObject var toast = ToastService()
     
-    // Access the shared instances to initialize them at app startup
-    private let subscriptionManager = SubscriptionManager.shared
+    // Initialize and access the shared subscription manager
+    @StateObject var subscriptionManager = SubscriptionManager.shared
+    
+    // Access the swipe tracker
     private let swipeTracker = SwipeTracker.shared
 
     var body: some Scene {
@@ -27,6 +30,9 @@ struct photocleanerApp: App {
                             
                             // Check if we need to reset the swipe counter
                             swipeTracker.checkAndResetIfNeeded()
+                            
+                            // Configure PaywallUI appearance options
+                            configurePaywallAppearance()
                         }
                 } else {
                     OnboardingView()
@@ -35,10 +41,23 @@ struct photocleanerApp: App {
             .environmentObject(updateService)
             .environmentObject(photoManager)
             .environmentObject(toast)
+            .environmentObject(subscriptionManager)
+            .accentColor(.blue) // Set the app's tint color to match paywalls
         }
 
         WindowGroup("Launch Screen", id: "Launch Screen") {
             LaunchScreen()
         }
+    }
+    
+    // Configure global appearance settings for RevenueCat paywalls
+    private func configurePaywallAppearance() {
+        // You can customize the paywall appearance here
+        // For example, set custom colors, fonts, etc.
+        
+        // Enable PaywallLogger for development
+        #if DEBUG
+        PaywallLogger.enabled = true
+        #endif
     }
 }

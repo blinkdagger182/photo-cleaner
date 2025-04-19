@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 class SwipeTracker: ObservableObject {
     static let shared = SwipeTracker()
@@ -10,7 +11,6 @@ class SwipeTracker: ObservableObject {
     
     // Published properties
     @Published var swipeCount: Int = 0
-    @Published var shouldShowPaywall = false
     
     // Check if user has reached the threshold
     var hasReachedLimit: Bool {
@@ -54,39 +54,30 @@ class SwipeTracker: ObservableObject {
             
             // Update the last reset date to today
             UserDefaults.standard.set(Date(), forKey: lastResetDateKey)
-            
-            // Reset the paywall flag as well
-            shouldShowPaywall = false
         }
     }
     
     // Increment the swipe count by 1
     func incrementSwipeCount() {
-        // Only count swipes if the user is not already subscribed
-        if !SubscriptionManager.shared.isSubscribed {
-            // First check if we need to reset based on date
-            checkAndResetIfNeeded()
-            
-            // Increment the count
-            swipeCount += 1
-            saveState()
-            
-            // Check if we've hit the threshold
-            if swipeCount >= swipeThreshold {
-                shouldShowPaywall = true
-            }
-        }
-    }
-    
-    // Reset the paywall flag (e.g. after dismissing it)
-    func resetPaywallFlag() {
-        shouldShowPaywall = false
+        // First check if we need to reset based on date
+        checkAndResetIfNeeded()
+        
+        // Increment the count
+        swipeCount += 1
+        saveState()
+        
+        // Note: We no longer need to set a flag to show the paywall
+        // RevenueCat will handle that via the presentPaywallIfNeeded modifier
     }
     
     // Reset counter (usually after a successful purchase)
     func resetSwipeCount() {
         swipeCount = 0
         saveState()
-        shouldShowPaywall = false
+    }
+    
+    // For debugging/development - get the number of swipes remaining before paywall
+    func swipesRemainingUntilPaywall() -> Int {
+        return max(0, swipeThreshold - swipeCount)
     }
 } 
