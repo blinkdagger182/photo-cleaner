@@ -8,21 +8,9 @@ struct SplashView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @State private var fadeOut = false
-
-    // Tagline rotation
-    @State private var splashTaglines = [
-        "Bye, clutter.",
-        "Make space. Keep memories.",
-        "So fresh. So cln.",
-        "Storage? Sorted.",
-        "Tap. Swipe. Clear.",
-        "Lighten up.",
-        "Clean phone. Clear mind.",
-        "cln. starts now.",
-        "It's cln. time."
-    ]
-    @State private var currentIndex = 0
-    @State private var currentTagline = ""
+    @State private var showWord1 = false
+    @State private var showWord2 = false
+    @State private var showWord3 = false
 
     var body: some View {
         ZStack {
@@ -39,29 +27,46 @@ struct SplashView: View {
                         .frame(height: 50)
                         .opacity(fadeOut ? 0 : 1)
 
-                    Text(currentTagline)
-                        .font(.headline)
-                        .foregroundColor(.primary) // Automatically adapts to dark/light
-                        .transition(.opacity)
-                        .id(currentTagline)
-                        .opacity(fadeOut ? 0 : 1)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemBackground)) // Adaptive background
-                .ignoresSafeArea()
-                .task {
-                    // Start tagline cycling immediately
-                    Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { _ in
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentIndex = (currentIndex + 1) % splashTaglines.count
-                            currentTagline = splashTaglines[currentIndex]
+                    HStack(spacing: 8) {
+                        if showWord1 {
+                            Text("Swipe")
+                                .transition(.opacity)
+                        }
+                        if showWord2 {
+                            Text("to")
+                                .transition(.opacity)
+                        }
+                        if showWord3 {
+                            Text("Clean")
+                                .transition(.opacity)
                         }
                     }
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .opacity(fadeOut ? 0 : 1)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
+                .ignoresSafeArea()
+                .task {
+                    // Staggered word-by-word soft fade
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        showWord1 = true
+                    }
 
-                    // Check status without delay
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        showWord2 = true
+                    }
+
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        showWord3 = true
+                    }
+
                     await photoManager.checkCurrentStatus()
 
-                    // Proceed as soon as status check is done (no fixed 4s delay)
                     withAnimation(.easeOut(duration: 0.5)) {
                         fadeOut = true
                     }
@@ -78,16 +83,12 @@ struct SplashView: View {
             ForceUpdateOverlayView(notes: updateService.updateNotes)
         }
         .interactiveDismissDisabled(true)
-
         .sheet(isPresented: $updateService.shouldShowOptionalUpdate) {
-            OptionalUpdateSheet(
-                notes: updateService.updateNotes
-            ) {
+            OptionalUpdateSheet(notes: updateService.updateNotes) {
                 updateService.dismissedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
                 updateService.shouldShowOptionalUpdate = false
             }
         }
-
         .animation(.easeInOut(duration: 0.3), value: isActive)
     }
 }
