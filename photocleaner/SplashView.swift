@@ -41,7 +41,7 @@ struct SplashView: View {
                                 .transition(.opacity)
                         }
                     }
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.primary)
                     .opacity(fadeOut ? 0 : 1)
                 }

@@ -146,14 +146,18 @@ struct DeletePreviewView: View {
                 .frame(maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 16) {
                         ForEach(previewEntries) { entry in
                             let isSelected = selectedEntries.contains(entry.id)
                             ZStack {
                                 Image(uiImage: entry.image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(width: 100, height: 100)
+                                    .frame(height: 100)
                                     .clipped()
                                     .overlay(
                                         isSelected ? Color.black.opacity(0.25) : Color.clear
@@ -164,16 +168,10 @@ struct DeletePreviewView: View {
                                             .padding(6) : nil,
                                         alignment: .topTrailing
                                     )
-                                    .onTapGesture {
-                                        if isSelected {
-                                            selectedEntries.remove(entry.id)
-                                        } else {
-                                            selectedEntries.insert(entry.id)
-                                        }
-                                    }
                                     .cornerRadius(8)
+                                    .contentShape(Rectangle()) // Use precise content shape for hit testing
                                 
-                                // Unmark button overlay
+                                // Unmark button overlay in a separate layer with its own tap area
                                 VStack {
                                     Spacer()
                                     HStack {
@@ -186,12 +184,26 @@ struct DeletePreviewView: View {
                                                 .foregroundColor(.white)
                                                 .shadow(radius: 2)
                                                 .padding(6)
+                                                .background(Color.black.opacity(0.001)) // Invisible background to increase hit area
+                                                .contentShape(Circle()) // Clear hit testing boundary
                                         }
+                                        .padding(4) // Add padding to the button itself
                                     }
                                 }
                             }
-                            .frame(width: 100, height: 100)
-                            .swipeToUnmark(entry: entry, action: unmarkPhotoForDeletion)
+                            .aspectRatio(1, contentMode: .fit) // Maintain square aspect ratio
+                            // Add a separate tap gesture to handle selection
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if isSelected {
+                                        selectedEntries.remove(entry.id)
+                                    } else {
+                                        selectedEntries.insert(entry.id)
+                                    }
+                                }
+                            }
+                            .padding(4) // Add padding to the entire cell
+                            // .swipeToUnmark(entry: entry, action: unmarkPhotoForDeletion)
                         }
                     }
                     .padding()

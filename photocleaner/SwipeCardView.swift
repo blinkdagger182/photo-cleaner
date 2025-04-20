@@ -92,7 +92,7 @@ struct SwipeCardView: View {
                                                 .scaledToFit()
                                                 .frame(width: geometry.size.width * 0.85)
                                                 .padding()
-                                                .background(Color.black)
+                                                .background(Color.white)
                                                 .clipShape(
                                                     RoundedRectangle(
                                                         cornerRadius: 30, style: .continuous)
@@ -136,7 +136,7 @@ struct SwipeCardView: View {
                                 .shadow(radius: 8)
                                 .offset(
                                     x: index == 0 ? viewModel.offset.width : 0,
-                                    y: index == 0 ? viewModel.offset.width / 10 : -10
+                                    y: index == 0 ? viewModel.offset.width / 10 : -15
                                 )
                                 .rotationEffect(
                                     index == 0 ? .degrees(Double(viewModel.offset.width / 15)) : .zero,
@@ -170,9 +170,13 @@ struct SwipeCardView: View {
                             
                             // Add Static drag label with same style as before, but above cards
                             if viewModel.offset != .zero, let swipeLabel = viewModel.swipeLabel {
+                                let labelColor = swipeLabel == "Delete" ? 
+                                    Color(red: 0.55, green: 0.35, blue: 0.98) : // Purple for Delete
+                                    Color.green                                 // Green for Keep
+                                    
                                 Text(swipeLabel.uppercased())
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(swipeLabel == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green)
+                                    .foregroundColor(labelColor)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 10)
                                     .background(
@@ -180,7 +184,7 @@ struct SwipeCardView: View {
                                             .fill(Color.clear)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(swipeLabel == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green, lineWidth: 3)
+                                                    .stroke(labelColor, lineWidth: 3)
                                             )
                                     )
                                     .rotationEffect(.degrees(-15))
@@ -198,7 +202,7 @@ struct SwipeCardView: View {
                             if showFlyOffLabel {
                                 Text(flyOffLabelText.uppercased())
                                     .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(flyOffLabelText == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green)
+                                    .foregroundColor(flyOffLabelColor)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 10)
                                     .background(
@@ -206,7 +210,7 @@ struct SwipeCardView: View {
                                             .fill(Color.clear)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(flyOffLabelText == "Delete" ? Color(red: 0.55, green: 0.35, blue: 0.98) : Color.green, lineWidth: 3)
+                                                    .stroke(flyOffLabelColor, lineWidth: 3)
                                             )
                                     )
                                     .rotationEffect(flyOffLabelRotation)
