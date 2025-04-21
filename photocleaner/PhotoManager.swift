@@ -1,6 +1,12 @@
 import Foundation
 import Photos
 import SwiftUI
+import UIKit
+
+// Import models from Core/Models
+@_implementationOnly import struct photocleaner.PhotoGroup
+@_implementationOnly import struct photocleaner.YearGroup
+@_implementationOnly import struct photocleaner.DeletePreviewEntry
 
 class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     @Published var allPhotos: [PHAsset] = []
