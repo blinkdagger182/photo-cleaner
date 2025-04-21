@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B23B16E52DB6983500BA63B7 /* MobileNetV2FP16.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = B23B16E42DB6983500BA63B7 /* MobileNetV2FP16.mlmodel */; };
 		B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD32DA2418F003F1AC9 /* Auth */; };
 		B23D8FD62DA2418F003F1AC9 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD52DA2418F003F1AC9 /* Functions */; };
 		B23D8FD82DA2418F003F1AC9 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD72DA2418F003F1AC9 /* PostgREST */; };
@@ -18,7 +17,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		B23B16E42DB6983500BA63B7 /* MobileNetV2FP16.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = MobileNetV2FP16.mlmodel; sourceTree = "<group>"; };
 		B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = photocleaner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2FD4BE22DA41E93005DD7C5 /* PhotosUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhotosUI.framework; path = System/Library/Frameworks/PhotosUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -55,7 +53,6 @@
 				B23D8F8F2D9E8250003F1AC9 /* photocleaner */,
 				B2FD4B612DA244CF005DD7C5 /* Frameworks */,
 				B23D8F8E2D9E8250003F1AC9 /* Products */,
-				B23B16E42DB6983500BA63B7 /* MobileNetV2FP16.mlmodel */,
 			);
 			sourceTree = "<group>";
 		};
@@ -158,7 +155,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B23B16E52DB6983500BA63B7 /* MobileNetV2FP16.mlmodel in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
