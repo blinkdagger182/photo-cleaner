@@ -80,7 +80,7 @@ struct SplashView: View {
             }
         }
         .fullScreenCover(isPresented: $updateService.shouldForceUpdate) {
-            ForceUpdateOverlayView(notes: updateService.updateNotes)
+            ForceUpdateView(notes: updateService.updateNotes)
         }
         .interactiveDismissDisabled(true)
         .sheet(isPresented: $updateService.shouldShowOptionalUpdate) {

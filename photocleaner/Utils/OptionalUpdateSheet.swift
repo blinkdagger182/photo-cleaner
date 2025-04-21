@@ -31,7 +31,7 @@ struct OptionalUpdateSheet: View {
                 }
 
                 Button("Update") {
-                    if let url = URL(string: "https://apps.apple.com/app/idYOUR_APP_ID") {
+                    if let url = URL(string: "https://apps.apple.com/app/com.riskcreates.cln") {
                         UIApplication.shared.open(url)
                     }
                 }

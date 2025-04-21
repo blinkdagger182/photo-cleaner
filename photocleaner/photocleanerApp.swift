@@ -26,9 +26,5 @@ struct photocleanerApp: App {
             .environmentObject(photoManager)
             .environmentObject(toast)
         }
-
-        WindowGroup("Launch Screen", id: "Launch Screen") {
-            LaunchScreen()
-        }
     }
 }

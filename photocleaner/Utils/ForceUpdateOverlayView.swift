@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-struct ForceUpdateOverlayView: View {
+struct ForceUpdateView: View {
     let notes: String?
 
     var body: some View {
@@ -32,7 +32,7 @@ struct ForceUpdateOverlayView: View {
                     .padding()
 
                 Button("Update Now") {
-                    if let url = URL(string: "https://apps.apple.com/app/idYOUR_APP_ID") {
+                    if let url = URL(string: "https://apps.apple.com/app/com.riskcreates.cln") {
                         UIApplication.shared.open(url)
                     }
                 }
