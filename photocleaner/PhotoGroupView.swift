@@ -100,10 +100,12 @@ struct PhotoGroupView: View {
 
                                     LazyVGrid(columns: columns, spacing: 16) {
                                         ForEach(yearGroup.months, id: \.id) { group in
-                                            AlbumCell(group: group)
-                                                .onTapGesture {
-                                                    selectedGroup = group
-                                                }
+                                            Button {
+                                                selectedGroup = group
+                                            } label: {
+                                                AlbumCell(group: group)
+                                            }
+                                            .buttonStyle(ScaleButtonStyle())
                                         }
                                     }
                                     .padding(.horizontal)
@@ -114,10 +116,12 @@ struct PhotoGroupView: View {
                                 sectionHeader(title: "My Albums")
                                 LazyVGrid(columns: columns, spacing: 20) {
                                     ForEach(photoManager.photoGroups.filter { $0.title == "Saved"}, id: \.id) { group in
-                                        AlbumCell(group: group)
-                                            .onTapGesture {
-                                                selectedGroup = group
-                                            }
+                                        Button {
+                                            selectedGroup = group
+                                        } label: {
+                                            AlbumCell(group: group)
+                                        }
+                                        .buttonStyle(ScaleButtonStyle())
                                     }
                                 }
                                 .padding(.horizontal)
@@ -149,6 +153,15 @@ struct PhotoGroupView: View {
         .padding(.horizontal)
     }
 }
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 struct AlbumCell: View {
     let group: PhotoGroup
     @State private var thumbnail: UIImage?
