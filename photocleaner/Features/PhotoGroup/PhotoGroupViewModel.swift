@@ -1,0 +1,74 @@
+import SwiftUI
+import Photos
+import Combine
+
+@MainActor
+class PhotoGroupViewModel: ObservableObject {
+    // MARK: - Published Properties
+    @Published var selectedGroup: PhotoGroup?
+    @Published var viewByYear = true
+    @Published var shouldForceRefresh = false
+    @Published var fadeIn = false
+    @Published var yearGroups: [YearGroup] = []
+    @Published var photoGroups: [PhotoGroup] = []
+    @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
+    
+    // MARK: - Private Properties
+    private let photoManager: PhotoManager
+    
+    // MARK: - Initialization
+    init(photoManager: PhotoManager) {
+        self.photoManager = photoManager
+        
+        // Set up bindings to photoManager
+        setupBindings()
+    }
+    
+    // MARK: - Private Methods
+    private func setupBindings() {
+        // Create bindings to photoManager properties
+        photoManager.$yearGroups.assign(to: &$yearGroups)
+        photoManager.$photoGroups.assign(to: &$photoGroups)
+        photoManager.$authorizationStatus.assign(to: &$authorizationStatus)
+    }
+    
+    // MARK: - Public Methods
+    func triggerFadeInAnimation() {
+        withAnimation(.easeIn(duration: 0.5)) {
+            fadeIn = true
+        }
+    }
+    
+    func openPhotoLibraryPicker(from viewController: UIViewController) {
+        let selector = NSSelectorFromString("presentLimitedLibraryPickerFromViewController:")
+        if PHPhotoLibrary.shared().responds(to: selector) {
+            PHPhotoLibrary.shared().perform(selector, with: viewController)
+        }
+    }
+    
+    func openSettings() {
+        if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(settingsURL)
+        }
+    }
+    
+    func updateSelectedGroup(_ group: PhotoGroup?) {
+        selectedGroup = group
+    }
+    
+    func toggleViewMode() {
+        viewByYear.toggle()
+    }
+    
+    func saveLastViewedIndex(for group: PhotoGroup, index: Int) {
+        photoManager.saveLastViewedIndex(index, for: group.id)
+    }
+    
+    func loadLastViewedIndex(for group: PhotoGroup) -> Int {
+        photoManager.loadLastViewedIndex(for: group.id)
+    }
+    
+    func refreshData() async {
+        await photoManager.refreshAllPhotoGroups()
+    }
+} 

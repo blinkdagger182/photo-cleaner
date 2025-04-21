@@ -3,13 +3,13 @@ import Photos
 import UIKit
 
 struct PhotoGroupView: View {
-    @EnvironmentObject var photoManager: PhotoManager
+    @StateObject private var viewModel: PhotoGroupViewModel
     @EnvironmentObject var toast: ToastService
-
-    @State private var selectedGroup: PhotoGroup?
-    @State private var viewByYear = true
-    @State private var shouldForceRefresh = false
-    @State private var fadeIn = false
+    @EnvironmentObject var photoManager: PhotoManager
+    
+    init(photoManager: PhotoManager) {
+        _viewModel = StateObject(wrappedValue: PhotoGroupViewModel(photoManager: photoManager))
+    }
 
     let columns = [
         GridItem(.flexible()),
@@ -22,7 +22,7 @@ struct PhotoGroupView: View {
                 VStack(spacing: 0) {
                     HStack(alignment: .center) {
                         // 🟨 Left: Banner text + buttons
-                        if photoManager.authorizationStatus == .limited {
+                        if viewModel.authorizationStatus == .limited {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("You're viewing only selected photos.")
                                     .font(.subheadline)
@@ -31,18 +31,13 @@ struct PhotoGroupView: View {
                                 Button("Add More Photos") {
                                     if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                                        let root = scene.windows.first?.rootViewController {
-                                        let selector = NSSelectorFromString("presentLimitedLibraryPickerFromViewController:")
-                                        if PHPhotoLibrary.shared().responds(to: selector) {
-                                            PHPhotoLibrary.shared().perform(selector, with: root)
-                                        }
+                                        viewModel.openPhotoLibraryPicker(from: root)
                                     }
                                 }
                                 .buttonStyle(.bordered)
 
                                 Button("Go to Settings to Allow Full Access") {
-                                    if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                                        UIApplication.shared.open(settingsURL)
-                                    }
+                                    viewModel.openSettings()
                                 }
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
@@ -61,11 +56,9 @@ struct PhotoGroupView: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(height: 50)
-                                .opacity(fadeIn ? 1 : 0)
+                                .opacity(viewModel.fadeIn ? 1 : 0)
                                 .onAppear {
-                                    withAnimation(.easeIn(duration: 0.5)) {
-                                        fadeIn = true
-                                    }
+                                    viewModel.triggerFadeInAnimation()
                                 }
                             Spacer(minLength: 0)
                         }
@@ -76,7 +69,7 @@ struct PhotoGroupView: View {
 
                     // 🔄 Top Row: Picker and cln. logo
                     HStack(alignment: .bottom) {
-                        Picker("View Mode", selection: $viewByYear) {
+                        Picker("View Mode", selection: $viewModel.viewByYear) {
                             Text("By Year").tag(true)
                             Text("My Albums").tag(false)
                         }
@@ -90,8 +83,8 @@ struct PhotoGroupView: View {
 
                     // 📅 Main content
                     VStack(alignment: .leading, spacing: 20) {
-                        if viewByYear {
-                            ForEach(photoManager.yearGroups) { yearGroup in
+                        if viewModel.viewByYear {
+                            ForEach(viewModel.yearGroups) { yearGroup in
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("\(yearGroup.year)")
                                         .font(.title)
@@ -101,7 +94,7 @@ struct PhotoGroupView: View {
                                     LazyVGrid(columns: columns, spacing: 16) {
                                         ForEach(yearGroup.months, id: \.id) { group in
                                             Button {
-                                                selectedGroup = group
+                                                viewModel.updateSelectedGroup(group)
                                             } label: {
                                                 AlbumCell(group: group)
                                             }
@@ -115,9 +108,9 @@ struct PhotoGroupView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 sectionHeader(title: "My Albums")
                                 LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(photoManager.photoGroups.filter { $0.title == "Saved"}, id: \.id) { group in
+                                    ForEach(viewModel.photoGroups.filter { $0.title == "Saved"}, id: \.id) { group in
                                         Button {
-                                            selectedGroup = group
+                                            viewModel.updateSelectedGroup(group)
                                         } label: {
                                             AlbumCell(group: group)
                                         }
@@ -133,8 +126,8 @@ struct PhotoGroupView: View {
                 }
             }
         }
-        .sheet(item: $selectedGroup) { group in
-            SwipeCardView(group: group, forceRefresh: $shouldForceRefresh)
+        .sheet(item: $viewModel.selectedGroup) { group in
+            SwipeCardView(group: group, forceRefresh: $viewModel.shouldForceRefresh)
                 .onAppear {
                     print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.count)
                 }

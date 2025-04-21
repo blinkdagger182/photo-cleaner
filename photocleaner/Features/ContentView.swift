@@ -45,7 +45,8 @@ struct ContentView: View {
                     )
                     }
                 } else {
-                    PhotoGroupView()
+                    // Pass photoManager to PhotoGroupView for proper initialization of the ViewModel
+                    PhotoGroupView(photoManager: photoManager)
                         .environmentObject(photoManager)
                         .environmentObject(toast)
                 }
@@ -103,8 +104,7 @@ struct RequestAccessView: View {
 struct LimitedAccessView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
-
-    @State private var selectedGroup: PhotoGroup?
+    @StateObject private var viewModel = LimitedAccessViewModel()
 
     var body: some View {
         NavigationStack {
@@ -120,7 +120,7 @@ struct LimitedAccessView: View {
                         Button(action: {
                             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                                let root = scene.windows.first?.rootViewController {
-                                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
+                                viewModel.openPhotoLibraryPicker(from: root)
                             }
                         }) {
                             Text("Add More Photos")
@@ -137,17 +137,12 @@ struct LimitedAccessView: View {
                     // 📸 Section header
                     sectionHeader(title: "Selected Photos")
 
-                    let group = PhotoGroup(
-                        id: UUID(),
-                        assets: photoManager.allAssets,
-                        title: "Selected Photos",
-                        monthDate: nil
-                    )
+                    let group = viewModel.createPhotoGroup(with: photoManager.allAssets)
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         AlbumCell(group: group)
                             .onTapGesture {
-                                selectedGroup = group
+                                viewModel.selectedGroup = group
                             }
                     }
                     .padding()
@@ -155,13 +150,14 @@ struct LimitedAccessView: View {
             }
 
         }
-        .sheet(item: $selectedGroup) { group in
-            SwipeCardView(group: group, forceRefresh: .constant(false))
+        .sheet(item: $viewModel.selectedGroup) { group in
+            SwipeCardView(group: group, forceRefresh: $viewModel.forceRefresh)
                 .environmentObject(photoManager)
                 .environmentObject(toast)
         }
         .onAppear {
             print("👀 LimitedAccessView is visible")
+            viewModel.onAppear()
         }
     }
 
@@ -173,5 +169,28 @@ struct LimitedAccessView: View {
             Spacer()
         }
         .padding(.horizontal)
+    }
+}
+
+@MainActor
+class LimitedAccessViewModel: ObservableObject {
+    @Published var selectedGroup: PhotoGroup?
+    @Published var forceRefresh = false
+    
+    func onAppear() {
+        // Any initialization logic that needs to happen when the view appears
+    }
+    
+    func openPhotoLibraryPicker(from viewController: UIViewController) {
+        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: viewController)
+    }
+    
+    func createPhotoGroup(with assets: [PHAsset]) -> PhotoGroup {
+        return PhotoGroup(
+            id: UUID(),
+            assets: assets,
+            title: "Selected Photos",
+            monthDate: nil
+        )
     }
 }
