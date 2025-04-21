@@ -147,18 +147,19 @@ struct DeletePreviewView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 16) {
+                        GridItem(.flexible(), spacing: 20),
+                        GridItem(.flexible(), spacing: 20),
+                        GridItem(.flexible(), spacing: 20)
+                    ], spacing: 20) {
                         ForEach(previewEntries) { entry in
                             let isSelected = selectedEntries.contains(entry.id)
                             ZStack {
                                 Image(uiImage: entry.image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(height: 100)
+                                    .frame(width: UIScreen.main.bounds.width / 4.0, height: UIScreen.main.bounds.width / 4.0)
                                     .clipped()
+                                    .cornerRadius(8)
                                     .overlay(
                                         isSelected ? Color.black.opacity(0.25) : Color.clear
                                     )
@@ -168,7 +169,6 @@ struct DeletePreviewView: View {
                                             .padding(6) : nil,
                                         alignment: .topTrailing
                                     )
-                                    .cornerRadius(8)
                                     .contentShape(Rectangle()) // Use precise content shape for hit testing
                                 
                                 // Unmark button overlay in a separate layer with its own tap area
@@ -192,6 +192,7 @@ struct DeletePreviewView: View {
                                 }
                             }
                             .aspectRatio(1, contentMode: .fit) // Maintain square aspect ratio
+                            .background(Color.clear) // Ensure background is clear
                             // Add a separate tap gesture to handle selection
                             .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -202,12 +203,14 @@ struct DeletePreviewView: View {
                                     }
                                 }
                             }
-                            .padding(4) // Add padding to the entire cell
+                            .padding(8) // Increase padding between cells
                             // .swipeToUnmark(entry: entry, action: unmarkPhotoForDeletion)
                         }
                     }
                     .padding()
+                    .background(Color.clear) // Ensure GridView background is clear
                 }
+                .background(Color.clear) // Ensure ScrollView background is clear
             }
 
             if deletionComplete {
