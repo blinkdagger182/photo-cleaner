@@ -21,11 +21,14 @@ class SwipeCardViewModel: ObservableObject {
     var toast: ToastService!
     private var hasStartedLoading = false
     private var viewHasAppeared = false
-    private let maxBufferSize = 5  // Keep only 5 images in memory
-    private let preloadThreshold = 3  // Start preloading when 3 images away from end
+    private let maxBufferSize = 10  // Increased from 5 to 10 images in memory
+    private let preloadThreshold = 5  // Increased from 3 to 5 images ahead for preloading
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
     private var loadedCount = 0
     private var imageFetchTasks: [Int: Task<UIImage?, Never>] = [:]
+    private var imageLoadingTimeouts: [Int: DispatchWorkItem] = [:]
+    private var loadRetryCount: [Int: Int] = [:]
+    private let maxRetryCount = 3
     
     // Haptic feedback generator
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
@@ -35,7 +38,7 @@ class SwipeCardViewModel: ObservableObject {
     
     // Track high-quality image loading status separately
     private var highQualityImagesStatus: [Int: Bool] = [:]
-    private let highQualityPreloadCount = 3  // Number of high-quality images to preload ahead
+    private let highQualityPreloadCount = 5  // Increased from 3 to 5 high-quality images to preload
     
     // Add a reference to the forceRefresh binding
     var forceRefreshCallback: (() -> Void)?
@@ -538,24 +541,20 @@ class SwipeCardViewModel: ObservableObject {
             // Set preloading flag to prevent unnecessary reloads
             photoManager.setPreloadingState(true)
             
-            // Clean up old images to free memory
+            // Clean up old images to free memory with our improved sliding window
             await cleanupOldImages()
             
-            // Check if we need to preload more thumbnails
-            let thumbnailPreloadThreshold = 3
-            if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.count {
-                // Load the next batch of thumbnails
-                let nextBatchStart = loadedCount
-                let nextBatchCount = min(maxBufferSize, group.count - nextBatchStart)
-                
-                if nextBatchCount > 0 {
-                    await loadImagesInRange(
-                        from: nextBatchStart, 
-                        count: nextBatchCount,
-                        quality: .thumbnail
-                    )
+            // Always ensure we have thumbnails loaded for at least the next 5 images
+            // regardless of what loadedCount says
+            let thumbnailEndIndex = min(nextIndex + 5, group.count)
+            for i in nextIndex..<thumbnailEndIndex {
+                if i >= preloadedImages.count || preloadedImages[i] == nil {
+                    await loadImage(at: i, quality: .thumbnail)
                 }
             }
+            
+            // Update loadedCount to ensure it reflects our actual progress
+            loadedCount = max(loadedCount, thumbnailEndIndex)
             
             // Proactively load high-quality images for the next few indices
             for offset in 0..<highQualityPreloadCount {
@@ -607,36 +606,54 @@ class SwipeCardViewModel: ObservableObject {
     
     private func cleanupOldImages() async {
         await MainActor.run {
-            // Keep current and next few images, remove everything before that
-            if currentIndex > maxBufferSize {
-                // Determine the cutoff point - we want to keep only from (currentIndex - n) onwards
-                let cutoffIndex = currentIndex - maxBufferSize
-                
-                // Create a new array with nil for old images to free memory
-                var newImages = Array(repeating: nil as UIImage?, count: cutoffIndex)
-                
-                // Append the images we want to keep
-                if currentIndex < preloadedImages.count {
-                    newImages.append(contentsOf: preloadedImages[cutoffIndex...])
+            // Implement a true sliding window approach that works beyond the buffer size
+            
+            // Calculate window boundaries - keep images from (currentIndex - 5) to (currentIndex + 5)
+            let windowStart = max(0, currentIndex - 5)
+            let windowEnd = min(group.count - 1, currentIndex + 5)
+            
+            // Ensure the preloadedImages array has enough slots
+            while preloadedImages.count < windowEnd + 1 {
+                preloadedImages.append(nil)
+            }
+            
+            // Clear images outside the window to free memory
+            for i in 0..<preloadedImages.count {
+                if i < windowStart || i > windowEnd {
+                    preloadedImages[i] = nil
+                    highQualityImagesStatus.removeValue(forKey: i)
+                    
+                    // Cancel any pending tasks for this index
+                    imageFetchTasks[i]?.cancel()
+                    imageFetchTasks.removeValue(forKey: i)
+                    
+                    // Cancel any pending timeouts
+                    if let timeoutItem = imageLoadingTimeouts[i] {
+                        timeoutItem.cancel()
+                        imageLoadingTimeouts.removeValue(forKey: i)
+                    }
                 }
-                
-                preloadedImages = newImages
-                
-                // Also clean up the high-quality status dictionary
-                var newStatus: [Int: Bool] = [:]
-                for (index, status) in highQualityImagesStatus where index >= cutoffIndex {
-                    newStatus[index] = status
+            }
+            
+            // Force a memory cleanup
+            autoreleasepool {}
+            
+            // Proactively start loading images in the forward part of the window
+            Task {
+                // Prioritize loading the current and next few images
+                for i in currentIndex..<min(currentIndex + 5, group.count) {
+                    if i < preloadedImages.count && (preloadedImages[i] == nil || highQualityImagesStatus[i] != true) {
+                        // First try to get a thumbnail quickly
+                        if preloadedImages[i] == nil {
+                            _ = await loadImage(at: i, quality: .thumbnail)
+                        }
+                        
+                        // Then get high quality if needed
+                        if highQualityImagesStatus[i] != true {
+                            _ = await loadImage(at: i, quality: .screen)
+                        }
+                    }
                 }
-                highQualityImagesStatus = newStatus
-                
-                // Cancel tasks for indices that are no longer needed
-                for (index, task) in imageFetchTasks where index < cutoffIndex {
-                    task.cancel()
-                    imageFetchTasks.removeValue(forKey: index)
-                }
-                
-                // Force a memory cleanup
-                autoreleasepool {}
             }
         }
     }
@@ -698,6 +715,17 @@ class SwipeCardViewModel: ObservableObject {
         let taskKey = "\(index)-\(quality == .screen ? "high" : "low")"
         imageFetchTasks[index]?.cancel()
         
+        // Cancel any existing timeout for this index
+        if let existingTimeout = imageLoadingTimeouts[index] {
+            existingTimeout.cancel()
+            imageLoadingTimeouts.removeValue(forKey: index)
+        }
+        
+        // Track retry count
+        if quality == .screen {
+            loadRetryCount[index] = (loadRetryCount[index] ?? 0) + 1
+        }
+        
         // Create and store a new task
         let task = Task {
             let options = PHImageRequestOptions()
@@ -729,6 +757,48 @@ class SwipeCardViewModel: ObservableObject {
                 )
             }
             
+            // Create a timeout handler to fall back to lower quality if needed
+            let timeoutHandler = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    // Timeout occurred, cancel the current task
+                    self.imageFetchTasks[index]?.cancel()
+                    self.imageFetchTasks.removeValue(forKey: index)
+                    
+                    // Only try fallback if we're still on this index or close to it
+                    if abs(index - self.currentIndex) <= 5 {
+                        if quality == .screen && (self.loadRetryCount[index] ?? 0) < self.maxRetryCount {
+                            // If high quality failed, try medium quality
+                            print("⚠️ Timeout loading high-quality image at index \(index). Falling back to thumbnail.")
+                            _ = await self.loadImage(at: index, quality: .thumbnail)
+                        } else if index == self.currentIndex {
+                            // If we've exhausted retries and it's the current image, allow user to proceed anyway
+                            print("⚠️ Failed to load image at index \(index) after multiple attempts.")
+                            
+                            // Update UI to show the image is problematic but still allow interaction
+                            await MainActor.run {
+                                // Set a placeholder or fallback image if possible
+                                if self.preloadedImages.count > index {
+                                    if self.preloadedImages[index] == nil {
+                                        self.preloadedImages[index] = UIImage(systemName: "exclamationmark.triangle")
+                                    }
+                                    self.highQualityImagesStatus[index] = true // Mark as "loaded" to allow interaction
+                                }
+                                
+                                // Show toast notification
+                                self.toast?.show("Image couldn't be loaded fully. You can still proceed.", duration: 2.5)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Store the timeout handler and schedule it
+            await MainActor.run {
+                self.imageLoadingTimeouts[index] = timeoutHandler
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0, execute: timeoutHandler)
+            }
+            
             let image = await withCheckedContinuation { continuation in
                 PHImageManager.default().requestImage(
                     for: asset,
@@ -737,6 +807,14 @@ class SwipeCardViewModel: ObservableObject {
                     options: options
                 ) { image, _ in
                     continuation.resume(returning: image)
+                }
+            }
+            
+            // Cancel the timeout handler as we got a result
+            await MainActor.run {
+                if let timeoutItem = self.imageLoadingTimeouts[index] {
+                    timeoutItem.cancel()
+                    self.imageLoadingTimeouts.removeValue(forKey: index)
                 }
             }
             
@@ -752,6 +830,7 @@ class SwipeCardViewModel: ObservableObject {
                         if quality == .screen {
                             self.preloadedImages[index] = processedImage
                             self.highQualityImagesStatus[index] = true
+                            self.loadRetryCount[index] = 0 // Reset retry count on success
                         } 
                         // If it's a thumbnail, only update if we don't have the high-quality yet
                         else if self.highQualityImagesStatus[index] != true {
@@ -763,7 +842,7 @@ class SwipeCardViewModel: ObservableObject {
             
             // Also prefetch metadata in background to avoid warnings
             if !Task.isCancelled {
-//                await prefetchAssetMetadata(asset: asset)
+                await prefetchAssetMetadata(asset: asset)
             }
             
             return processedImage
@@ -774,21 +853,22 @@ class SwipeCardViewModel: ObservableObject {
         do {
             return try await task.value
         } catch {
+            print("❌ Error loading image at index \(index): \(error)")
             return nil
         }
     }
     
-    // private func prefetchAssetMetadata(asset: PHAsset) async {
-    //     let options = PHContentEditingInputRequestOptions()
-    //     options.isNetworkAccessAllowed = true
-    //     options.canHandleAdjustmentData = { _ in return false }
+    private func prefetchAssetMetadata(asset: PHAsset) async {
+        let options = PHContentEditingInputRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.canHandleAdjustmentData = { _ in return false }
         
-    //     _ = await withCheckedContinuation { continuation in
-    //         asset.requestContentEditingInput(with: options) { input, _ in
-    //             continuation.resume(returning: input != nil)
-    //         }
-    //     }
-    // }
+        _ = await withCheckedContinuation { continuation in
+            asset.requestContentEditingInput(with: options) { input, _ in
+                continuation.resume(returning: input != nil)
+            }
+        }
+    }
     
     private func convertToStandardColorSpaceIfNeeded(_ image: UIImage?) async -> UIImage? {
         guard let image = image else { return nil }
