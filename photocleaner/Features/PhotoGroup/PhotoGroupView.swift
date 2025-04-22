@@ -62,7 +62,7 @@ struct PhotoGroupView: View {
                                 }
                             Spacer(minLength: 0)
                         }
-                        .frame(height: 100) // Match left VStack's approximate height
+                        .frame(height: 70) // Match left VStack's approximate height
                     }
                     .padding(.horizontal)
                     .padding(.top, 16)

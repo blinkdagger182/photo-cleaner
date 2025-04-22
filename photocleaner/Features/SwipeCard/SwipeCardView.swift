@@ -84,6 +84,7 @@ struct SwipeCardView: View {
                                             .scaledToFit()
                                             .scaleEffect(finalScale * currentScale)
                                             .gesture(index == 0 ? magnification : nil)
+                                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
                                     } else if actualIndex < group.count {
                                         // If no image is available yet but we have a previous image, show it with overlay
                                         if index == 0, let prevImage = viewModel.previousImage {
@@ -136,18 +137,20 @@ struct SwipeCardView: View {
                                 .shadow(radius: 8)
                                 .offset(
                                     x: index == 0 ? viewModel.offset.width : 0,
-                                    y: index == 0 ? viewModel.offset.width / 10 : -15
+                                    y: index == 0 ? viewModel.offset.height : 0
                                 )
                                 .rotationEffect(
-                                    index == 0 ? .degrees(Double(viewModel.offset.width / 15)) : .zero,
-                                    anchor: .bottomTrailing
+                                    index == 0 ? .degrees(Double(viewModel.offset.width / 12)) : .zero,
+                                    anchor: .center
                                 )
                                 .opacity(index == 1 ? 0.4 : 1.0)
                                 .animation(
                                     hasAppeared && index == 0
                                         ? .interactiveSpring(response: 0.3, dampingFraction: 0.7)
-                                        : .none, value: viewModel.offset
+                                        : (index == 0 ? .easeInOut(duration: 0.3) : .none), 
+                                    value: viewModel.offset
                                 )
+                                .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
                                 .zIndex(Double(-index))
                                 .highPriorityGesture(
                                     index == 0
@@ -166,6 +169,7 @@ struct SwipeCardView: View {
                                             }
                                         : nil
                                 )
+                                .id("\(viewModel.currentIndex)-\(index)") // Key for animation
                             }
                             
                             // Add Static drag label with same style as before, but above cards
@@ -256,21 +260,21 @@ struct SwipeCardView: View {
                     HStack(spacing: 40) {
                         CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
                             if viewModel.isCurrentImageReadyForInteraction() {
-                                viewModel.handleLeftSwipe()
+                                viewModel.triggerDeleteFromButton()
                             } else {
                                 toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
                             }
                         }
                         CircleButton(icon: "bookmark", tint: .yellow) {
                             if viewModel.isCurrentImageReadyForInteraction() {
-                                viewModel.handleBookmark()
+                                viewModel.triggerBookmarkFromButton()
                             } else {
                                 toast.show("Please wait for the image to fully load before saving", duration: 2.0)
                             }
                         }
                         CircleButton(icon: "checkmark", tint: .green) {
                             if viewModel.isCurrentImageReadyForInteraction() {
-                                viewModel.handleRightSwipe()
+                                viewModel.triggerKeepFromButton()
                             } else {
                                 toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
                             }
@@ -314,21 +318,31 @@ struct SwipeCardView: View {
                 self.flyOffLabelOpacity = 1.0
                 self.showFlyOffLabel = true
                 
-                // Animate the label flying off
-                withAnimation(.easeOut(duration: 0.5)) {
-                    // Determine the fly-off direction based on the swipe direction
-                    let isRightSwipe = direction.width > 0
-                    // Calculate a fly-off trajectory that's more dramatic
+                // Random components for the animation
+                let isKeep = text == "Keep"
+                let randomDuration = Double.random(in: 0.4...0.8)
+                let randomHeightOffset = CGFloat.random(in: -350...(-120))
+                let randomWidthMultiplier = CGFloat.random(in: 1.2...2.0)
+                let baseRotation = Double.random(in: 20...60)
+                
+                // KEEP: Right to Left, DELETE: Left to Right
+                let finalRotation = isKeep ? -baseRotation : baseRotation
+                
+                // Animate the label flying off with randomness
+                withAnimation(.easeOut(duration: randomDuration)) {
+                    // KEEP labels fly right to left, DELETE labels fly left to right
                     self.flyOffLabelOffset = CGSize(
-                        width: isRightSwipe ? 200 : -200,
-                        height: -200
+                        width: isKeep ? -200 * randomWidthMultiplier : 200 * randomWidthMultiplier,
+                        height: randomHeightOffset
                     )
-                    self.flyOffLabelRotation = .degrees(isRightSwipe ? 15 : -45)
+                    self.flyOffLabelRotation = .degrees(finalRotation)
+                    
+                    // Random fade timing to make it appear more natural
                     self.flyOffLabelOpacity = 0.0
                 }
                 
                 // Reset the state after animation completes
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + randomDuration + 0.1) {
                     self.showFlyOffLabel = false
                 }
             }

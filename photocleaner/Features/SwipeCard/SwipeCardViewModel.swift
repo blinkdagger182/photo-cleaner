@@ -76,7 +76,10 @@ class SwipeCardViewModel: ObservableObject {
     func handleDragGesture(value: DragGesture.Value) {
         // Only allow dragging if the image is fully loaded
         if isCurrentImageReadyForInteraction() {
+            // Use the full translation value for natural 2D movement
             offset = value.translation
+            
+            // Update the swipe label based on horizontal movement
             if offset.width > 50 {
                 swipeLabel = "Keep"
                 swipeLabelColor = .green
@@ -98,21 +101,206 @@ class SwipeCardViewModel: ObservableObject {
     
     func handleDragGestureEnd(value: DragGesture.Value) {
         if isCurrentImageReadyForInteraction() {
-            handleSwipeGesture(value)
+            handleSwipeGesture(value: value)
         }
         swipeLabel = nil
     }
     
-    func handleLeftSwipe() {
-        guard let asset = group.asset(at: currentIndex) else { return }
-        // Capture the index *before* showing the toast
-        let capturedIndex = currentIndex 
+    func handleSwipeGesture(value: DragGesture.Value) {
+        let threshold: CGFloat = 100
+        let velocity = value.predictedEndLocation.x - value.location.x
+        
+        // Check if swipe exceeds threshold or has significant velocity
+        if value.translation.width < -threshold || (value.translation.width < -50 && velocity < -300) {
+            // Delete swipe (left) - Immediate action 
+            triggerDeleteWithAnimation(value)
+        } else if value.translation.width > threshold || (value.translation.width > 50 && velocity > 300) {
+            // Keep swipe (right) - Immediate action
+            triggerKeepWithAnimation(value)
+        } else {
+            // Non-action territory - Spring back to center
+            let springResponse = 0.55 // Faster spring for more responsive feel
+            let springDampingFraction = 0.7 // Good balance of bounce and control
+            
+            withAnimation(.interpolatingSpring(
+                stiffness: 300,
+                damping: 30,
+                initialVelocity: CGFloat(abs(velocity)) / 500.0)) {
+                offset = .zero
+            }
+        }
+    }
+    
+    private func triggerDeleteWithAnimation(_ value: DragGesture.Value) {
+        // Calculate velocity for more natural feeling
+        let velocity = value.predictedEndLocation.x - value.location.x
+        let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
+        let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
         
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
-        // Trigger fly-off animation for delete action
-        triggerLabelFlyOff?("Delete", Color(red: 0.55, green: 0.35, blue: 0.98), CGSize(width: -150, height: 0))
+        // Trigger fly-off animation
+        let label = "Delete"
+        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
+        triggerLabelFlyOff?(label, color, value.translation)
+        
+        // Animate card flying off screen IMMEDIATELY before processing the action
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off to the left with a bit of vertical movement based on gesture
+            offset = CGSize(
+                width: -UIScreen.main.bounds.width * 1.3, // Slightly faster/further
+                height: value.translation.height * 1.5
+            )
+        }
+        
+        // Process the delete after the animation is complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Immediately reset offset (not visible to user)
+            }
+            
+            guard let asset = self.group.asset(at: self.currentIndex) else { return }
+            let capturedIndex = self.currentIndex
+            
+            self.photoManager.markForDeletion(asset)
+            
+            // Add the current image to the deletion preview if available
+            if self.currentIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[self.currentIndex] {
+                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
+            }
+            
+            // Start loading next image
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                // Move to next with an ease-in animation for the next card
+                await self.moveToNextWithAnimation()
+            }
+            
+            self.toast.show(
+                "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
+            ) {
+                // Undo Action - Use capturedIndex
+                self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                self.photoManager.unmarkForDeletion(asset)
+                // Animate the state reset using capturedIndex
+                withAnimation {
+                    self.currentIndex = capturedIndex
+                    self.offset = .zero
+                }
+            } onDismiss: { }
+        }
+    }
+    
+    private func triggerKeepWithAnimation(_ value: DragGesture.Value) {
+        // Calculate velocity for more natural feeling
+        let velocity = value.predictedEndLocation.x - value.location.x
+        let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
+        let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Trigger fly-off animation
+        let label = "Keep"
+        let color = Color.green
+        triggerLabelFlyOff?(label, color, value.translation)
+        
+        // Animate card flying off screen IMMEDIATELY
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off to the right with a bit of vertical movement based on gesture
+            offset = CGSize(
+                width: UIScreen.main.bounds.width * 1.3, // Slightly faster/further
+                height: value.translation.height * 1.5
+            )
+        }
+        
+        // Process the keep after the animation is complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Immediately reset offset (not visible to user)
+            }
+            
+            let capturedIndex = self.currentIndex
+            
+            // Start loading next image
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                // Move to next with an ease-in animation for the next card
+                await self.moveToNextWithAnimation()
+            }
+        }
+    }
+    
+    // Improved version of moveToNext that adds a fade-in animation for the next card
+    private func moveToNextWithAnimation() async {
+        let nextIndex = currentIndex + 1
+        
+        if nextIndex < group.count {
+            // Store the current image as previous before moving to next
+            if currentIndex < preloadedImages.count, let currentImage = preloadedImages[currentIndex] {
+                await MainActor.run {
+                    previousImage = currentImage
+                }
+            }
+            
+            // Update the index with nice animation for the next card
+            await MainActor.run {
+                // Reset offset first (not visible since we'll animate in the card)
+                withAnimation(.none) {
+                    offset = .zero
+                }
+                
+                // Now update the index to show the next card
+                currentIndex = nextIndex
+                
+                // Animate the opacity of the next card for a nice transition
+                // This is handled in the view
+            }
+            
+            // Set preloading flag to prevent unnecessary reloads
+            photoManager.setPreloadingState(true)
+            
+            // Clean up old images to free memory
+            await cleanupOldImages()
+            
+            // Check if we need to preload more thumbnails
+            let thumbnailPreloadThreshold = 3
+            if nextIndex + thumbnailPreloadThreshold >= loadedCount && loadedCount < group.count {
+                // Load the next batch of thumbnails
+                let nextBatchStart = loadedCount
+                let nextBatchCount = min(maxBufferSize, group.count - nextBatchStart)
+                
+                if nextBatchCount > 0 {
+                    await loadImagesInRange(
+                        from: nextBatchStart, 
+                        count: nextBatchCount,
+                        quality: .thumbnail
+                    )
+                }
+            }
+            
+            // Proactively load high-quality images for the next few indices
+            for offset in 0..<highQualityPreloadCount {
+                let indexToLoad = nextIndex + offset
+                if indexToLoad < group.count && highQualityImagesStatus[indexToLoad] != true {
+                    await loadImage(at: indexToLoad, quality: .screen)
+                }
+            }
+            
+            // Reset preloading flag after all loading is complete
+            photoManager.setPreloadingState(false)
+        }
+    }
+    
+    // These methods should not be called directly now, all logic is moved to the animation handlers
+    func handleLeftSwipe() {
+        guard let asset = group.asset(at: currentIndex) else { return }
+        let capturedIndex = currentIndex
         
         // Start loading next image immediately
         Task {
@@ -151,9 +339,6 @@ class SwipeCardViewModel: ObservableObject {
     func handleRightSwipe() {
         // Capture the index before moving to next
         let capturedIndex = currentIndex
-        
-        // Trigger fly-off animation for keep action
-        triggerLabelFlyOff?("Keep", Color.green, CGSize(width: 150, height: 0))
         
         // Start loading next image immediately
         Task {
@@ -305,8 +490,13 @@ class SwipeCardViewModel: ObservableObject {
                 }
             }
             
-            // Update the index to maintain UI responsiveness
+            // Reset the offset to zero before updating the index
+            // This ensures the next card appears in the center
             await MainActor.run {
+                withAnimation(.none) {
+                    offset = .zero
+                }
+                // Now update the index after resetting the position
                 currentIndex = nextIndex
             }
             
@@ -412,39 +602,6 @@ class SwipeCardViewModel: ObservableObject {
                 
                 // Force a memory cleanup
                 autoreleasepool {}
-            }
-        }
-    }
-    
-    private func handleSwipeGesture(_ value: DragGesture.Value) {
-        let threshold: CGFloat = 100
-        if value.translation.width < -threshold {
-            // Trigger haptic feedback for delete action
-            feedbackGenerator.impactOccurred()
-            
-            // Capture the label and direction before triggering fly-off
-            let label = "Delete"
-            let color = Color(red: 0.55, green: 0.35, blue: 0.98)
-            let direction = value.translation
-            
-            // Trigger fly-off animation before handling the swipe
-            triggerLabelFlyOff?(label, color, direction)
-            
-            handleLeftSwipe()
-        } else if value.translation.width > threshold {
-            // Capture the label and direction before triggering fly-off
-            let label = "Keep"
-            let color = Color.green
-            let direction = value.translation
-            
-            // Trigger fly-off animation before handling the swipe
-            triggerLabelFlyOff?(label, color, direction)
-            
-            handleRightSwipe()
-        }
-        withAnimation(.spring()) {
-            withAnimation(.none) {
-                offset = .zero
             }
         }
     }
@@ -628,5 +785,156 @@ class SwipeCardViewModel: ObservableObject {
             task.cancel()
         }
         imageFetchTasks.removeAll()
+    }
+    
+    // Update the button methods to use the new animation function
+    func triggerDeleteFromButton() {
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Trigger fly-off animation for the label
+        let label = "Delete"
+        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
+        // Create direction without using DragGesture.Value
+        let simulatedDirection = CGSize(width: -150, height: 0)
+        triggerLabelFlyOff?(label, color, simulatedDirection)
+        
+        // Duration for animation - faster for smoother experience
+        let duration = 0.25
+        
+        // Animate card flying off screen IMMEDIATELY
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off to the left with a slight upward motion
+            offset = CGSize(
+                width: -UIScreen.main.bounds.width * 1.3,
+                height: -50
+            )
+        }
+        
+        // Process the action after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Reset immediately (not visible to user)
+            }
+            
+            guard let asset = self.group.asset(at: self.currentIndex) else { return }
+            let capturedIndex = self.currentIndex
+            
+            self.photoManager.markForDeletion(asset)
+            
+            // Add to deletion preview if image is available
+            if self.currentIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[self.currentIndex] {
+                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
+            }
+            
+            // Load next image and move to it with animation
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                await self.moveToNextWithAnimation()
+            }
+            
+            self.toast.show(
+                "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
+            ) {
+                // Undo action
+                self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                self.photoManager.unmarkForDeletion(asset)
+                withAnimation {
+                    self.currentIndex = capturedIndex
+                    self.offset = .zero
+                }
+            } onDismiss: { }
+        }
+    }
+    
+    func triggerKeepFromButton() {
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Trigger fly-off animation for the label
+        let label = "Keep"
+        let color = Color.green
+        // Create direction without using DragGesture.Value
+        let simulatedDirection = CGSize(width: 150, height: 0)
+        triggerLabelFlyOff?(label, color, simulatedDirection)
+        
+        // Duration for animation - faster for smoother experience
+        let duration = 0.25
+        
+        // Animate card flying off screen IMMEDIATELY
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off to the right with a slight upward motion
+            offset = CGSize(
+                width: UIScreen.main.bounds.width * 1.3,
+                height: -50
+            )
+        }
+        
+        // Process the action after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Reset immediately (not visible to user)
+            }
+            
+            let capturedIndex = self.currentIndex
+            
+            // Load next image and move to it with animation
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                await self.moveToNextWithAnimation()
+            }
+        }
+    }
+    
+    func triggerBookmarkFromButton() {
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Duration for animation - faster for smoother experience
+        let duration = 0.25
+        
+        // Animate card flying off screen IMMEDIATELY
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off upward
+            offset = CGSize(
+                width: 0,
+                height: -UIScreen.main.bounds.height * 0.9
+            )
+        }
+        
+        // Process the action after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Reset immediately (not visible to user)
+            }
+            
+            guard let asset = self.group.asset(at: self.currentIndex) else { return }
+            let capturedIndex = self.currentIndex
+            
+            self.photoManager.bookmarkAsset(asset)
+            self.photoManager.markForFavourite(asset)
+            
+            // Load next image and move to it with animation
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                await self.moveToNextWithAnimation()
+            }
+            
+            self.toast.show("Photo saved", action: "Undo") {
+                // Undo action
+                self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
+                self.photoManager.unmarkForFavourite(asset)
+                withAnimation {
+                    self.currentIndex = capturedIndex
+                    self.offset = .zero
+                }
+            } onDismiss: { }
+        }
     }
 } 
