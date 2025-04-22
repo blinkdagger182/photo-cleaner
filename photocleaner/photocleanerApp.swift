@@ -7,6 +7,7 @@ struct photocleanerApp: App {
     @StateObject var updateService = UpdateService.shared
     @StateObject var photoManager = PhotoManager()
     @StateObject var toast = ToastService()
+    @StateObject var smartAlbumManager = SmartAlbumManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -25,6 +26,7 @@ struct photocleanerApp: App {
             .environmentObject(updateService)
             .environmentObject(photoManager)
             .environmentObject(toast)
+            .environmentObject(smartAlbumManager)
         }
     }
 }

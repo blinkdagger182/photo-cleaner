@@ -274,6 +274,18 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     
     /// Loads assets after authorization is granted
     private func loadAssets() async {
+        // Fetch all assets first
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let allPhotoAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        
+        // Convert PHFetchResult to [PHAsset] array
+        var assetArray: [PHAsset] = []
+        allPhotoAssets.enumerateObjects { asset, _, _ in
+            assetArray.append(asset)
+        }
+        
+        // Fetch the organized collections
         async let years = fetchPhotoGroupsByYearAndMonth()
         async let systemAlbums = fetchSystemAlbums()
 
@@ -281,8 +293,10 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         let fetchedSystemAlbums = await systemAlbums
 
         await MainActor.run {
+            self.allAssets = assetArray
             self.yearGroups = fetchedYears
             self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
+            print("📸 Loaded \(assetArray.count) total assets")
         }
     }
 
