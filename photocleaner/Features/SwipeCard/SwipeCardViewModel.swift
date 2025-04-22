@@ -137,6 +137,10 @@ class SwipeCardViewModel: ObservableObject {
         let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
         let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
         
+        // Capture current state before any animations
+        guard let asset = group.asset(at: currentIndex) else { return }
+        let capturedIndex = currentIndex
+        
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
@@ -145,38 +149,52 @@ class SwipeCardViewModel: ObservableObject {
         let color = Color(red: 0.55, green: 0.35, blue: 0.98)
         triggerLabelFlyOff?(label, color, value.translation)
         
-        // Animate card flying off screen IMMEDIATELY before processing the action
+        // Start preloading next image silently
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
+        // Create a fly-off animation that NEVER springs back
         withAnimation(.easeOut(duration: duration)) {
             // Fly off to the left with a bit of vertical movement based on gesture
             offset = CGSize(
-                width: -UIScreen.main.bounds.width * 1.3, // Slightly faster/further
+                width: -UIScreen.main.bounds.width * 2.0, // Even further to ensure it's off-screen
                 height: value.translation.height * 1.5
             )
         }
         
-        // Process the delete after the animation is complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Immediately reset offset (not visible to user)
-            }
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
+            // Important: Disable all animations temporarily
+            UIView.setAnimationsEnabled(false)
             
-            guard let asset = self.group.asset(at: self.currentIndex) else { return }
-            let capturedIndex = self.currentIndex
-            
+            // Mark for deletion in background
             self.photoManager.markForDeletion(asset)
             
             // Add the current image to the deletion preview if available
-            if self.currentIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[self.currentIndex] {
+            if capturedIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[capturedIndex] {
                 self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
             }
             
-            // Start loading next image
+            // First update the index while the old card is off screen
+            self.currentIndex = capturedIndex + 1
+            
+            // THEN reset the offset with absolutely no animation 
+            self.offset = .zero
+            
+            // Re-enable animations after state is reset
+            UIView.setAnimationsEnabled(true)
+            
+            // Handle cleanup and next image preparation in background
             Task {
-                if capturedIndex + 1 < self.group.count {
-                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                await self.cleanupOldImages()
+                
+                // Preload next images after moving to the next card
+                if capturedIndex + 2 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 2, quality: .screen)
                 }
-                // Move to next with an ease-in animation for the next card
-                await self.moveToNextWithAnimation()
             }
             
             self.toast.show(
@@ -200,6 +218,9 @@ class SwipeCardViewModel: ObservableObject {
         let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
         let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
         
+        // Capture current state before any animations
+        let capturedIndex = currentIndex
+        
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
@@ -208,30 +229,44 @@ class SwipeCardViewModel: ObservableObject {
         let color = Color.green
         triggerLabelFlyOff?(label, color, value.translation)
         
-        // Animate card flying off screen IMMEDIATELY
+        // Start preloading next image silently
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
+        // Create a fly-off animation that NEVER springs back
         withAnimation(.easeOut(duration: duration)) {
             // Fly off to the right with a bit of vertical movement based on gesture
             offset = CGSize(
-                width: UIScreen.main.bounds.width * 1.3, // Slightly faster/further
+                width: UIScreen.main.bounds.width * 2.0, // Even further to ensure it's off-screen
                 height: value.translation.height * 1.5
             )
         }
         
-        // Process the keep after the animation is complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Immediately reset offset (not visible to user)
-            }
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
+            // Important: Disable all animations temporarily
+            UIView.setAnimationsEnabled(false)
             
-            let capturedIndex = self.currentIndex
+            // First update the index while the old card is off screen
+            self.currentIndex = capturedIndex + 1
             
-            // Start loading next image
+            // THEN reset the offset with absolutely no animation
+            self.offset = .zero
+            
+            // Re-enable animations after state is reset
+            UIView.setAnimationsEnabled(true)
+            
+            // Handle cleanup and next image preparation in background
             Task {
-                if capturedIndex + 1 < self.group.count {
-                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                await self.cleanupOldImages()
+                
+                // Preload next images after moving to the next card
+                if capturedIndex + 2 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 2, quality: .screen)
                 }
-                // Move to next with an ease-in animation for the next card
-                await self.moveToNextWithAnimation()
             }
         }
     }
