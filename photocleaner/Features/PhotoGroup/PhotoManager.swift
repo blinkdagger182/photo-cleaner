@@ -194,12 +194,29 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
             options.isNetworkAccessAllowed = true
             options.isSynchronous = false
             
+            // Track if we've already resumed to prevent multiple resumes
+            var hasResumed = false
+            
             PHImageManager.default().requestImage(
                 for: asset,
                 targetSize: CGSize(width: 300, height: 300),
                 contentMode: .aspectFill,
                 options: options
-            ) { image, _ in
+            ) { image, info in
+                // Guard against multiple resume calls
+                guard !hasResumed else { return }
+                
+                // Check for cancellation or errors
+                let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+                let hasError = (info?[PHImageErrorKey] != nil)
+                
+                if cancelled || hasError {
+                    // PHImageManager will call again with the final result
+                    return
+                }
+                
+                // Mark as resumed and return the image
+                hasResumed = true
                 continuation.resume(returning: image)
             }
         }

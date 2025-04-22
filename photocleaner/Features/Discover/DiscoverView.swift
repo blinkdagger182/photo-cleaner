@@ -268,24 +268,39 @@ struct FeaturedAlbumCard: View {
         options.deliveryMode = .opportunistic
         options.isNetworkAccessAllowed = true
         
+        // Track if we've already resumed to prevent multiple resumes
+        var hasResumed = false
+        
         let result = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: thumbnailAsset,
                 targetSize: CGSize(width: 600, height: 600),
                 contentMode: .aspectFill,
                 options: options
-            ) { image, _ in
-                if let image = image {
-                    continuation.resume(returning: image)
-                } else {
-//                    continuation.resume(returning: nil)
+            ) { image, info in
+                // Guard against multiple resume calls
+                guard !hasResumed else { return }
+                
+                // Check for cancellation or errors
+                let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+                let hasError = (info?[PHImageErrorKey] != nil)
+                
+                if cancelled || hasError {
+                    // PHImageManager will call again with the final result
+                    return
                 }
+                
+                // Mark as resumed and return the image
+                hasResumed = true
+                continuation.resume(returning: image)
             }
         }
         
-        // Update thumbnail on main thread
-        await MainActor.run {
-            self.thumbnail = result
+        // Update thumbnail on main thread if we got a result
+        if let result = result {
+            await MainActor.run {
+                self.thumbnail = result
+            }
         }
     }
     
@@ -384,24 +399,39 @@ struct SmartAlbumCell: View {
         options.deliveryMode = .opportunistic
         options.isNetworkAccessAllowed = true
         
+        // Track if we've already resumed to prevent multiple resumes
+        var hasResumed = false
+        
         let result = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: thumbnailAsset,
                 targetSize: CGSize(width: 300, height: 300),
                 contentMode: .aspectFill,
                 options: options
-            ) { image, _ in
-                if let image = image {
-                    continuation.resume(returning: image)
-                } else {
-//                    continuation.resume(returning: nil)
+            ) { image, info in
+                // Guard against multiple resume calls
+                guard !hasResumed else { return }
+                
+                // Check for cancellation or errors
+                let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+                let hasError = (info?[PHImageErrorKey] != nil)
+                
+                if cancelled || hasError {
+                    // PHImageManager will call again with the final result
+                    return
                 }
+                
+                // Mark as resumed and return the image
+                hasResumed = true
+                continuation.resume(returning: image)
             }
         }
         
-        // Update thumbnail on main thread
-        await MainActor.run {
-            self.thumbnail = result
+        // Update thumbnail on main thread if we got a result
+        if let result = result {
+            await MainActor.run {
+                self.thumbnail = result
+            }
         }
     }
 }
