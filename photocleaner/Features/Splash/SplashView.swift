@@ -15,7 +15,7 @@ struct SplashView: View {
     var body: some View {
         ZStack {
             if isActive {
-                ContentView()
+                MainTabView()
                     .environmentObject(photoManager)
                     .environmentObject(toast)
                     .transition(.opacity)
