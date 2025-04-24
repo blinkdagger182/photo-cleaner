@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B216679F2DBA8FE1002A3DE9 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B216679E2DBA8FE1002A3DE9 /* RevenueCat */; };
+		B21667A12DBA8FE1002A3DE9 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = B21667A02DBA8FE1002A3DE9 /* RevenueCatUI */; };
 		B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD32DA2418F003F1AC9 /* Auth */; };
 		B23D8FD62DA2418F003F1AC9 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD52DA2418F003F1AC9 /* Functions */; };
 		B23D8FD82DA2418F003F1AC9 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = B23D8FD72DA2418F003F1AC9 /* PostgREST */; };
@@ -38,6 +40,8 @@
 				B23D8FD62DA2418F003F1AC9 /* Functions in Frameworks */,
 				B2FD4B632DA244CF005DD7C5 /* Supabase in Frameworks */,
 				B23D8FD42DA2418F003F1AC9 /* Auth in Frameworks */,
+				B216679F2DBA8FE1002A3DE9 /* RevenueCat in Frameworks */,
+				B21667A12DBA8FE1002A3DE9 /* RevenueCatUI in Frameworks */,
 				B23D8FDC2DA2418F003F1AC9 /* Storage in Frameworks */,
 				B2FD4BE32DA41E94005DD7C5 /* PhotosUI.framework in Frameworks */,
 				B23D8FDA2DA2418F003F1AC9 /* Realtime in Frameworks */,
@@ -98,6 +102,8 @@
 				B23D8FD92DA2418F003F1AC9 /* Realtime */,
 				B23D8FDB2DA2418F003F1AC9 /* Storage */,
 				B2FD4B622DA244CF005DD7C5 /* Supabase */,
+				B216679E2DBA8FE1002A3DE9 /* RevenueCat */,
+				B21667A02DBA8FE1002A3DE9 /* RevenueCatUI */,
 			);
 			productName = photocleaner;
 			productReference = B23D8F8D2D9E8250003F1AC9 /* photocleaner.app */;
@@ -129,6 +135,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				B216679D2DBA8FE1002A3DE9 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B23D8F8E2D9E8250003F1AC9 /* Products */;
@@ -380,6 +387,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		B216679D2DBA8FE1002A3DE9 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.22.1;
+			};
+		};
 		B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift";
@@ -391,6 +406,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B216679E2DBA8FE1002A3DE9 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B216679D2DBA8FE1002A3DE9 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		B21667A02DBA8FE1002A3DE9 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B216679D2DBA8FE1002A3DE9 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
 		B23D8FD32DA2418F003F1AC9 /* Auth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B23D8FD02DA240DB003F1AC9 /* XCRemoteSwiftPackageReference "supabase-swift" */;

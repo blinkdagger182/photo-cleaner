@@ -19,6 +19,7 @@ class SwipeCardViewModel: ObservableObject {
     private let group: PhotoGroup
     var photoManager: PhotoManager!
     var toast: ToastService!
+    var imageViewTracker: ImageViewTracker?
     private var hasStartedLoading = false
     private var viewHasAppeared = false
     private let maxBufferSize = 10  // Increased from 5 to 10 images in memory
@@ -44,10 +45,11 @@ class SwipeCardViewModel: ObservableObject {
     var forceRefreshCallback: (() -> Void)?
     
     // MARK: - Initialization
-    init(group: PhotoGroup, photoManager: PhotoManager? = nil, toast: ToastService? = nil) {
+    init(group: PhotoGroup, photoManager: PhotoManager? = nil, toast: ToastService? = nil, imageViewTracker: ImageViewTracker? = nil) {
         self.group = group
         self.photoManager = photoManager
         self.toast = toast
+        self.imageViewTracker = imageViewTracker
         
         // Initialize currentIndex from saved value
         self.currentIndex = UserDefaults.standard.integer(
@@ -275,8 +277,14 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     // Improved version of moveToNext that adds a fade-in animation for the next card
+    // and tracks image views for subscription threshold
     private func moveToNextWithAnimation() async {
         let nextIndex = currentIndex + 1
+        
+        // Track image view count for subscription threshold
+        await MainActor.run {
+            imageViewTracker?.incrementViewCount()
+        }
         
         if nextIndex < group.count {
             // Store the current image as previous before moving to next
@@ -519,6 +527,11 @@ class SwipeCardViewModel: ObservableObject {
     
     private func moveToNext() async {
         let nextIndex = currentIndex + 1
+        
+        // Track image view count for subscription threshold
+        await MainActor.run {
+            imageViewTracker?.incrementViewCount()
+        }
         
         if nextIndex < group.count {
             // Store the current image as previous before moving to next

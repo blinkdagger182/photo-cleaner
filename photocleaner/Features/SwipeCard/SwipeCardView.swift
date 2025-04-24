@@ -9,6 +9,10 @@ struct SwipeCardView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    
+    // State for paywall presentation
+    @State private var showPaywall = false
     
     // Use the new ViewModel to manage state
     @StateObject private var viewModel: SwipeCardViewModel
@@ -31,8 +35,8 @@ struct SwipeCardView: View {
     init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
         self.group = group
         self._forceRefresh = forceRefresh
-        // Initialize the ViewModel with just the group
-        self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(group: group))
+        // Initialize the ViewModel with just the group and image view tracker
+        self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(group: group, imageViewTracker: ImageViewTracker.shared))
     }
     
     var body: some View {
@@ -302,6 +306,7 @@ struct SwipeCardView: View {
             // Initialize the view model with environment objects
             viewModel.photoManager = photoManager
             viewModel.toast = toast
+            viewModel.imageViewTracker = ImageViewTracker.shared
             
             // Set the force refresh callback
             viewModel.forceRefreshCallback = {
@@ -380,6 +385,17 @@ struct SwipeCardView: View {
             DeletePreviewView(forceRefresh: $forceRefresh)
                 .environmentObject(photoManager)
                 .environmentObject(toast)
+        }
+        .fullScreenCover(isPresented: $showPaywall) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
+        }
+        .onChange(of: ImageViewTracker.shared.shouldShowPaywall) { shouldShow in
+            if shouldShow && !subscriptionManager.isPremium {
+                showPaywall = true
+                // Reset the flag after showing the paywall
+                ImageViewTracker.shared.shouldShowPaywall = false
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import RevenueCat
 
 @main
 struct photocleanerApp: App {
@@ -8,6 +9,8 @@ struct photocleanerApp: App {
     @StateObject var photoManager = PhotoManager()
     @StateObject var toast = ToastService()
     @StateObject var smartAlbumManager = SmartAlbumManager.shared
+    @StateObject var subscriptionManager = SubscriptionManager.shared
+    @StateObject var imageViewTracker = ImageViewTracker.shared
 
     var body: some Scene {
         WindowGroup {
@@ -15,9 +18,12 @@ struct photocleanerApp: App {
                 if hasSeenOnboarding {
                     SplashView()
                         .task {
-                            await updateService.checkAppVersion()
+                            let apiKey = "api_key_here"
+                            subscriptionManager.configure(apiKey: apiKey)
                             
+                            await updateService.checkAppVersion()
                             await photoManager.checkCurrentStatus()
+                            await subscriptionManager.checkSubscriptionStatus()
                         }
                 } else {
                     OnboardingView()
@@ -27,6 +33,14 @@ struct photocleanerApp: App {
             .environmentObject(photoManager)
             .environmentObject(toast)
             .environmentObject(smartAlbumManager)
+            .environmentObject(subscriptionManager)
+            .environmentObject(imageViewTracker)
         }
     }
+    
+//    init() {
+//        // Configure RevenueCat with your API key
+//        let apiKey = "appl_SAJcTFqLeBLEYlRIVBtSSPDBJRe" // Replace with your actual API key
+//        subscriptionManager.configure(apiKey: apiKey)
+//    }
 }
