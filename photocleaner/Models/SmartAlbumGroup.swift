@@ -50,9 +50,21 @@ class SmartAlbumGroup: NSManagedObject, Identifiable {
     
     // Helper to get thumbnail asset
     func thumbnailAsset() -> PHAsset? {
-        guard let thumbnailId = thumbnailId else { return nil }
-        let result = PHAsset.fetchAssets(withLocalIdentifiers: [thumbnailId], options: nil)
-        return result.firstObject
+        // First try to get the designated thumbnail asset
+        if let thumbnailId = thumbnailId, !thumbnailId.isEmpty {
+            let result = PHAsset.fetchAssets(withLocalIdentifiers: [thumbnailId], options: nil)
+            if let asset = result.firstObject {
+                return asset
+            }
+        }
+        
+        // Fallback to the first asset in the album if thumbnailId is invalid or nil
+        if !assetIds.isEmpty {
+            let result = PHAsset.fetchAssets(withLocalIdentifiers: [assetIds[0]], options: nil)
+            return result.firstObject
+        }
+        
+        return nil
     }
     
     // Core Data validation

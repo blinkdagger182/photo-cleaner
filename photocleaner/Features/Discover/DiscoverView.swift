@@ -264,39 +264,77 @@ struct FeaturedAlbumCard: View {
     private func loadThumbnail() async {
         guard let thumbnailAsset = album.thumbnailAsset() else { return }
         
+        // First load a lower quality thumbnail quickly for immediate display
+        await loadQuickThumbnail(for: thumbnailAsset)
+        
+        // Then load a high-quality version
+        await loadHighQualityThumbnail(for: thumbnailAsset)
+    }
+    
+    private func loadQuickThumbnail(for asset: PHAsset) async {
         let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
+        options.deliveryMode = .fastFormat
         options.isNetworkAccessAllowed = true
         
-        // Track if we've already resumed to prevent multiple resumes
         var hasResumed = false
         
         let result = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
-                for: thumbnailAsset,
-                targetSize: CGSize(width: 600, height: 600),
+                for: asset,
+                targetSize: CGSize(width: 300, height: 300),
                 contentMode: .aspectFill,
                 options: options
             ) { image, info in
-                // Guard against multiple resume calls
                 guard !hasResumed else { return }
                 
-                // Check for cancellation or errors
                 let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
                 let hasError = (info?[PHImageErrorKey] != nil)
                 
                 if cancelled || hasError {
-                    // PHImageManager will call again with the final result
                     return
                 }
                 
-                // Mark as resumed and return the image
                 hasResumed = true
                 continuation.resume(returning: image)
             }
         }
         
-        // Update thumbnail on main thread if we got a result
+        if let result = result {
+            await MainActor.run {
+                self.thumbnail = result
+            }
+        }
+    }
+    
+    private func loadHighQualityThumbnail(for asset: PHAsset) async {
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+        options.resizeMode = .exact
+        
+        var hasResumed = false
+        
+        let result = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: CGSize(width: 1200, height: 1200),
+                contentMode: .aspectFill,
+                options: options
+            ) { image, info in
+                guard !hasResumed else { return }
+                
+                let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+                let hasError = (info?[PHImageErrorKey] != nil)
+                
+                if cancelled || hasError {
+                    return
+                }
+                
+                hasResumed = true
+                continuation.resume(returning: image)
+            }
+        }
+        
         if let result = result {
             await MainActor.run {
                 self.thumbnail = result
@@ -395,39 +433,77 @@ struct SmartAlbumCell: View {
     private func loadThumbnail() async {
         guard let thumbnailAsset = album.thumbnailAsset() else { return }
         
+        // First load a lower quality thumbnail quickly for immediate display
+        await loadQuickThumbnail(for: thumbnailAsset)
+        
+        // Then load a high-quality version
+        await loadHighQualityThumbnail(for: thumbnailAsset)
+    }
+    
+    private func loadQuickThumbnail(for asset: PHAsset) async {
         let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
+        options.deliveryMode = .fastFormat
         options.isNetworkAccessAllowed = true
         
-        // Track if we've already resumed to prevent multiple resumes
         var hasResumed = false
         
         let result = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
-                for: thumbnailAsset,
+                for: asset,
                 targetSize: CGSize(width: 300, height: 300),
                 contentMode: .aspectFill,
                 options: options
             ) { image, info in
-                // Guard against multiple resume calls
                 guard !hasResumed else { return }
                 
-                // Check for cancellation or errors
                 let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
                 let hasError = (info?[PHImageErrorKey] != nil)
                 
                 if cancelled || hasError {
-                    // PHImageManager will call again with the final result
                     return
                 }
                 
-                // Mark as resumed and return the image
                 hasResumed = true
                 continuation.resume(returning: image)
             }
         }
         
-        // Update thumbnail on main thread if we got a result
+        if let result = result {
+            await MainActor.run {
+                self.thumbnail = result
+            }
+        }
+    }
+    
+    private func loadHighQualityThumbnail(for asset: PHAsset) async {
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.isNetworkAccessAllowed = true
+        options.resizeMode = .exact
+        
+        var hasResumed = false
+        
+        let result = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: CGSize(width: 800, height: 800),
+                contentMode: .aspectFill,
+                options: options
+            ) { image, info in
+                guard !hasResumed else { return }
+                
+                let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+                let hasError = (info?[PHImageErrorKey] != nil)
+                
+                if cancelled || hasError {
+                    return
+                }
+                
+                hasResumed = true
+                continuation.resume(returning: image)
+            }
+        }
+        
         if let result = result {
             await MainActor.run {
                 self.thumbnail = result
