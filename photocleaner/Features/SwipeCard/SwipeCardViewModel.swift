@@ -112,6 +112,15 @@ class SwipeCardViewModel: ObservableObject {
     func handleDragGestureEnd(value: DragGesture.Value) {
         if isCurrentImageReadyForInteraction() {
             handleSwipeGesture(value: value)
+        } else {
+            // Even if the image isn't ready for interaction, we need to reset the offset
+            // This ensures the card always springs back on the first drag
+            withAnimation(.interpolatingSpring(
+                stiffness: 300,
+                damping: 30,
+                initialVelocity: 1.0)) {
+                offset = .zero
+            }
         }
         swipeLabel = nil
     }
