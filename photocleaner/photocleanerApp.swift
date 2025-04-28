@@ -18,7 +18,7 @@ struct photocleanerApp: App {
                 if hasSeenOnboarding {
                     SplashView()
                         .task {
-                            let apiKey = "api_key_here"
+                            let apiKey = "appl_SAJcTFqLeBLEYlRIVBtSSPDBJRe"
                             subscriptionManager.configure(apiKey: apiKey)
                             
                             await updateService.checkAppVersion()

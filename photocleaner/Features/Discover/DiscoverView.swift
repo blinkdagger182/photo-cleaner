@@ -527,7 +527,7 @@ struct SmartAlbumDetailView: View {
         NavigationStack {
             Group {
                 if let photoGroup = photoGroup {
-                    SwipeCardView(group: photoGroup, forceRefresh: $forceRefresh)
+                    SwipeCardView(group: photoGroup, forceRefresh: $forceRefresh, isDiscoverTab: true)
                         .environmentObject(photoManager)
                         .environmentObject(toast)
                 } else {

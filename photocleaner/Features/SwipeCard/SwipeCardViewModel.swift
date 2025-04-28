@@ -14,12 +14,15 @@ class SwipeCardViewModel: ObservableObject {
     @Published var swipeLabel: String? = nil
     @Published var swipeLabelColor: Color = .green
     @Published var showDeletePreview = false
+    @Published var showRCPaywall = false
     
     // MARK: - Internal Properties
     private let group: PhotoGroup
     var photoManager: PhotoManager!
     var toast: ToastService!
     var imageViewTracker: ImageViewTracker?
+    var discoverSwipeTracker: DiscoverSwipeTracker?
+    var isDiscoverTab: Bool = false
     private var hasStartedLoading = false
     private var viewHasAppeared = false
     private let maxBufferSize = 10  // Increased from 5 to 10 images in memory
@@ -45,11 +48,13 @@ class SwipeCardViewModel: ObservableObject {
     var forceRefreshCallback: (() -> Void)?
     
     // MARK: - Initialization
-    init(group: PhotoGroup, photoManager: PhotoManager? = nil, toast: ToastService? = nil, imageViewTracker: ImageViewTracker? = nil) {
+    init(group: PhotoGroup, photoManager: PhotoManager? = nil, toast: ToastService? = nil, imageViewTracker: ImageViewTracker? = nil, isDiscoverTab: Bool = false) {
         self.group = group
         self.photoManager = photoManager
         self.toast = toast
         self.imageViewTracker = imageViewTracker
+        self.isDiscoverTab = isDiscoverTab
+        self.discoverSwipeTracker = isDiscoverTab ? DiscoverSwipeTracker.shared : nil
         
         // Initialize currentIndex from saved value
         self.currentIndex = UserDefaults.standard.integer(
@@ -281,9 +286,15 @@ class SwipeCardViewModel: ObservableObject {
     private func moveToNextWithAnimation() async {
         let nextIndex = currentIndex + 1
         
-        // Track image view count for subscription threshold
         await MainActor.run {
+            // Track image view count for general subscription threshold
             imageViewTracker?.incrementViewCount()
+            
+            // Track swipe count specifically for Discover tab paywall
+            if isDiscoverTab {
+                discoverSwipeTracker?.incrementSwipeCount()
+                showRCPaywall = discoverSwipeTracker?.showRCPaywall ?? false
+            }
         }
         
         if nextIndex < group.count {
@@ -528,9 +539,15 @@ class SwipeCardViewModel: ObservableObject {
     private func moveToNext() async {
         let nextIndex = currentIndex + 1
         
-        // Track image view count for subscription threshold
         await MainActor.run {
+            // Track image view count for general subscription threshold
             imageViewTracker?.incrementViewCount()
+            
+            // Track swipe count specifically for Discover tab paywall
+            if isDiscoverTab {
+                discoverSwipeTracker?.incrementSwipeCount()
+                showRCPaywall = discoverSwipeTracker?.showRCPaywall ?? false
+            }
         }
         
         if nextIndex < group.count {

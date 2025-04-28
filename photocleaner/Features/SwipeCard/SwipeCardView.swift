@@ -20,6 +20,9 @@ struct SwipeCardView: View {
     // Track hasAppeared state to keep animations consistent
     @State private var hasAppeared = false
     
+    // Is this view being shown from the Discover tab
+    private let isDiscoverTab: Bool
+    
     // Zoom state
     @State private var currentScale: CGFloat = 1.0
     @State private var finalScale: CGFloat = 1.0
@@ -32,11 +35,16 @@ struct SwipeCardView: View {
     @State private var flyOffLabelRotation: Angle = .zero
     @State private var flyOffLabelOpacity: Double = 0.0
 
-    init(group: PhotoGroup, forceRefresh: Binding<Bool>) {
+    init(group: PhotoGroup, forceRefresh: Binding<Bool>, isDiscoverTab: Bool = false) {
         self.group = group
         self._forceRefresh = forceRefresh
-        // Initialize the ViewModel with just the group and image view tracker
-        self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(group: group, imageViewTracker: ImageViewTracker.shared))
+        self.isDiscoverTab = isDiscoverTab
+        // Initialize the ViewModel with the group, image view tracker, and discover tab flag
+        self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(
+            group: group, 
+            imageViewTracker: ImageViewTracker.shared,
+            isDiscoverTab: isDiscoverTab
+        ))
     }
     
     var body: some View {
@@ -261,28 +269,45 @@ struct SwipeCardView: View {
                         .foregroundColor(.white)
                         .cornerRadius(8)
 
-                    HStack(spacing: 40) {
-                        CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
-                            if viewModel.isCurrentImageReadyForInteraction() {
-                                viewModel.triggerDeleteFromButton()
-                            } else {
-                                toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
+                    VStack(spacing: 20) {
+                        HStack(spacing: 40) {
+                            CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
+                                if viewModel.isCurrentImageReadyForInteraction() {
+                                    viewModel.triggerDeleteFromButton()
+                                } else {
+                                    toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
+                                }
+                            }
+                            CircleButton(icon: "bookmark", tint: .yellow) {
+                                if viewModel.isCurrentImageReadyForInteraction() {
+                                    viewModel.triggerBookmarkFromButton()
+                                } else {
+                                    toast.show("Please wait for the image to fully load before saving", duration: 2.0)
+                                }
+                            }
+                            CircleButton(icon: "checkmark", tint: .green) {
+                                if viewModel.isCurrentImageReadyForInteraction() {
+                                    viewModel.triggerKeepFromButton()
+                                } else {
+                                    toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
+                                }
                             }
                         }
-                        CircleButton(icon: "bookmark", tint: .yellow) {
-                            if viewModel.isCurrentImageReadyForInteraction() {
-                                viewModel.triggerBookmarkFromButton()
-                            } else {
-                                toast.show("Please wait for the image to fully load before saving", duration: 2.0)
+                        
+                        #if DEBUG
+                        if isDiscoverTab {
+                            Button(action: {
+                                viewModel.showRCPaywall = true
+                            }) {
+                                Text("Test Paywall")
+                                    .font(.caption)
+                                    .padding(6)
+                                    .background(Color.orange.opacity(0.8))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
                             }
                         }
-                        CircleButton(icon: "checkmark", tint: .green) {
-                            if viewModel.isCurrentImageReadyForInteraction() {
-                                viewModel.triggerKeepFromButton()
-                            } else {
-                                toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
-                            }
-                        }
+                        #endif
                     }
                     .padding(.bottom, 32)
                 }
@@ -387,6 +412,10 @@ struct SwipeCardView: View {
                 .environmentObject(toast)
         }
         .fullScreenCover(isPresented: $showPaywall) {
+            PaywallView()
+                .environmentObject(subscriptionManager)
+        }
+        .fullScreenCover(isPresented: $viewModel.showRCPaywall) {
             PaywallView()
                 .environmentObject(subscriptionManager)
         }
