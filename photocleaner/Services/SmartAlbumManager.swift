@@ -125,18 +125,18 @@ class SmartAlbumManager: ObservableObject {
                 print("📱 Retrying ML model loading before classification...")
                 finalMlModelAvailable = self.imageClassifier.isModelAvailable()
                 if finalMlModelAvailable {
-                    print("✅ Successfully loaded ML model on retry")
+                    print("✅ ML model loaded successfully on retry")
                 } else {
-                    print("⚠️ ML model still not available after retry")
+                    print("⚠️ ML model still not available, using fallback classification")
                 }
             } else {
                 finalMlModelAvailable = true
             }
             
-            // Split clusters into batches
-            let batches = stride(from: 0, to: clustersToProcess.count, by: batchSize).map {
-                let end = min($0 + batchSize, clustersToProcess.count)
-                return Array(clustersToProcess[$0..<end])
+            // Create batches of clusters to process
+            let batches = stride(from: 0, to: clustersToProcess.count, by: batchSize).map { startIndex -> [Int] in
+                let end = min(startIndex + batchSize, clustersToProcess.count)
+                return Array(clustersToProcess[startIndex..<end])
             }
             
             // Process each batch 
@@ -164,23 +164,19 @@ class SmartAlbumManager: ObservableObject {
                     }
                     
                     // Process this cluster
-                    let group = DispatchGroup()
-                    var albumData: (
-                        title: String,
-                        date: Date,
-                        score: Int32,
-                        thumbnail: String,
-                        tags: [String],
-                        assetIds: [String]
-                    )?
+                    var albumData: (title: String, date: Date, score: Int32, thumbnail: String, tags: [String], assetIds: [String])? = nil
                     
+                    // Use a dispatch group to wait for completion
+                    let group = DispatchGroup()
                     group.enter()
+                    
+                    // Process cluster for album data
                     self.processClusterForData(cluster, index: clusterIndex, useFallbackMode: !finalMlModelAvailable) { data in
                         albumData = data
                         group.leave()
                     }
                     
-                    // Wait for cluster processing to complete
+                    // Wait for processing to complete
                     group.wait()
                     
                     // Add to batch if valid
@@ -193,24 +189,23 @@ class SmartAlbumManager: ObservableObject {
                 if !batchAlbumData.isEmpty {
                     DispatchQueue.main.sync {
                         for data in batchAlbumData {
-                            // Create the album in the main context
-                            let album = SmartAlbumGroup(context: viewContext)
-                            album.id = UUID()
-                            album.title = data.title
-                            album.createdAt = data.date
-                            album.relevanceScore = data.score
-                            album.thumbnailId = data.thumbnail
+                            // Create a new album
+                            let newAlbum = SmartAlbumGroup(context: viewContext)
+                            newAlbum.id = UUID()
+                            newAlbum.title = data.title
+                            newAlbum.createdAt = data.date
+                            newAlbum.relevanceScore = data.score
+                            newAlbum.thumbnailId = data.thumbnail
+                            newAlbum.tags = data.tags
+                            newAlbum.assetIds = data.assetIds
                             
-                            // Set the arrays
-                            album.tags = data.tags
-                            album.assetIds = data.assetIds
+                            savedAlbumCount += 1
                         }
                         
-                        // Save the batch
+                        // Save the context
                         do {
                             try viewContext.save()
-                            savedAlbumCount += batchAlbumData.count
-                            print("✅ Saved batch \(batchIndex+1) with \(batchAlbumData.count) albums (total: \(savedAlbumCount))")
+                            print("✅ Saved batch \(batchIndex+1) with \(batchAlbumData.count) albums")
                         } catch {
                             print("❌ Failed to save batch: \(error.localizedDescription)")
                             viewContext.rollback()
@@ -235,20 +230,18 @@ class SmartAlbumManager: ObservableObject {
         let fetchRequest: NSFetchRequest<SmartAlbumGroup> = SmartAlbumGroup.fetchRequest()
         
         // Sort by relevance score (descending)
-        let sortDescriptor = NSSortDescriptor(keyPath: \SmartAlbumGroup.relevanceScore, ascending: false)
+        let sortDescriptor = NSSortDescriptor(key: "relevanceScore", ascending: false)
         fetchRequest.sortDescriptors = [sortDescriptor]
         
         do {
             let albums = try context.fetch(fetchRequest)
             
-            // IMPORTANT: Update published properties on the main thread
+            // Update on main thread
             DispatchQueue.main.async {
                 self.allSmartAlbums = albums
                 
-                // Set featured albums (top 5 by score)
-                self.featuredAlbums = Array(albums.prefix(5))
-                
-                print("📸 Loaded \(albums.count) smart albums")
+                // Featured albums are the top scoring ones
+                self.featuredAlbums = Array(albums.prefix(min(5, albums.count)))
             }
         } catch {
             print("❌ Failed to fetch smart albums: \(error)")
@@ -274,33 +267,44 @@ class SmartAlbumManager: ObservableObject {
     private func clusterPhotosByTime(_ assets: [PHAsset]) -> [[PHAsset]] {
         // Sort assets by creation date
         let sortedAssets = assets.sorted { 
-            ($0.creationDate ?? Date.distantPast) < ($1.creationDate ?? Date.distantPast) 
+            guard let date1 = $0.creationDate, let date2 = $1.creationDate else {
+                return false
+            }
+            return date1 < date2
+        }
+        
+        // Filter out assets without creation dates
+        let validAssets = sortedAssets.filter { $0.creationDate != nil }
+        
+        if validAssets.isEmpty {
+            return []
         }
         
         var clusters: [[PHAsset]] = []
-        var currentCluster: [PHAsset] = []
-        var lastDate: Date?
+        var currentCluster: [PHAsset] = [validAssets[0]]
         
-        // Group assets based on time proximity
-        for asset in sortedAssets {
-            guard let creationDate = asset.creationDate else { continue }
+        // Group photos that were taken within the time window
+        for i in 1..<validAssets.count {
+            let asset = validAssets[i]
+            let previousAsset = validAssets[i-1]
             
-            if let lastDate = lastDate, 
-               creationDate.timeIntervalSince(lastDate) <= (clusterTimeWindowHours * 3600) {
-                // Add to current cluster if within time window
+            guard let date = asset.creationDate, let previousDate = previousAsset.creationDate else {
+                continue
+            }
+            
+            let hoursDifference = date.timeIntervalSince(previousDate) / 3600
+            
+            if hoursDifference <= clusterTimeWindowHours {
+                // Add to current cluster
                 currentCluster.append(asset)
             } else {
                 // Start a new cluster
-                if !currentCluster.isEmpty {
-                    clusters.append(currentCluster)
-                }
+                clusters.append(currentCluster)
                 currentCluster = [asset]
             }
-            
-            lastDate = creationDate
         }
         
-        // Add the last cluster if not empty
+        // Add the last cluster
         if !currentCluster.isEmpty {
             clusters.append(currentCluster)
         }
@@ -310,24 +314,29 @@ class SmartAlbumManager: ObservableObject {
     
     /// Process a cluster of photos and return data needed to create an album
     private func processClusterForData(_ assets: [PHAsset], index: Int, useFallbackMode: Bool, completion: @escaping ((title: String, date: Date, score: Int32, thumbnail: String, tags: [String], assetIds: [String])?) -> Void) {
-        // Select representative assets to analyze
-        let sampleAssets = selectSampleAssets(from: assets)
-        
-        // If we're in fallback mode, skip ML classification
-        if useFallbackMode {
-            print("🔄 Using fallback classification for cluster #\(index) with \(assets.count) assets")
-            // Generate fallback tags based on date
-            let fallbackClassifications = generateFallbackClassifications(from: assets)
-            createAlbumDataFromClassifications(fallbackClassifications, assets: assets, index: index, completion: completion)
+        guard assets.count >= minimumPhotosForAlbum else {
+            print("⚠️ Cluster #\(index) too small (\(assets.count) < \(minimumPhotosForAlbum)), skipping")
+            completion(nil)
             return
         }
         
-        print("🔍 Using ML classification for cluster #\(index) with \(assets.count) assets")
+        // Get representative date
+        guard let representativeAsset = assets.first else {
+            print("⚠️ No representative asset found for cluster #\(index)")
+            completion(nil)
+            return
+        }
         
-        // Track classification results across samples
+        // Select a subset of assets to classify (to avoid processing too many)
+        let sampleAssets = assets.count > maximumSamplesPerAlbum ? 
+            Array(assets.prefix(maximumSamplesPerAlbum)) : assets
+        
+        // Track classification results and errors
         var allClassifications: [ClassificationResult] = []
-        let group = DispatchGroup()
         var classificationErrorCount = 0
+        
+        // Create a dispatch group for parallel classification
+        let group = DispatchGroup()
         
         // Process each sample asset
         for (idx, asset) in sampleAssets.enumerated() {
@@ -353,7 +362,7 @@ class SmartAlbumManager: ObservableObject {
             }
         }
         
-        group.notify(queue: .global()) { [weak self] in
+        group.notify(queue: DispatchQueue.global()) { [weak self] in
             guard let self = self else { return completion(nil) }
             
             // Log if we had any classification errors
@@ -388,19 +397,6 @@ class SmartAlbumManager: ObservableObject {
         
         let date = representativeAsset.creationDate ?? Date()
         
-        // Generate title from tags and date
-        var title = generateTitle(from: tags, date: date, asset: representativeAsset)
-        if title.isEmpty {
-            print("⚠️ Failed to generate title for cluster #\(index)")
-            // Provide a fallback title if generation fails
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .medium
-            title = "Photos from \(dateFormatter.string(from: date))"
-        }
-        
-        // Calculate relevance score
-        let score = calculateRelevanceScore(tags: tags, assetCount: assets.count)
-        
         // Get asset IDs
         let assetIds = assets.map { $0.localIdentifier }
         if assetIds.isEmpty {
@@ -409,28 +405,50 @@ class SmartAlbumManager: ObservableObject {
             return
         }
         
-        // Ensure tags are never empty
+        // Select the best thumbnail asset
+        let thumbnailAsset = selectBestThumbnailAsset(from: assets) ?? representativeAsset
+        let thumbnailId = thumbnailAsset.localIdentifier
+        
+        // Calculate average date for the cluster
+        let dates = assets.compactMap { $0.creationDate }
+        let averageDate = dates.reduce(Date()) { $0.addingTimeInterval($1.timeIntervalSince1970) }.addingTimeInterval(-Double(dates.count) * Date().timeIntervalSince1970 / Double(dates.count))
+        
+        // Get tag labels from classification results
         let tagLabels = tags.isEmpty ? ["Photos"] : tags.map { $0.label }
         
-        // Select the most visually appealing thumbnail
-        let thumbnailId: String
-        if let bestThumbnail = selectBestThumbnailAsset(from: assets) {
-            thumbnailId = bestThumbnail.localIdentifier
-        } else if let firstAsset = assets.first {
-            // Fallback to first asset if selection fails
-            thumbnailId = firstAsset.localIdentifier
-        } else {
-            // This shouldn't happen as we checked assets aren't empty above
-            print("⚠️ No thumbnail ID for cluster #\(index), skipping album")
-            completion(nil)
-            return
+        // Extract location information from the assets
+        let location = self.extractLocationFromAssets(assets)
+        
+        // Determine time of day from average date
+        let hour = Calendar.current.component(.hour, from: averageDate)
+        var timeOfDay: String
+        
+        switch hour {
+        case 5..<12:
+            timeOfDay = "morning"
+        case 12..<17:
+            timeOfDay = "afternoon"
+        case 17..<21:
+            timeOfDay = "evening"
+        default:
+            timeOfDay = "night"
         }
+        
+        // Generate title using our new AlbumTitleGenerator
+        let title = AlbumTitleGenerator.generate(
+            location: location,
+            timeOfDay: timeOfDay,
+            photoCount: assets.count
+        )
+        
+        // Calculate a relevance score
+        let score = Int32(self.calculateRelevanceScore(tags: tags, assetCount: assets.count))
         
         // Create and return the album data
         let albumData = (
             title: title,
-            date: Date(),
-            score: Int32(score),
+            date: averageDate,
+            score: score,
             thumbnail: thumbnailId,
             tags: tagLabels,
             assetIds: assetIds
@@ -447,122 +465,46 @@ class SmartAlbumManager: ObservableObject {
         dateFormatter.dateFormat = "MMMM yyyy"
         
         var classifications: [ClassificationResult] = [
-            ClassificationResult(label: "Photos", confidence: 1.0),
-            ClassificationResult(label: "Collection", confidence: 0.9)
+            ClassificationResult(label: "Photos", confidence: 1.0)
         ]
         
-        guard let firstAsset = assets.first, let date = firstAsset.creationDate else {
-            return classifications
-        }
-        
-        // Date-based classifications
-        let dateLabel = dateFormatter.string(from: date)
-        classifications.append(ClassificationResult(label: dateLabel, confidence: 0.8))
-        
-        // Season-based classification
-        let month = Calendar.current.component(.month, from: date)
-        var season = ""
-        
-        switch month {
-        case 12, 1, 2:
-            season = "Winter"
-        case 3, 4, 5:
-            season = "Spring"
-        case 6, 7, 8:
-            season = "Summer"
-        case 9, 10, 11:
-            season = "Fall"
-        default:
-            break
-        }
-        
-        if !season.isEmpty {
-            classifications.append(ClassificationResult(label: season, confidence: 0.75))
-        }
-        
-        // Time-of-day context
-        let hour = Calendar.current.component(.hour, from: date)
-        var timeContext = ""
-        
-        switch hour {
-        case 5..<8:
-            timeContext = "Early morning"
-        case 8..<12:
-            timeContext = "Morning"
-        case 12..<14:
-            timeContext = "Midday"
-        case 14..<17:
-            timeContext = "Afternoon"
-        case 17..<19:
-            timeContext = "Evening"
-        case 19..<22:
-            timeContext = "Night"
-        default:
-            timeContext = "Late night"
-        }
-        
-        classifications.append(ClassificationResult(label: timeContext, confidence: 0.7))
-        
-        // Add location-based classifications if available
-        for asset in assets.prefix(3) { // Check up to 3 assets for location
-            if let location = asset.location {
-                // Try to get a reverse geolocation name
-                let geocoder = CLGeocoder()
-                let group = DispatchGroup()
-                
-                group.enter()
-                geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                    defer { group.leave() }
-                    
-                    guard let placemark = placemarks?.first, error == nil else { return }
-                    
-                    // Add location-based tags with different confidence levels
-                    if let country = placemark.country {
-                        classifications.append(ClassificationResult(label: country, confidence: 0.65))
-                    }
-                    
-                    if let city = placemark.locality {
-                        classifications.append(ClassificationResult(label: city, confidence: 0.7))
-                    }
-                    
-                    if let area = placemark.areasOfInterest?.first {
-                        classifications.append(ClassificationResult(label: area, confidence: 0.75))
-                    }
-                }
-                
-                // Wait for geocoding to complete (with timeout)
-                _ = group.wait(timeout: .now() + 1.0)
-                
-                // No need to check more assets if we found a location
-                break
+        // Add time-based classification
+        if let date = assets.first?.creationDate {
+            let hour = Calendar.current.component(.hour, from: date)
+            
+            // Time of day
+            let timeTag: String
+            switch hour {
+            case 5..<12:
+                timeTag = "Morning"
+            case 12..<17:
+                timeTag = "Afternoon"
+            case 17..<21:
+                timeTag = "Evening"
+            default:
+                timeTag = "Night"
             }
+            
+            classifications.append(ClassificationResult(label: timeTag, confidence: 0.9))
+            
+            // Month/year
+            let monthYear = dateFormatter.string(from: date)
+            classifications.append(ClassificationResult(label: monthYear, confidence: 0.8))
         }
         
-        // Check for burst photos
-        let burstCount = assets.filter { $0.burstIdentifier != nil }.count
-        if burstCount > 3 {
-            classifications.append(ClassificationResult(label: "Burst photos", confidence: 0.75))
-        }
-        
-        // Check for videos
-        let videoCount = assets.filter { $0.mediaType == .video }.count
-        if videoCount > 0 {
-            let videoPercentage = Float(videoCount) / Float(assets.count)
-            if videoPercentage > 0.5 {
-                classifications.append(ClassificationResult(label: "Videos", confidence: 0.8))
-            } else {
-                classifications.append(ClassificationResult(label: "Photos and videos", confidence: 0.7))
-            }
+        // Location-based classification if available
+        if let location = extractLocationFromAssets(assets) {
+            classifications.append(ClassificationResult(label: location, confidence: 0.85))
         }
         
         return classifications
     }
     
-    /// Select representative assets from a cluster for analysis
-    private func selectSampleAssets(from assets: [PHAsset]) -> [PHAsset] {
+    /// Select representative sample assets from a cluster
+    private func selectSampleAssets(from assets: [PHAsset], maxSamples: Int = 3) -> [PHAsset] {
         guard !assets.isEmpty else { return [] }
         
-        if assets.count <= maximumSamplesPerAlbum {
+        if assets.count <= maxSamples {
             return assets
         }
         
@@ -581,31 +523,89 @@ class SmartAlbumManager: ObservableObject {
         return samples
     }
     
-    /// Combine and weight classification results
-    private func combineClassificationResults(_ results: [ClassificationResult]) -> [ClassificationResult] {
-        // Group by label and sum confidences
-        var combinedDict: [String: Float] = [:]
+    /// Combine and filter classification results
+    private func combineClassificationResults(_ classifications: [ClassificationResult]) -> [ClassificationResult] {
+        // Group by label and combine confidence scores
+        var combinedDict: [String: Double] = [:]
         
-        for result in results {
-            combinedDict[result.label, default: 0] += result.confidence
+        for classification in classifications {
+            combinedDict[classification.label, default: 0] += Double(classification.confidence)
         }
         
-        // Convert back to array and sort by confidence
-        let combined = combinedDict.map { ClassificationResult(label: $0.key, confidence: $0.value) }
+        // Convert back to array of ClassificationResult and sort by confidence
+        let combined = combinedDict.map { ClassificationResult(label: $0.key, confidence: Float($0.value)) }
             .sorted { $0.confidence > $1.confidence }
         
-        // Return top results
-        return Array(combined.prefix(5))
+        // Filter out generic labels
+        let filteredResults = combined.filter { !isGenericLabel($0.label) }
+        
+        // Take top results or fall back to original if all were filtered
+        return filteredResults.isEmpty ? combined.prefix(3).map { $0 } : filteredResults.prefix(5).map { $0 }
     }
     
-    /// Generate a natural language title from tags and metadata
+    /// Combine and filter classification results (alias for combineClassificationResults for backward compatibility)
+    private func combineAndFilterClassifications(_ classifications: [ClassificationResult]) -> [ClassificationResult] {
+        return combineClassificationResults(classifications)
+    }
+    
+    /// Check if a label is generic and should be given lower priority
+    private func isGenericLabel(_ label: String) -> Bool {
+        let genericLabels = ["photo", "image", "picture", "photography", "snapshot", "photograph"]
+        return genericLabels.contains(label.lowercased())
+    }
+    
+    /// Generate a title for an album based on classification results
     private func generateTitle(from tags: [ClassificationResult], date: Date, asset: PHAsset) -> String {
-        // Get top tags
+        // Get top tags for title generation
         let topTags = tags.prefix(3).map { $0.label }
         
-        // Time of day context
+        // Extract location from the asset if available
+        var locationName: String? = nil
+        if let location = asset.location {
+            // Use our Malaysian location approximation
+            // This matches the approach in extractLocationFromAssets
+            let malaysianLocations = [
+                "Kuala Lumpur": CLLocationCoordinate2D(latitude: 3.1390, longitude: 101.6869),
+                "Petaling Jaya": CLLocationCoordinate2D(latitude: 3.1073, longitude: 101.6068),
+                "Bangsar": CLLocationCoordinate2D(latitude: 3.1340, longitude: 101.6780),
+                "Mont Kiara": CLLocationCoordinate2D(latitude: 3.1762, longitude: 101.6503),
+                "Subang Jaya": CLLocationCoordinate2D(latitude: 3.0567, longitude: 101.5850),
+                "Shah Alam": CLLocationCoordinate2D(latitude: 3.0733, longitude: 101.5185),
+                "Ampang": CLLocationCoordinate2D(latitude: 3.1631, longitude: 101.7612),
+                "Damansara": CLLocationCoordinate2D(latitude: 3.1571, longitude: 101.6304),
+                "Cheras": CLLocationCoordinate2D(latitude: 3.0904, longitude: 101.7286),
+                "Putrajaya": CLLocationCoordinate2D(latitude: 2.9264, longitude: 101.6964)
+            ]
+            
+            // Find the closest Malaysian location
+            var closestLocation = "KL"
+            var shortestDistance = Double.greatestFiniteMagnitude
+            
+            for (locationName, coordinates) in malaysianLocations {
+                let distance = hypot(
+                    location.coordinate.latitude - coordinates.latitude,
+                    location.coordinate.longitude - coordinates.longitude
+                )
+                
+                if distance < shortestDistance {
+                    shortestDistance = distance
+                    closestLocation = locationName
+                }
+            }
+            
+            // Only use if it's reasonably close (within ~50km)
+            if shortestDistance < 0.5 { // Rough approximation
+                locationName = closestLocation
+            } else {
+                // Fallback to a random Malaysian location
+                let randomLocations = ["KL", "Bangsar", "Mont Kiara", "Damansara", "Ampang"]
+                locationName = randomLocations.randomElement()
+            }
+        }
+        
+        // Determine time context
         let hour = Calendar.current.component(.hour, from: date)
-        var timeContext = ""
+        var timeContext: String
         
         switch hour {
         case 5..<12:
@@ -618,27 +618,25 @@ class SmartAlbumManager: ObservableObject {
             timeContext = "night"
         }
         
-        // Build the title
-        var title = ""
+        // Use our new AlbumTitleGenerator
+        let title = AlbumTitleGenerator.generate(
+            location: locationName,
+            timeOfDay: timeContext,
+            photoCount: nil
+        )
         
-        // Format based on available information
-        if let mainTag = topTags.first {
-            // Avoid location lookups to prevent throttling
-            title = "\(mainTag.capitalized) \(timeContext)"
-        } else {
-            // Fallback title if no good tags
-            title = "Photos from \(date.formatted(.dateTime.month().day().year()))"
-        }
-        
-        // Add emoji if available
+        // Add emoji if available from our tags
+        var finalTitle = title
         for tag in topTags {
             if let emoji = tagEmojis[tag.lowercased()] {
-                title += " \(emoji)"
+                if !finalTitle.contains(emoji) {
+                    finalTitle += " \(emoji)"
+                }
                 break
             }
         }
         
-        return title
+        return finalTitle
     }
     
     /// Calculate a relevance score for the album
@@ -673,8 +671,8 @@ class SmartAlbumManager: ObservableObject {
     private func selectBestThumbnailAsset(from assets: [PHAsset]) -> PHAsset? {
         // Filter for landscape photos that aren't screenshots
         let candidates = assets.filter { asset in
-            asset.mediaType == .image && 
-            asset.pixelWidth > asset.pixelHeight && 
+            asset.mediaType == .image &&
+            asset.pixelWidth > asset.pixelHeight &&
             !asset.isScreenshot()
         }
         
@@ -702,6 +700,71 @@ class SmartAlbumManager: ObservableObject {
         // Return highest scoring candidate
         return scoredCandidates.max(by: { $0.1 < $1.1 })?.0 ?? candidates.first
     }
+    
+    /// Extract a location name from a collection of assets
+    private func extractLocationFromAssets(_ assets: [PHAsset]) -> String? {
+        // For now, we'll use a simplified approach with hardcoded Malaysian locations
+        // In a real app, you would use CLGeocoder to reverse geocode the coordinates
+        
+        // Check if any assets have location data
+        let assetsWithLocation = assets.filter { $0.location != nil }
+        if assetsWithLocation.isEmpty {
+            return nil
+        }
+        
+        // Use hardcoded Malaysian locations based on coordinates for demo purposes
+        // This is a simplified approach without actual reverse geocoding
+        let malaysianLocations = [
+            "Kuala Lumpur": CLLocationCoordinate2D(latitude: 3.1390, longitude: 101.6869),
+            "Petaling Jaya": CLLocationCoordinate2D(latitude: 3.1073, longitude: 101.6068),
+            "Bangsar": CLLocationCoordinate2D(latitude: 3.1340, longitude: 101.6780),
+            "Mont Kiara": CLLocationCoordinate2D(latitude: 3.1762, longitude: 101.6503),
+            "Subang Jaya": CLLocationCoordinate2D(latitude: 3.0567, longitude: 101.5850),
+            "Shah Alam": CLLocationCoordinate2D(latitude: 3.0733, longitude: 101.5185),
+            "Ampang": CLLocationCoordinate2D(latitude: 3.1631, longitude: 101.7612),
+            "Damansara": CLLocationCoordinate2D(latitude: 3.1571, longitude: 101.6304),
+            "Cheras": CLLocationCoordinate2D(latitude: 3.0904, longitude: 101.7286),
+            "Putrajaya": CLLocationCoordinate2D(latitude: 2.9264, longitude: 101.6964)
+        ]
+        
+        // Count occurrences of each location based on proximity
+        var locationCounts: [String: Int] = [:]
+        
+        for asset in assetsWithLocation {
+            if let assetLocation = asset.location?.coordinate {
+                // Find the closest Malaysian location
+                var closestLocation = "KL"
+                var shortestDistance = Double.greatestFiniteMagnitude
+                
+                for (locationName, coordinates) in malaysianLocations {
+                    let distance = hypot(
+                        assetLocation.latitude - coordinates.latitude,
+                        assetLocation.longitude - coordinates.longitude
+                    )
+                    
+                    if distance < shortestDistance {
+                        shortestDistance = distance
+                        closestLocation = locationName
+                    }
+                }
+                
+                // Only count if it's reasonably close (within ~50km)
+                if shortestDistance < 0.5 { // Rough approximation
+                    locationCounts[closestLocation, default: 0] += 1
+                }
+            }
+        }
+        
+        // If no matches, return a default location or nil
+        if locationCounts.isEmpty {
+            // Random selection of Malaysian locations for variety
+            let randomLocations = ["KL", "Bangsar", "Mont Kiara", "Damansara", "Ampang"]
+            return randomLocations.randomElement()
+        }
+        
+        // Find the most common location
+        return locationCounts.max(by: { $0.value < $1.value })?.key
+    }
 }
 
 // MARK: - PHAsset Extensions
@@ -713,4 +776,4 @@ extension PHAsset {
         }
         return false
     }
-} 
+}

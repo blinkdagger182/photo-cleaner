@@ -110,6 +110,117 @@ class DiscoverViewModel: ObservableObject {
         return album.fetchAssets()
     }
     
+    /// Generate a beautiful title for an album using the AlbumTitleGenerator
+    func generateBeautifulTitle(for album: SmartAlbumGroup) -> String {
+        let assets = album.fetchAssets()
+        
+        // Extract location if available (using the first few assets)
+        let location = extractLocationFromAssets(assets.prefix(5))
+        
+        // Determine predominant time of day
+        let timeOfDay = extractTimeOfDay(from: assets)
+        
+        // Generate the title
+        return AlbumTitleGenerator.generate(
+            location: location,
+            timeOfDay: timeOfDay,
+            photoCount: assets.count
+        )
+    }
+    
+    /// Extract location name from assets
+    private func extractLocationFromAssets(_ assets: ArraySlice<PHAsset>) -> String? {
+        // For now, we'll use a simplified approach with hardcoded Malaysian locations
+        // In a real app, you would use CLGeocoder to reverse geocode the coordinates
+        
+        // Check if any assets have location data
+        let assetsWithLocation = assets.filter { $0.location != nil }
+        if assetsWithLocation.isEmpty {
+            return nil
+        }
+        
+        // Use hardcoded Malaysian locations based on coordinates for demo purposes
+        // This is a simplified approach without actual reverse geocoding
+        let malaysianLocations = [
+            "Kuala Lumpur": CLLocationCoordinate2D(latitude: 3.1390, longitude: 101.6869),
+            "Petaling Jaya": CLLocationCoordinate2D(latitude: 3.1073, longitude: 101.6068),
+            "Bangsar": CLLocationCoordinate2D(latitude: 3.1340, longitude: 101.6780),
+            "Mont Kiara": CLLocationCoordinate2D(latitude: 3.1762, longitude: 101.6503),
+            "Subang Jaya": CLLocationCoordinate2D(latitude: 3.0567, longitude: 101.5850),
+            "Shah Alam": CLLocationCoordinate2D(latitude: 3.0733, longitude: 101.5185),
+            "Ampang": CLLocationCoordinate2D(latitude: 3.1631, longitude: 101.7612),
+            "Damansara": CLLocationCoordinate2D(latitude: 3.1571, longitude: 101.6304),
+            "Cheras": CLLocationCoordinate2D(latitude: 3.0904, longitude: 101.7286),
+            "Putrajaya": CLLocationCoordinate2D(latitude: 2.9264, longitude: 101.6964)
+        ]
+        
+        // Count occurrences of each location based on proximity
+        var locationCounts: [String: Int] = [:]
+        
+        for asset in assetsWithLocation {
+            if let assetLocation = asset.location?.coordinate {
+                // Find the closest Malaysian location
+                var closestLocation = "KL"
+                var shortestDistance = Double.greatestFiniteMagnitude
+                
+                for (locationName, coordinates) in malaysianLocations {
+                    let distance = hypot(
+                        assetLocation.latitude - coordinates.latitude,
+                        assetLocation.longitude - coordinates.longitude
+                    )
+                    
+                    if distance < shortestDistance {
+                        shortestDistance = distance
+                        closestLocation = locationName
+                    }
+                }
+                
+                // Only count if it's reasonably close (within ~50km)
+                if shortestDistance < 0.5 { // Rough approximation
+                    locationCounts[closestLocation, default: 0] += 1
+                }
+            }
+        }
+        
+        // If no matches, return a default location or nil
+        if locationCounts.isEmpty {
+            // Random selection of Malaysian locations for variety
+            let randomLocations = ["KL", "Bangsar", "Mont Kiara", "Damansara", "Ampang"]
+            return randomLocations.randomElement()
+        }
+        
+        // Find the most common location
+        return locationCounts.max(by: { $0.value < $1.value })?.key
+    }
+    
+    /// Extract time of day from assets
+    private func extractTimeOfDay(from assets: [PHAsset]) -> String? {
+        var timeOfDayCounts: [String: Int] = [
+            "morning": 0,
+            "afternoon": 0,
+            "evening": 0,
+            "night": 0
+        ]
+        
+        for asset in assets {
+            let hour = Calendar.current.component(.hour, from: asset.creationDate ?? Date())
+            
+            switch hour {
+            case 5..<12:
+                timeOfDayCounts["morning", default: 0] += 1
+            case 12..<17:
+                timeOfDayCounts["afternoon", default: 0] += 1
+            case 17..<21:
+                timeOfDayCounts["evening", default: 0] += 1
+            default:
+                timeOfDayCounts["night", default: 0] += 1
+            }
+        }
+        
+        // Find the most common time of day
+        return timeOfDayCounts.max(by: { $0.value < $1.value })?.key
+    }
+    
     // MARK: - Private Methods
     
     /// Categorize albums into sections

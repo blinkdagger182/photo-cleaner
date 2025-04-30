@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import CoreLocation
 
 struct DiscoverView: View {
     @StateObject private var viewModel: DiscoverViewModel
@@ -7,6 +8,7 @@ struct DiscoverView: View {
     @EnvironmentObject var toast: ToastService
     
     @State private var forceRefresh = false
+    @State private var showTitleGeneratorTest = false
     
     init(photoManager: PhotoManager) {
         _viewModel = StateObject(wrappedValue: DiscoverViewModel(photoManager: photoManager))
@@ -59,7 +61,7 @@ struct DiscoverView: View {
                         // Categories
                         ForEach(Array(viewModel.categorizedAlbums.keys.sorted()), id: \.self) { category in
                             if let albums = viewModel.categorizedAlbums[category], !albums.isEmpty && category != "All" {
-                                CategorySection(
+                                AlbumCategorySection(
                                     title: category,
                                     albums: albums,
                                     onTap: { album in
@@ -90,10 +92,8 @@ struct DiscoverView: View {
                         Button(action: {
                             viewModel.generateAlbums()
                         }) {
-                            Text("Generate Albums")
-                                .fontWeight(.semibold)
+                            Text("Generate Smart Albums")
                                 .padding()
-                                .frame(maxWidth: .infinity)
                                 .background(Color.blue)
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
@@ -113,23 +113,21 @@ struct DiscoverView: View {
                             
                             HStack {
                                 Spacer()
-                                
                                 VStack(spacing: 16) {
                                     ProgressView()
                                         .scaleEffect(1.5)
+                                        .padding()
                                     
-                                    Text("Generating albums...")
+                                    Text("Generating Smart Albums...")
                                         .font(.headline)
+                                        .foregroundColor(.white)
                                     
                                     Text("This may take a moment")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.white.opacity(0.8))
                                 }
                                 .padding(24)
-                                .background(Color(.systemBackground))
+                                .background(Color.black.opacity(0.7))
                                 .cornerRadius(16)
-                                .shadow(radius: 10)
-                                
                                 Spacer()
                             }
                             
@@ -148,12 +146,31 @@ struct DiscoverView: View {
             .toolbar {
                 if !viewModel.showEmptyState {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: {
-                            viewModel.generateAlbums()
-                        }) {
-                            Image(systemName: "arrow.clockwise")
+                        Menu {
+                            Button(action: {
+                                viewModel.loadAlbums()
+                            }) {
+                                Label("Refresh Albums", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(viewModel.isGenerating)
+                            
+                            Button(action: {
+                                // Present the title generator test view
+                                showTitleGeneratorTest = true
+                            }) {
+                                Label("Test Title Generator", systemImage: "sparkles")
+                            }
+                            
+                            Button(action: {
+                                // Regenerate titles for existing albums
+                                self.regenerateAlbumTitles()
+                            }) {
+                                Label("Regenerate Album Titles", systemImage: "wand.and.stars")
+                            }
+                            .disabled(viewModel.isGenerating || viewModel.allSmartAlbums.isEmpty)
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
-                        .disabled(viewModel.isGenerating)
                     }
                 }
             }
@@ -162,6 +179,9 @@ struct DiscoverView: View {
             SmartAlbumDetailView(album: album, forceRefresh: $forceRefresh)
                 .environmentObject(photoManager)
                 .environmentObject(toast)
+        }
+        .sheet(isPresented: $showTitleGeneratorTest) {
+            AlbumTitleGeneratorTests()
         }
         .overlay(
             // Show "load more" button at the bottom when there are already some albums
@@ -191,71 +211,85 @@ struct DiscoverView: View {
     }
 }
 
+// MARK: - Album Category Section
+struct AlbumCategorySection: View {
+    let title: String
+    let albums: [SmartAlbumGroup]
+    let onTap: (SmartAlbumGroup) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(albums, id: \.id) { album in
+                        AlbumCard(album: album)
+                            .onTapGesture {
+                                onTap(album)
+                            }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
 // MARK: - Featured Album Card
 struct FeaturedAlbumCard: View {
     let album: SmartAlbumGroup
     
     @State private var thumbnail: UIImage?
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             // Thumbnail
-            ZStack {
+            ZStack(alignment: .bottomLeading) {
                 if let thumbnail = thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()
-                        .scaledToFill()
-                        .frame(width: 280, height: 200)
-                        .clipped()
-                        .cornerRadius(16)
-                        .overlay(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.clear, .black.opacity(0.5)]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .cornerRadius(16)
-                        )
+                        .aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 280, height: 200)
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.2)
-                        )
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
                 }
                 
-                // Score badge
-                VStack {
-                    HStack {
-                        Spacer()
-                        
-                        Text("\(album.relevanceScore)")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .padding(6)
-                            .background(scoreColor(for: album.relevanceScore))
-                            .foregroundColor(.white)
-                            .clipShape(Circle())
-                    }
+                // Gradient overlay for text visibility
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        .black.opacity(0.7),
+                        .black.opacity(0.3),
+                        .clear
+                    ]),
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                .frame(height: 100)
+                
+                // Title and photo count overlay
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(album.title)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .lineLimit(2)
                     
-                    Spacer()
+                    Text("\(album.assetIds.count) photos")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
                 }
-                .padding(8)
+                .padding(16)
             }
-            
-            // Title
-            Text(album.title)
-                .font(.headline)
-                .lineLimit(1)
-            
-            // Photo count
-            Text("\(album.assetIds.count) photos")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            .frame(width: 280, height: 280)
+            .cornerRadius(16)
+            .clipped()
+            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
         }
-        .frame(width: 280)
         .task {
             await loadThumbnail()
         }
@@ -281,7 +315,7 @@ struct FeaturedAlbumCard: View {
         let result = await withCheckedContinuation { continuation in
             PHImageManager.default().requestImage(
                 for: asset,
-                targetSize: CGSize(width: 300, height: 300),
+                targetSize: CGSize(width: 600, height: 600),
                 contentMode: .aspectFill,
                 options: options
             ) { image, info in
@@ -341,53 +375,10 @@ struct FeaturedAlbumCard: View {
             }
         }
     }
-    
-    private func scoreColor(for score: Int32) -> Color {
-        switch score {
-        case 0..<40:
-            return .gray
-        case 40..<60:
-            return .blue
-        case 60..<80:
-            return .purple
-        default:
-            return .pink
-        }
-    }
 }
 
-// MARK: - Category Section
-struct CategorySection: View {
-    let title: String
-    let albums: [SmartAlbumGroup]
-    let onTap: (SmartAlbumGroup) -> Void
-    
-    let columns = [
-        GridItem(.adaptive(minimum: 150, maximum: 180), spacing: 16)
-    ]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
-            
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(albums, id: \.id) { album in
-                    SmartAlbumCell(album: album)
-                        .onTapGesture {
-                            onTap(album)
-                        }
-                }
-            }
-            .padding(.horizontal)
-        }
-    }
-}
-
-// MARK: - Smart Album Cell
-struct SmartAlbumCell: View {
+// MARK: - Album Card
+struct AlbumCard: View {
     let album: SmartAlbumGroup
     
     @State private var thumbnail: UIImage?
@@ -399,32 +390,28 @@ struct SmartAlbumCell: View {
                 if let thumbnail = thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()
-                        .scaledToFill()
-                        .frame(height: 120)
-                        .clipped()
-                        .cornerRadius(12)
+                        .aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(height: 120)
-                        .overlay(
-                            ProgressView()
-                        )
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
                 }
             }
-            .frame(height: 120)
+            .frame(width: 160, height: 160)
+            .cornerRadius(12)
+            .clipped()
             
             // Title
             Text(album.title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .lineLimit(1)
+                .font(.headline)
+                .lineLimit(2)
+                .frame(width: 160, alignment: .leading)
             
             // Photo count
             Text("\(album.assetIds.count) photos")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .frame(width: 160)
         .task {
             await loadThumbnail()
         }
@@ -554,4 +541,45 @@ struct SmartAlbumDetailView: View {
             )
         }
     }
-} 
+}
+
+// MARK: - DiscoverView Extensions
+extension DiscoverView {
+    // Function to regenerate titles for existing albums
+    func regenerateAlbumTitles() {
+        guard !viewModel.allSmartAlbums.isEmpty else { return }
+        
+        // Show loading toast
+        toast.show("Regenerating album titles...", duration: 2.0)
+        
+        // Process in background to avoid UI freeze
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Get the persistent container
+            let context = PersistenceController.shared.container.viewContext
+            
+            // Process each album
+            for album in viewModel.allSmartAlbums {
+                // Generate a new title
+                let newTitle = viewModel.generateBeautifulTitle(for: album)
+                
+                // Update the album title
+                DispatchQueue.main.async {
+                    album.title = newTitle
+                    
+                    // Save changes
+                    do {
+                        try context.save()
+                    } catch {
+                        print("❌ Failed to save updated album title: \(error)")
+                    }
+                }
+            }
+            
+            // Show completion toast
+            DispatchQueue.main.async {
+                viewModel.loadAlbums() // Refresh the UI
+                toast.show("Album titles regenerated!", duration: 2.0)
+            }
+        }
+    }
+}
