@@ -25,21 +25,44 @@ class SmartAlbumManager: ObservableObject {
     
     // Tags mapping for better titles and emojis
     private let tagEmojis: [String: String] = [
+        // Nature and places
         "beach": "🏖️",
         "mountain": "🏔️",
         "sunset": "🌅",
+        "city": "🏙️",
+        "snow": "❄️",
+        "flower": "🌸",
+        
+        // Food and dining
         "food": "🍽️",
         "pizza": "🍕",
+        "coffee": "☕",
+        
+        // Animals
         "dog": "🐕",
         "cat": "🐱",
-        "car": "🚗",
-        "flower": "🌸",
+        
+        // Events
         "birthday": "🎂",
         "party": "🎉",
         "concert": "🎵",
-        "coffee": "☕",
-        "snow": "❄️",
-        "city": "🏙️"
+        
+        // Transportation
+        "car": "🚗",
+        
+        // Utility items
+        "receipt": "🧾",
+        "document": "📄",
+        "text": "📝",
+        "handwriting": "✍️",
+        "illustration": "🎨",
+        "drawing": "✏️",
+        "qr": "📱",
+        "code": "💻",
+        "scan": "🔍",
+        "duplicate": "🔄",
+        "screenshot": "📱",
+        "import": "📥"
     ]
     
     private init() {
@@ -229,8 +252,8 @@ class SmartAlbumManager: ObservableObject {
         let context = persistence.container.viewContext
         let fetchRequest: NSFetchRequest<SmartAlbumGroup> = SmartAlbumGroup.fetchRequest()
         
-        // Sort by relevance score (descending)
-        let sortDescriptor = NSSortDescriptor(key: "relevanceScore", ascending: false)
+        // Sort by creation date (descending) to get the most recent albums
+        let sortDescriptor = NSSortDescriptor(key: "createdAt", ascending: false)
         fetchRequest.sortDescriptors = [sortDescriptor]
         
         do {
@@ -240,11 +263,68 @@ class SmartAlbumManager: ObservableObject {
             DispatchQueue.main.async {
                 self.allSmartAlbums = albums
                 
-                // Featured albums are the top scoring ones
-                self.featuredAlbums = Array(albums.prefix(min(5, albums.count)))
+                // Get recent albums (last 30 days)
+                let calendar = Calendar.current
+                let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+                
+                // Filter albums created in the last 30 days with null safety
+                let recentAlbums = albums.filter { album in
+                    // Skip albums with invalid dates
+                    guard album.createdAt > Date(timeIntervalSince1970: 0) else { return false }
+                    return album.createdAt.compare(thirtyDaysAgo) == .orderedDescending
+                }
+                
+                // For featured albums, prioritize recent albums first, then fall back to high-scoring albums if needed
+                if recentAlbums.count >= 5 {
+                    // If we have enough recent albums, sort them by relevance score and take the top 5
+                    let sortedRecentAlbums = recentAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
+                    self.featuredAlbums = Array(sortedRecentAlbums.prefix(5))
+                } else {
+                    // If we don't have enough recent albums, include some high-scoring older albums
+                    var featured = recentAlbums
+                    
+                    // Add high-scoring albums that aren't already in the featured list
+                    let highScoringAlbums = albums.sorted { $0.relevanceScore > $1.relevanceScore }
+                    for album in highScoringAlbums where featured.count < 5 {
+                        if !featured.contains(where: { $0.id == album.id }) {
+                            featured.append(album)
+                        }
+                    }
+                    
+                    self.featuredAlbums = featured
+                }
             }
         } catch {
             print("❌ Failed to fetch smart albums: \(error)")
+        }
+    }
+    
+    /// Refresh smart albums by regenerating them from the photo library
+    func refreshSmartAlbums(from assets: [PHAsset], completion: @escaping () -> Void) {
+        // First, clear existing albums
+        let context = persistence.container.viewContext
+        let fetchRequest: NSFetchRequest<SmartAlbumGroup> = SmartAlbumGroup.fetchRequest()
+        
+        do {
+            let existingAlbums = try context.fetch(fetchRequest)
+            print("🔄 Refreshing \(existingAlbums.count) smart albums")
+            
+            // Delete all existing albums
+            for album in existingAlbums {
+                context.delete(album)
+            }
+            
+            // Save the context to commit deletions
+            try context.save()
+            print("✅ Cleared existing albums")
+            
+            // Regenerate albums
+            generateSmartAlbums(from: assets, limit: 0) {
+                completion()
+            }
+        } catch {
+            print("❌ Failed to refresh albums: \(error)")
+            completion()
         }
     }
     
@@ -496,6 +576,9 @@ class SmartAlbumManager: ObservableObject {
         if let location = extractLocationFromAssets(assets) {
             classifications.append(ClassificationResult(label: location, confidence: 0.85))
         }
+        
+        // Check for utility-type items
+        detectUtilityItems(in: assets, classifications: &classifications)
         
         return classifications
     }
@@ -764,6 +847,49 @@ class SmartAlbumManager: ObservableObject {
         
         // Find the most common location
         return locationCounts.max(by: { $0.value < $1.value })?.key
+    }
+    
+    /// Detect utility items like receipts, documents, QR codes, etc. in photo assets
+    private func detectUtilityItems(in assets: [PHAsset], classifications: inout [ClassificationResult]) {
+        // Check for screenshots
+        let screenshotCount = assets.filter { $0.isScreenshot() }.count
+        if screenshotCount > 0 {
+            let confidence = min(Float(screenshotCount) / Float(assets.count) + 0.3, 0.95)
+            classifications.append(ClassificationResult(label: "screenshot", confidence: confidence))
+        }
+        
+        // Check for document-like aspect ratios (typically close to A4 or letter size)
+        var documentLikeCount = 0
+        for asset in assets {
+            let aspectRatio = Double(asset.pixelWidth) / Double(asset.pixelHeight)
+            // A4 and letter paper have aspect ratios around 0.7-0.77
+            if (aspectRatio > 0.65 && aspectRatio < 0.85) || (aspectRatio > 1.2 && aspectRatio < 1.5) {
+                documentLikeCount += 1
+            }
+        }
+        
+        if documentLikeCount > assets.count / 3 {
+            classifications.append(ClassificationResult(label: "document", confidence: 0.8))
+        }
+        
+        // For QR codes, receipts, handwriting, etc., we would ideally use ML vision analysis
+        // Since we don't have that capability here, we'll use some basic heuristics
+        
+        // Check for square images (potential QR codes)
+        let squareImageCount = assets.filter { abs(Double($0.pixelWidth) / Double($0.pixelHeight) - 1.0) < 0.1 }.count
+        if squareImageCount > assets.count / 3 {
+            classifications.append(ClassificationResult(label: "qr code", confidence: 0.7))
+        }
+        
+        // Add receipt tag for portrait orientation images with specific aspect ratio
+        let receiptLikeCount = assets.filter { 
+            let aspectRatio = Double($0.pixelWidth) / Double($0.pixelHeight)
+            return aspectRatio < 0.6 // Very tall and narrow
+        }.count
+        
+        if receiptLikeCount > assets.count / 4 {
+            classifications.append(ClassificationResult(label: "receipt", confidence: 0.75))
+        }
     }
 }
 

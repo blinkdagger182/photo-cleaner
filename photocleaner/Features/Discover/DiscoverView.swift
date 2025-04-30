@@ -14,6 +14,11 @@ struct DiscoverView: View {
         _viewModel = StateObject(wrappedValue: DiscoverViewModel(photoManager: photoManager))
     }
     
+    // Connect toast service when view appears
+    private func connectToastService() {
+        viewModel.toast = toast
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -139,7 +144,7 @@ struct DiscoverView: View {
                 }
             )
             .refreshable {
-                viewModel.loadAlbums()
+                viewModel.loadAlbums(forceRefresh: true)
             }
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.inline)
@@ -148,7 +153,7 @@ struct DiscoverView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button(action: {
-                                viewModel.loadAlbums()
+                                viewModel.loadAlbums(forceRefresh: true)
                             }) {
                                 Label("Refresh Albums", systemImage: "arrow.clockwise")
                             }
@@ -205,7 +210,8 @@ struct DiscoverView: View {
             }
         )
         .onAppear {
-            // Refresh albums when view appears
+            // Connect toast service and refresh albums when view appears
+            connectToastService()
             viewModel.loadAlbums()
         }
     }

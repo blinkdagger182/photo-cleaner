@@ -6,6 +6,7 @@ class DiscoverViewModel: ObservableObject {
     // Services
     private let smartAlbumManager = SmartAlbumManager.shared
     private var photoManager: PhotoManager
+    var toast: ToastService?
     
     // Published properties
     @Published var featuredAlbums: [SmartAlbumGroup] = []
@@ -24,7 +25,11 @@ class DiscoverViewModel: ObservableObject {
     private let categories = [
         "High Score": { (album: SmartAlbumGroup) -> Bool in album.relevanceScore > 70 },
         "Recent": { (album: SmartAlbumGroup) -> Bool in 
-            let daysSinceCreation = Calendar.current.dateComponents([.day], from: album.createdAt, to: Date()).day ?? 0
+            // Add null safety to prevent crashes with invalid dates
+            guard album.createdAt > Date(timeIntervalSince1970: 0) else { return false }
+            
+            let now = Date()
+            let daysSinceCreation = Calendar.current.dateComponents([.day], from: album.createdAt, to: now).day ?? 0
             return daysSinceCreation < 7
         },
         "Food & Dining": { (album: SmartAlbumGroup) -> Bool in 
@@ -38,31 +43,65 @@ class DiscoverViewModel: ObservableObject {
         "People": { (album: SmartAlbumGroup) -> Bool in
             let peopleTags = ["person", "people", "face", "portrait", "group", "family"]
             return album.tags.contains { tag in peopleTags.contains { tag.lowercased().contains($0) } }
+        },
+        "Utilities": { (album: SmartAlbumGroup) -> Bool in
+            let utilityTags = ["receipt", "document", "text", "handwriting", "illustration", "drawing", 
+                              "qr", "code", "scan", "duplicate", "screenshot", "import"]
+            return album.tags.contains { tag in utilityTags.contains { tag.lowercased().contains($0) } }
         }
     ]
     
-    init(photoManager: PhotoManager) {
+    init(photoManager: PhotoManager, toast: ToastService? = nil) {
         self.photoManager = photoManager
+        self.toast = toast
         self.loadAlbums()
     }
     
     // MARK: - Public Methods
     
     /// Load smart albums from the repository
-    func loadAlbums() {
+    func loadAlbums(forceRefresh: Bool = false) {
         isLoading = true
         
-        // Load from the manager
-        smartAlbumManager.loadSmartAlbums()
-        self.featuredAlbums = smartAlbumManager.featuredAlbums
+        // Show loading toast on main thread
+        DispatchQueue.main.async { [weak self] in
+            self?.toast?.show("Refreshing albums...", duration: 1.5)
+        }
         
-        // Categorize albums
-        categorizeAlbums(smartAlbumManager.allSmartAlbums)
-        
-        // Show empty state if needed
-        showEmptyState = smartAlbumManager.allSmartAlbums.isEmpty
-        
-        isLoading = false
+        if forceRefresh {
+            // Perform a full refresh by regenerating albums
+            smartAlbumManager.refreshSmartAlbums(from: photoManager.allAssets) { [weak self] in
+                guard let self = self else { return }
+                
+                DispatchQueue.main.async {
+                    // Update UI after refresh
+                    self.featuredAlbums = self.smartAlbumManager.featuredAlbums
+                    self.categorizeAlbums(self.smartAlbumManager.allSmartAlbums)
+                    self.showEmptyState = self.smartAlbumManager.allSmartAlbums.isEmpty
+                    self.isLoading = false
+                    
+                    // Show completion toast
+                    self.toast?.show("Albums refreshed!", duration: 1.5)
+                }
+            }
+        } else {
+            // Just load existing albums from CoreData
+            smartAlbumManager.loadSmartAlbums()
+            self.featuredAlbums = smartAlbumManager.featuredAlbums
+            
+            // Categorize albums
+            categorizeAlbums(smartAlbumManager.allSmartAlbums)
+            
+            // Show empty state if needed
+            showEmptyState = smartAlbumManager.allSmartAlbums.isEmpty
+            
+            isLoading = false
+            
+            // Show completion toast with delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.toast?.show("Albums refreshed!", duration: 1.5)
+            }
+        }
     }
     
     /// Generate new smart albums
@@ -112,8 +151,59 @@ class DiscoverViewModel: ObservableObject {
     
     /// Generate a beautiful title for an album using the AlbumTitleGenerator
     func generateBeautifulTitle(for album: SmartAlbumGroup) -> String {
+        // Safely fetch assets
         let assets = album.fetchAssets()
         
+        // Guard against empty assets to prevent potential crashes
+        guard !assets.isEmpty else {
+            return "Photo Collection"
+        }
+        
+        // Define utility tags
+        let utilityTags = ["receipt", "document", "text", "handwriting", "illustration", "drawing", 
+                          "qr", "code", "scan", "duplicate", "screenshot", "import"]
+        
+        // Safely check if this is a utilities album based on tags
+        // Make sure we have tags before checking
+        if !album.tags.isEmpty {
+            let isUtilityAlbum = album.tags.contains { tag in 
+                utilityTags.contains { utilityTag in 
+                    tag.lowercased().contains(utilityTag) 
+                }
+            }
+            
+            if isUtilityAlbum {
+                // For utility albums, generate a title based on the utility tags
+                let matchingTags = album.tags.filter { tag in 
+                    utilityTags.contains { utilityTag in 
+                        tag.lowercased().contains(utilityTag) 
+                    }
+                }
+                
+                if let primaryTag = matchingTags.first {
+                    // Safely capitalize the first letter of the tag
+                    let capitalizedTag: String
+                    if primaryTag.isEmpty {
+                        capitalizedTag = "Document"
+                    } else {
+                        capitalizedTag = primaryTag.prefix(1).capitalized + primaryTag.dropFirst()
+                    }
+                    
+                    // Generate a title based on the utility tag
+                    let utilityTitles = [
+                        "\(capitalizedTag) Collection",
+                        "\(capitalizedTag) Library",
+                        "My \(capitalizedTag)s",
+                        "Saved \(capitalizedTag)s",
+                        "\(capitalizedTag) Archive"
+                    ]
+                    
+                    return utilityTitles.randomElement() ?? "\(capitalizedTag) Collection"
+                }
+            }
+        }
+        
+        // For non-utility albums or if utility title generation failed, use the standard approach
         // Extract location if available (using the first few assets)
         let location = extractLocationFromAssets(assets.prefix(5))
         

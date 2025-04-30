@@ -69,7 +69,6 @@ struct AlbumTitleGenerator {
     
     // Templates that include both location and time
     private static let locationTimeTemplates: [String] = [
-        "{time} magic in {location}",
         "{time} adventures in {location}",
         "{time} moments in {location}",
         "{time} strolls through {location}",
