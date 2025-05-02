@@ -12,24 +12,40 @@ struct AlbumTitleGenerator {
     ///   - location: Optional location name (e.g., "Genting", "KL", "Ampang")
     ///   - timeOfDay: Optional time of day ("morning", "afternoon", "evening", "night")
     ///   - photoCount: Optional number of photos in the album
+    ///   - date: Optional date string for the album
+    ///   - tags: Optional array of dominant tags for the album
     /// - Returns: A warm, personal album title
-    static func generate(location: String?, timeOfDay: String?, photoCount: Int?) -> String {
-        // Select appropriate template category based on available information
-        let templates: [String]
+    static func generate(location: String?, timeOfDay: String?, photoCount: Int?, date: String? = nil, tags: [String]? = nil) -> String {
+        // Safety check - ensure we have at least some data to work with
+        let hasLocation = location != nil && !(location?.isEmpty ?? true)
+        let hasTimeOfDay = timeOfDay != nil && !(timeOfDay?.isEmpty ?? true)
+        let hasDate = date != nil && !(date?.isEmpty ?? true)
+        let hasTags = tags != nil && !(tags?.isEmpty ?? true)
         
-        if let location = location, !location.isEmpty {
-            if let timeOfDay = timeOfDay, !timeOfDay.isEmpty {
-                // Both location and time available
-                templates = locationTimeTemplates
-            } else {
-                // Only location available
-                templates = locationTemplates
-            }
-        } else if let timeOfDay = timeOfDay, !timeOfDay.isEmpty {
-            // Only time available
+        // Select appropriate template category based on available information
+        var templates: [String]
+        
+        // Use a more conservative approach to template selection to prevent crashes
+        if hasTags && hasLocation && tagLocationTemplates.count > 0 {
+            // Tags + location
+            templates = tagLocationTemplates
+        } else if hasTags && tagTemplates.count > 0 {
+            // Just tags
+            templates = tagTemplates
+        } else if hasLocation && hasTimeOfDay && locationTimeTemplates.count > 0 {
+            // Location + time
+            templates = locationTimeTemplates
+        } else if hasLocation && locationTemplates.count > 0 {
+            // Just location
+            templates = locationTemplates
+        } else if hasTimeOfDay && timeTemplates.count > 0 {
+            // Just time
             templates = timeTemplates
+        } else if hasDate && dateTemplates.count > 0 {
+            // Just date
+            templates = dateTemplates
         } else {
-            // Neither location nor time available
+            // Fallback to general templates
             templates = generalTemplates
         }
         
@@ -41,20 +57,53 @@ struct AlbumTitleGenerator {
         // Fill in the template with the available information
         var title = template
         
+        // Only replace placeholders if they exist in the template
         // Replace location placeholder if available
-        if let location = location, !location.isEmpty {
+        if let location = location, !location.isEmpty, title.contains("{location}") {
             title = title.replacingOccurrences(of: "{location}", with: location)
         }
         
         // Replace time placeholder if available
-        if let timeOfDay = timeOfDay, !timeOfDay.isEmpty {
-            title = title.replacingOccurrences(of: "{time}", with: timeOfDay)
+        if let timeOfDay = timeOfDay, !timeOfDay.isEmpty, title.contains("{time}") {
+            // Capitalize the first letter of the time of day
+            let capitalizedTimeOfDay = timeOfDay.prefix(1).uppercased() + timeOfDay.dropFirst()
+            title = title.replacingOccurrences(of: "{time}", with: capitalizedTimeOfDay)
+        }
+        
+        // Replace photo count if available
+        if let photoCount = photoCount, title.contains("{count}") {
+            title = title.replacingOccurrences(of: "{count}", with: "\(photoCount)")
+        }
+        
+        // Replace date if available
+        if let date = date, !date.isEmpty, title.contains("{date}") {
+            title = title.replacingOccurrences(of: "{date}", with: date)
+        }
+        
+        // Replace tag if available
+        if let tags = tags, !tags.isEmpty, let primaryTag = tags.first, title.contains("{tag}") {
+            // Capitalize the first letter of the tag
+            let capitalizedTag = primaryTag.prefix(1).uppercased() + primaryTag.dropFirst()
+            title = title.replacingOccurrences(of: "{tag}", with: capitalizedTag)
+            
+            // If we have a second tag, add it as well - but only if it makes sense
+            if tags.count > 1, let secondaryTag = tags.dropFirst().first {
+                // Only add the second tag if it's not already in the title and if we're not using a date template
+                if !title.lowercased().contains(secondaryTag.lowercased()) && !title.contains("{date}") {
+                    title = title + " & " + secondaryTag.capitalized
+                }
+            }
+        }
+        
+        // Safety check - if we still have any placeholder patterns, remove them
+        let placeholderPattern = #"\{[^\}]+\}"#
+        if let regex = try? NSRegularExpression(pattern: placeholderPattern, options: []) {
+            title = regex.stringByReplacingMatches(in: title, options: [], range: NSRange(location: 0, length: title.utf16.count), withTemplate: "")
         }
         
         // Adjust for singular/plural based on photo count if needed
         if let photoCount = photoCount {
             if photoCount == 1 {
-                title = title.replacingOccurrences(of: "moments", with: "moment")
                 title = title.replacingOccurrences(of: "memories", with: "memory")
                 title = title.replacingOccurrences(of: "days", with: "day")
                 title = title.replacingOccurrences(of: "adventures", with: "adventure")
@@ -92,89 +141,77 @@ struct AlbumTitleGenerator {
     
     // Templates that include only location
     private static let locationTemplates: [String] = [
-        "Adventures in {location}",
-        "Wandering through {location}",
-        "Exploring {location}",
-        "Memories from {location}",
-        "Moments in {location}",
-        "Days in {location}",
-        "Life in {location}",
-        "Discovering {location}",
-        "Hidden gems in {location}",
-        "Streets of {location}",
-        "The heart of {location}",
-        "Escape to {location}",
-        "Journey through {location}",
-        "Treasures of {location}",
-        "Beauty of {location}",
-        "Scenes from {location}",
-        "Impressions of {location}",
-        "Glimpses of {location}",
-        "Reflections of {location}",
-        "Stories from {location}",
-        "Postcards from {location}",
-        "Souvenirs from {location}",
-        "Wanderlust in {location}",
-        "Lost in {location}",
-        "Found in {location}"
+        "Moments in {location} 🌟",
+        "Adventures in {location} 🗺️",
+        "Memories from {location} 📷",
+        "Exploring {location} 🔍",
+        "{location} collection 📱",
+        "Scenes from {location} 🏙️",
+        "Captured in {location} 📸",
+        "Discovering {location} 🌈",
+        "{location} memories 💫",
+        "A day in {location} 🌅"
     ]
     
     // Templates that include only time of day
     private static let timeTemplates: [String] = [
-        "Golden {time} light",
-        "{time} reflections",
-        "{time} stories",
-        "{time} adventures",
-        "{time} moments to remember",
-        "{time} dreams",
-        "Peaceful {time} hours",
-        "Magical {time} light",
-        "Quiet {time} thoughts",
-        "Gentle {time} breeze",
-        "Soft {time} shadows",
-        "Warm {time} glow",
-        "{time} wanderings",
-        "{time} whispers",
-        "{time} serenity",
-        "{time} escapes",
-        "Cherished {time} moments",
-        "Precious {time} memories",
-        "Stolen {time} moments",
-        "Perfect {time} bliss",
-        "{time} treasures",
-        "Embracing the {time}",
-        "Dancing in the {time}",
-        "Chasing {time} light",
-        "Lost in {time} thoughts"
+        "Beautiful {time} moments ✨",
+        "{time} memories 📷",
+        "{time} vibes 🌈",
+        "Captured {time} moments 📸",
+        "{time} collection 📱",
+        "{time} adventures 🌅",
+        "Magical {time} ✨",
+        "{time} scenes 🏙️",
+        "Wonderful {time} 💫",
+        "{time} memories to cherish 💖"
     ]
     
     // General templates (no location or time)
     private static let generalTemplates: [String] = [
-        "Captured moments",
-        "Life's little treasures",
-        "Memories to cherish",
-        "Snapshots of joy",
-        "Beautiful memories",
-        "Moments that matter",
-        "Pieces of happiness",
-        "Stories worth telling",
-        "Fragments of time",
-        "Collected memories",
-        "Precious moments",
-        "Timeless memories",
-        "Cherished moments",
-        "Stolen moments",
-        "Little joys",
-        "Simple pleasures",
-        "Quiet moments",
-        "Treasured memories",
-        "Moments of wonder",
-        "Glimpses of happiness",
-        "Whispers of joy",
-        "Echoes of laughter",
-        "Traces of happiness",
-        "Slices of life",
-        "Chapters of joy"
+        "Beautiful moments ✨",
+        "Captured memories 📷",
+        "Photo collection 📱",
+        "Special moments 💫",
+        "Memorable times 🌟",
+        "Life snapshots 📸",
+        "Cherished memories 💖",
+        "Moments to remember 🌈",
+        "Photo highlights 🔍",
+        "Wonderful memories 🌅"
+    ]
+    
+    /// Templates for when we have specific tags
+    private static let tagTemplates = [
+        "{tag} moments ✨",
+        "{tag} memories 📷",
+        "{tag} collection 📱",
+        "My {tag} album 🌟",
+        "{tag} highlights 🔍",
+        "Captured {tag} moments 📸",
+        "{tag} adventures 🌅",
+        "Special {tag} memories 💫",
+        "{tag} times 🌈"
+    ]
+    
+    /// Templates for when we have both tags and location
+    private static let tagLocationTemplates = [
+        "{tag} in {location} 🌟",
+        "{tag} moments in {location} ✨",
+        "{location} {tag} collection 📱",
+        "{tag} adventures in {location} 🌅",
+        "Captured {tag} in {location} 📸",
+        "{location} {tag} memories 💫"
+    ]
+    
+    /// Templates for when we have a specific date
+    private static let dateTemplates = [
+        "{date} memories 📆",
+        "Photos from {date} 📸",
+        "{date} collection 📱",
+        "Moments from {date} 📅",
+        "{date} highlights 🌟",
+        "Captured on {date} 📷"
     ]
     
     // Malaysian-specific templates
@@ -352,8 +389,91 @@ private extension PHAsset {
     var location: (name: String, coordinate: CLLocationCoordinate2D)? {
         guard let location = self.location else { return nil }
         
-        // For simplicity, we're just returning the coordinate's description
-        // In a real app, you would use CLGeocoder to get the actual place name
+        // Return the coordinate for now - actual geocoding will be done by GeocodeService
         return ("Unknown Location", location.coordinate)
+    }
+}
+
+// MARK: - Geocode Service for Reverse Geocoding
+class GeocodeService {
+    // Singleton instance
+    static let shared = GeocodeService()
+    
+    // Geocoder instance
+    private let geocoder = CLGeocoder()
+    
+    // Cache for geocoding results to avoid redundant API calls
+    private var locationCache: [String: String] = [:]
+    
+    /// Get a human-readable location name from coordinates
+    /// - Parameters:
+    ///   - coordinate: The coordinates to reverse geocode
+    ///   - completion: Closure called with the location name
+    func getLocationName(for coordinate: CLLocationCoordinate2D, completion: @escaping (String?) -> Void) {
+        // Create a cache key from the coordinates (rounded to reduce cache misses for nearby locations)
+        let cacheKey = String(format: "%.3f,%.3f", coordinate.latitude, coordinate.longitude)
+        
+        // Check if we have a cached result
+        if let cachedName = locationCache[cacheKey] {
+            completion(cachedName)
+            return
+        }
+        
+        // Create a CLLocation from the coordinates
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        // Perform reverse geocoding
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            guard let self = self, error == nil, let placemark = placemarks?.first else {
+                completion(nil)
+                return
+            }
+            
+            // Extract the most specific and meaningful location name
+            var locationName: String? = nil
+            
+            // Try to get the most specific name possible
+            if let name = placemark.name, !name.isEmpty {
+                locationName = name
+            } else if let locality = placemark.locality {
+                locationName = locality
+            } else if let area = placemark.administrativeArea {
+                locationName = area
+            } else if let country = placemark.country {
+                locationName = country
+            }
+            
+            // Cache the result
+            if let name = locationName {
+                self.locationCache[cacheKey] = name
+            }
+            
+            completion(locationName)
+        }
+    }
+    
+    /// Get location names for a batch of assets
+    /// - Parameters:
+    ///   - assets: Array of assets to process
+    ///   - completion: Closure called when all geocoding is complete
+    func batchGetLocationNames(for assets: [PHAsset], completion: @escaping (String?) -> Void) {
+        // Filter assets with location data
+        let assetsWithLocation = assets.compactMap { asset -> CLLocationCoordinate2D? in
+            return asset.location?.coordinate
+        }
+        
+        if assetsWithLocation.isEmpty {
+            completion(nil)
+            return
+        }
+        
+        // Find the center point of all locations
+        let totalLat = assetsWithLocation.reduce(0.0) { $0 + $1.latitude }
+        let totalLng = assetsWithLocation.reduce(0.0) { $0 + $1.longitude }
+        let avgLat = totalLat / Double(assetsWithLocation.count)
+        let avgLng = totalLng / Double(assetsWithLocation.count)
+        
+        // Get location name for the center point
+        getLocationName(for: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLng), completion: completion)
     }
 }

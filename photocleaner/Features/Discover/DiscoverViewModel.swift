@@ -1,12 +1,18 @@
 import Foundation
 import SwiftUI
 import Photos
+import Combine
 
 class DiscoverViewModel: ObservableObject {
     // Services
     private let smartAlbumManager = SmartAlbumManager.shared
+    private let batchProcessor = BatchProcessingManager.shared
+    private let clusteringManager = PhotoClusteringManager.shared
     private var photoManager: PhotoManager
     var toast: ToastService?
+    
+    // Memory optimization
+    private let photoCache = OptimizedPhotoCache.shared
     
     // Published properties
     @Published var featuredAlbums: [SmartAlbumGroup] = []
@@ -14,7 +20,28 @@ class DiscoverViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isGenerating = false
     @Published var selectedAlbum: SmartAlbumGroup?
+    @Published var selectedGroup: PhotoGroup? // For SwipeCardView navigation
     @Published var showEmptyState = false
+    @Published var useFallbackMode = true // Use fallback mode to prevent black screens
+    @Published var forceRefresh: Bool = false // For SwipeCardView
+    
+    // Advanced clustering properties
+    @Published var isClusteringInProgress: Bool = false
+    @Published var clusteringProgress: Double = 0.0
+    @Published var photoGroups: [PhotoGroup] = []
+    
+    // Pagination properties
+    @Published var hasMoreAlbums: Bool = false
+    @Published var isLoadingMore: Bool = false
+    private var currentPage: Int = 1
+    private let albumsPerPage: Int = 10
+    
+    // Photo count statistics
+    @Published var totalPhotoCount: Int = 0
+    @Published var albumsInCategoriesCount: Int = 0
+    @Published var discoveredPhotoCount: Int = 0
+    @Published var batchProcessingProgress: Double = 0.0
+    @Published var isBatchProcessing: Bool = false
     
     // Computed property to access all smart albums
     var allSmartAlbums: [SmartAlbumGroup] {
@@ -45,61 +72,395 @@ class DiscoverViewModel: ObservableObject {
             return album.tags.contains { tag in peopleTags.contains { tag.lowercased().contains($0) } }
         },
         "Utilities": { (album: SmartAlbumGroup) -> Bool in
+            // Check if the album title already indicates it's a utility album
+            let utilityTitleIndicators = ["Screenshot", "Receipt", "Document", "QR Code", "Scan", "Duplicate"]
+            if utilityTitleIndicators.contains(where: { album.title.contains($0) }) {
+                return true
+            }
+            
+            // Check tags for utility indicators
             let utilityTags = ["receipt", "document", "text", "handwriting", "illustration", "drawing", 
                               "qr", "code", "scan", "duplicate", "screenshot", "import"]
             return album.tags.contains { tag in utilityTags.contains { tag.lowercased().contains($0) } }
         }
     ]
     
+    // MARK: - Initialization
+    
     init(photoManager: PhotoManager, toast: ToastService? = nil) {
         self.photoManager = photoManager
         self.toast = toast
+        
+        // Configure the clustering manager with the photo manager
+        clusteringManager.configure(with: photoManager)
+        
+        // Set up batch processing subscribers
+        setupBatchProcessingSubscribers()
+        
+        // Load albums with existing data first
         self.loadAlbums()
+    }
+    
+    private func setupBatchProcessingSubscribers() {
+        // Subscribe to batch processing progress updates
+        batchProcessor.progressPublisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] progress in
+                self?.batchProcessingProgress = Double(progress)
+            }
+            .store(in: &cancellables)
+        
+        // Subscribe to batch processing completion
+        batchProcessor.completionPublisher
+            .receive(on: RunLoop.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                Task { @MainActor in
+                    if case .failure(let error) = completion {
+                        self?.toast?.show("Error: \(error.localizedDescription)", duration: 3.0)
+                    }
+                    self?.isBatchProcessing = false
+                }
+            }, receiveValue: { [weak self] in
+                Task { @MainActor in
+                    self?.isBatchProcessing = false
+                    self?.loadAlbums()
+                    self?.toast?.show("Album generation complete!", duration: 2.0)
+                }
+            })
+            .store(in: &cancellables)
+    }
+    
+    // Cancellables for Combine subscriptions
+    private var cancellables = Set<AnyCancellable>()
+    
+    // Main actor isolation
+    @MainActor private func showToast(_ message: String, duration: TimeInterval = 1.5) {
+        toast?.show(message, duration: duration)
     }
     
     // MARK: - Public Methods
     
-    /// Load smart albums from the repository
+    /// Load smart albums from the repository with pagination support
     func loadAlbums(forceRefresh: Bool = false) {
+        // Reset pagination if it's a force refresh
+        if forceRefresh {
+            currentPage = 1
+            categorizedAlbums = [:]
+        }
+        
         isLoading = true
         
         // Show loading toast on main thread
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             self?.toast?.show("Refreshing albums...", duration: 1.5)
         }
         
         if forceRefresh {
-            // Perform a full refresh by regenerating albums
-            smartAlbumManager.refreshSmartAlbums(from: photoManager.allAssets) { [weak self] in
-                guard let self = self else { return }
-                
-                DispatchQueue.main.async {
-                    // Update UI after refresh
-                    self.featuredAlbums = self.smartAlbumManager.featuredAlbums
-                    self.categorizeAlbums(self.smartAlbumManager.allSmartAlbums)
-                    self.showEmptyState = self.smartAlbumManager.allSmartAlbums.isEmpty
-                    self.isLoading = false
+            // Check if we should use batch processing for large libraries
+            let assetCount = photoManager.allAssets.count
+            
+            if assetCount > 5000 { // Use batch processing for large libraries
+                startBatchProcessing()
+            } else { // Use regular processing for smaller libraries
+                // Perform a full refresh by regenerating albums
+                smartAlbumManager.refreshSmartAlbums(from: photoManager.allAssets) { [weak self] in
+                    guard let self = self else { return }
                     
-                    // Show completion toast
-                    self.toast?.show("Albums refreshed!", duration: 1.5)
+                    DispatchQueue.main.async {
+                        // Load first page of albums
+                        self.loadAlbumsPage(page: 1)
+                        self.updatePhotoCountStatistics()
+                        self.isLoading = false
+                        
+                        // Show completion toast
+                        self.toast?.show("Albums refreshed!", duration: 1.5)
+                    }
                 }
             }
         } else {
             // Just load existing albums from CoreData
             smartAlbumManager.loadSmartAlbums()
-            self.featuredAlbums = smartAlbumManager.featuredAlbums
             
-            // Categorize albums
-            categorizeAlbums(smartAlbumManager.allSmartAlbums)
+            // Load first page of albums
+            loadAlbumsPage(page: 1)
             
-            // Show empty state if needed
-            showEmptyState = smartAlbumManager.allSmartAlbums.isEmpty
+            // Update photo count statistics
+            updatePhotoCountStatistics()
             
             isLoading = false
             
             // Show completion toast with delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                self?.toast?.show("Albums refreshed!", duration: 1.5)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+                self?.toast?.show("Albums loaded!", duration: 1.5)
+            }
+        }
+    }
+    
+    /// Load more albums (next page)
+    func loadMoreAlbums() {
+        guard !isLoadingMore else { return }
+        
+        isLoadingMore = true
+        
+        Task { @MainActor [weak self] in
+            self?.toast?.show("Bringing back more days...", duration: 1.5)
+        }
+        
+        // First check if we need to generate more albums
+        let existingCount = smartAlbumManager.allSmartAlbums.count
+        let totalAssets = photoManager.allAssets.count
+        
+        // If we have lots of photos but few albums, generate more
+        if existingCount < 100 && totalAssets > existingCount * 50 {
+            // Generate more albums (batch of 20) from the photo library
+            isGenerating = true
+            
+            smartAlbumManager.generateSmartAlbums(from: photoManager.allAssets, limit: existingCount + 20) { [weak self] in
+                guard let self = self else { return }
+                
+                DispatchQueue.main.async {
+                    self.isGenerating = false
+                    self.currentPage += 1
+                    self.loadAlbumsPage(page: self.currentPage)
+                    self.isLoadingMore = false
+                    
+                    // Update photo count statistics
+                    self.updatePhotoCountStatistics()
+                }
+            }
+        } else {
+            // Just load the next page of existing albums
+            currentPage += 1
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self = self else { return }
+                self.loadAlbumsPage(page: self.currentPage)
+                self.isLoadingMore = false
+            }
+        }
+    }
+    
+    /// Process the entire photo library using advanced clustering
+    @MainActor
+    func processEntireLibrary() {
+        guard !isClusteringInProgress else {
+            toast?.show("Already processing photo library", duration: 1.5)
+            return
+        }
+        
+        isClusteringInProgress = true
+        clusteringProgress = 0.0
+        
+        // Show toast notification
+        toast?.show("Processing entire photo library...", duration: 2.0)
+        
+        // Set up a timer to update the UI with progress
+        let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                self.clusteringProgress = self.clusteringManager.progress
+            }
+        }
+        
+        // Start the clustering process
+        Task {
+            let photoGroups = await withCheckedContinuation { continuation in
+                clusteringManager.processEntireLibrary { groups in
+                    continuation.resume(returning: groups)
+                }
+            }
+            
+            // Stop the progress timer on the main thread
+            await MainActor.run {
+                progressTimer.invalidate()
+                self.photoGroups = photoGroups
+                self.isClusteringInProgress = false
+                self.clusteringProgress = 1.0
+                
+                // Show completion toast
+                self.toast?.show("Processed \(photoGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)
+                
+                // Update the UI with the new photo groups
+                self.updateUIWithPhotoGroups(photoGroups)
+            }
+        }
+    }
+    
+    /// Update the UI with the new photo groups
+    private func updateUIWithPhotoGroups(_ photoGroups: [PhotoGroup]) {
+        // Reset the current state
+        currentPage = 1
+        categorizedAlbums = [:]
+        featuredAlbums = []
+        
+        // Convert PhotoGroup objects to SmartAlbumGroup objects
+        var eventAlbums: [SmartAlbumGroup] = []
+        var utilityAlbums: [SmartAlbumGroup] = []
+        var systemAlbums: [SmartAlbumGroup] = []
+        
+        for group in photoGroups {
+            // Create a SmartAlbumGroup from the PhotoGroup
+            let smartAlbum = createSmartAlbumFromPhotoGroup(group)
+            
+            // Categorize the album based on its title
+            if group.title == "Utilities" || group.title == "Screenshots" || 
+               group.title == "Receipts" || group.title == "Documents" || 
+               group.title == "Whiteboards" || group.title == "QR Codes" {
+                utilityAlbums.append(smartAlbum)
+            } else if group.title == "Deleted" || group.title == "Saved" {
+                systemAlbums.append(smartAlbum)
+            } else {
+                eventAlbums.append(smartAlbum)
+            }
+        }
+        
+        // Update the categorized albums
+        if !eventAlbums.isEmpty {
+            categorizedAlbums["Events"] = eventAlbums
+        }
+        
+        if !utilityAlbums.isEmpty {
+            categorizedAlbums["Utilities"] = utilityAlbums
+        }
+        
+        if !systemAlbums.isEmpty {
+            categorizedAlbums["System"] = systemAlbums
+        }
+        
+        // Add an "All" category
+        let allAlbums = eventAlbums + utilityAlbums + systemAlbums
+        if !allAlbums.isEmpty {
+            categorizedAlbums["All"] = allAlbums
+        }
+        
+        // Set featured albums (top 5 by relevance score)
+        let sortedByScore = allAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
+        featuredAlbums = Array(sortedByScore.prefix(5))
+        
+        // Update empty state
+        showEmptyState = allAlbums.isEmpty
+        
+        // Update photo count statistics
+        updatePhotoCountStatistics()
+    }
+    
+    /// Create a SmartAlbumGroup from a PhotoGroup
+    private func createSmartAlbumFromPhotoGroup(_ photoGroup: PhotoGroup) -> SmartAlbumGroup {
+        // This is a simplified version - in a real implementation, we would
+        // create a proper SmartAlbumGroup with all the necessary properties
+        
+        // Create a new SmartAlbumGroup
+        let context = PersistenceController.shared.container.viewContext
+        let smartAlbum = SmartAlbumGroup(context: context)
+        
+        // Set properties
+        smartAlbum.id = photoGroup.id
+        smartAlbum.title = photoGroup.title
+        smartAlbum.createdAt = photoGroup.monthDate ?? Date()
+        smartAlbum.relevanceScore = Int32.random(in: 50...100) // Placeholder score between 50-100
+        
+        // Set asset identifiers
+        let assetIdentifiers = photoGroup.assets.map { $0.localIdentifier }
+        smartAlbum.assetIds = assetIdentifiers
+        
+        // Set tags based on the title
+        if photoGroup.title.contains("Morning") {
+            smartAlbum.tags = ["morning"]
+        } else if photoGroup.title.contains("Afternoon") {
+            smartAlbum.tags = ["afternoon"]
+        } else if photoGroup.title.contains("Evening") {
+            smartAlbum.tags = ["evening"]
+        } else if photoGroup.title.contains("Night") {
+            smartAlbum.tags = ["night"]
+        }
+        
+        return smartAlbum
+    }
+    
+    /// Load a specific page of albums
+    private func loadAlbumsPage(page: Int) {
+        // Reload albums from CoreData to ensure we have the latest data
+        smartAlbumManager.loadSmartAlbums()
+        
+        // Get all albums
+        let allAlbums = smartAlbumManager.allSmartAlbums
+        
+        // Calculate start and end indices for this page
+        let startIndex = (page - 1) * albumsPerPage
+        let endIndex = min(startIndex + albumsPerPage, allAlbums.count)
+        
+        // Check if there are more albums to load
+        hasMoreAlbums = endIndex < allAlbums.count || photoManager.allAssets.count > allAlbums.count * 10
+        
+        // If it's the first page, set featured albums
+        if page == 1 {
+            // Get top 5 albums for featured section
+            let sortedByScore = allAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
+            featuredAlbums = Array(sortedByScore.prefix(5))
+            showEmptyState = allAlbums.isEmpty
+            
+            // Reset categorized albums on first page
+            categorizedAlbums = [:]
+        }
+        
+        // Get albums for this page
+        let pageAlbums = allAlbums.count > startIndex ? Array(allAlbums[startIndex..<endIndex]) : []
+        
+        // Categorize the albums for this page
+        categorizeAlbumsForPage(pageAlbums)
+        
+        // Update photo count statistics after loading albums
+        updatePhotoCountStatistics()
+        
+        // Show toast with album count information
+        let totalAssets = photoManager.allAssets.count
+        let albumsInCategories = categorizedAlbums.values.flatMap { $0 }.count
+        
+        Task { @MainActor [weak self] in
+            self?.toast?.show("Loaded \(albumsInCategories) albums from \(totalAssets) photos", duration: 2.0)
+        }
+    }
+    
+    /// Start batch processing for large photo libraries
+    private func startBatchProcessing() {
+        guard !isBatchProcessing else { return }
+        
+        isBatchProcessing = true
+        batchProcessingProgress = 0
+        
+        // Clear caches before starting
+        photoCache.clearCache()
+        
+        // Show toast notification
+        Task { @MainActor in
+            toast?.show("Processing large photo library in batches...", duration: 3.0)
+        }
+        
+        // Start batch processing
+        batchProcessor.processPhotosInBatches(assets: photoManager.allAssets) { [weak self] in
+            guard let self = self else { return }
+            
+            // When batch processing completes, load the albums
+            DispatchQueue.main.async {
+                self.isLoading = false
+                self.smartAlbumManager.loadSmartAlbums()
+                self.featuredAlbums = self.smartAlbumManager.featuredAlbums
+                self.categorizeAlbumsForPage(self.smartAlbumManager.allSmartAlbums)
+                self.showEmptyState = self.smartAlbumManager.allSmartAlbums.isEmpty
+                self.updatePhotoCountStatistics()
+            }
+        }
+    }
+    
+    /// Cancel batch processing
+    func cancelBatchProcessing() {
+        if isBatchProcessing {
+            batchProcessor.cancelProcessing()
+            isBatchProcessing = false
+            isLoading = false
+            Task { @MainActor in
+                toast?.show("Processing cancelled", duration: 1.5)
             }
         }
     }
@@ -149,6 +510,26 @@ class DiscoverViewModel: ObservableObject {
         return album.fetchAssets()
     }
     
+    /// Select an album and prepare it for SwipeCardView
+    func selectAlbum(_ album: SmartAlbumGroup) {
+        // Set the selected album
+        self.selectedAlbum = album
+        
+        // Get assets for this album
+        let assets = album.fetchAssets()
+        
+        // Create a PhotoGroup from the SmartAlbumGroup
+        let photoGroup = PhotoGroup(
+            assets: assets,
+            title: album.title,
+            monthDate: nil,
+            lastViewedIndex: 0
+        )
+        
+        // Set the selected group for SwipeCardView
+        self.selectedGroup = photoGroup
+    }
+    
     /// Generate a beautiful title for an album using the AlbumTitleGenerator
     func generateBeautifulTitle(for album: SmartAlbumGroup) -> String {
         // Safely fetch assets
@@ -159,47 +540,43 @@ class DiscoverViewModel: ObservableObject {
             return "Photo Collection"
         }
         
-        // Define utility tags
-        let utilityTags = ["receipt", "document", "text", "handwriting", "illustration", "drawing", 
-                          "qr", "code", "scan", "duplicate", "screenshot", "import"]
+        // Define utility tags with clear categories
+        let utilityTags = [
+            "screenshot": "Screenshots",
+            "receipt": "Receipts",
+            "document": "Documents",
+            "text": "Text Documents",
+            "handwriting": "Handwritten Notes",
+            "illustration": "Illustrations",
+            "drawing": "Drawings",
+            "qr": "QR Codes",
+            "code": "Code Snippets",
+            "scan": "Scanned Items",
+            "duplicate": "Duplicates",
+            "import": "Imported Items"
+        ]
         
-        // Safely check if this is a utilities album based on tags
-        // Make sure we have tags before checking
+        // Check if this is a utilities album based on tags
         if !album.tags.isEmpty {
-            let isUtilityAlbum = album.tags.contains { tag in 
-                utilityTags.contains { utilityTag in 
-                    tag.lowercased().contains(utilityTag) 
+            // Find matching utility tags
+            var matchedUtilityTitle: String? = nil
+            
+            // Check for utility tags in album tags
+            for tag in album.tags {
+                for (utilityKey, utilityTitle) in utilityTags {
+                    if tag.lowercased().contains(utilityKey.lowercased()) {
+                        matchedUtilityTitle = utilityTitle
+                        break
+                    }
+                }
+                if matchedUtilityTitle != nil {
+                    break
                 }
             }
             
-            if isUtilityAlbum {
-                // For utility albums, generate a title based on the utility tags
-                let matchingTags = album.tags.filter { tag in 
-                    utilityTags.contains { utilityTag in 
-                        tag.lowercased().contains(utilityTag) 
-                    }
-                }
-                
-                if let primaryTag = matchingTags.first {
-                    // Safely capitalize the first letter of the tag
-                    let capitalizedTag: String
-                    if primaryTag.isEmpty {
-                        capitalizedTag = "Document"
-                    } else {
-                        capitalizedTag = primaryTag.prefix(1).capitalized + primaryTag.dropFirst()
-                    }
-                    
-                    // Generate a title based on the utility tag
-                    let utilityTitles = [
-                        "\(capitalizedTag) Collection",
-                        "\(capitalizedTag) Library",
-                        "My \(capitalizedTag)s",
-                        "Saved \(capitalizedTag)s",
-                        "\(capitalizedTag) Archive"
-                    ]
-                    
-                    return utilityTitles.randomElement() ?? "\(capitalizedTag) Collection"
-                }
+            // If we found a utility match, use the specific utility title
+            if let utilityTitle = matchedUtilityTitle {
+                return utilityTitle
             }
         }
         
@@ -210,12 +587,109 @@ class DiscoverViewModel: ObservableObject {
         // Determine predominant time of day
         let timeOfDay = extractTimeOfDay(from: assets)
         
-        // Generate the title
+        // Extract date for more specific title
+        let date = extractDateFromAssets(assets)
+        
+        // Extract dominant tags for more meaningful titles
+        let dominantTags = extractDominantTags(from: album.tags)
+        
+        // Generate a beautiful title with more specific information
         return AlbumTitleGenerator.generate(
             location: location,
             timeOfDay: timeOfDay,
-            photoCount: assets.count
+            photoCount: assets.count,
+            date: date,
+            tags: dominantTags
         )
+    }
+    
+    /// Extract a meaningful date string from assets
+    private func extractDateFromAssets(_ assets: [PHAsset]) -> String? {
+        // Safety check - only use for albums with recent photos (last 3 months)
+        guard let firstAsset = assets.first, 
+              let creationDate = firstAsset.creationDate,
+              creationDate > Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date() else {
+            return nil
+        }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .none
+        
+        return dateFormatter.string(from: creationDate)
+    }
+    
+    /// Extract the most meaningful tags from an album
+    private func extractDominantTags(from tags: [String]) -> [String] {
+        // Safety check - if there are no tags or too few, return empty array
+        guard !tags.isEmpty, tags.count >= 2 else {
+            return []
+        }
+        
+        // Define categories of meaningful tags
+        let meaningfulTagCategories = [
+            "event": ["wedding", "birthday", "party", "graduation", "concert", "festival"],
+            "activity": ["hiking", "swimming", "skiing", "biking", "running", "camping"],
+            "food": ["dinner", "lunch", "breakfast", "brunch", "coffee", "restaurant"],
+            "travel": ["vacation", "trip", "journey", "tour", "adventure"],
+            "people": ["family", "friends", "children", "baby", "group"]
+        ]
+        
+        var dominantTags: [String] = []
+        
+        // Find the most meaningful tags
+        for tag in tags {
+            for (_, categoryTags) in meaningfulTagCategories {
+                if categoryTags.contains(where: { tag.lowercased().contains($0) }) {
+                    dominantTags.append(tag)
+                    if dominantTags.count >= 2 {
+                        return dominantTags
+                    }
+                    break
+                }
+            }
+        }
+        
+        // If we couldn't find meaningful tags in our categories, just return the first two tags
+        if dominantTags.isEmpty && tags.count >= 2 {
+            return Array(tags.prefix(2))
+        }
+        
+        return dominantTags
+    }
+    
+    /// Update the photo count statistics
+    func updatePhotoCountStatistics() {
+        // Update total photo count from all assets
+        totalPhotoCount = photoManager.allAssets.count
+        
+        // Safety check - if there are no assets, set counts to 0
+        guard totalPhotoCount > 0 else {
+            discoveredPhotoCount = 0
+            return
+        }
+        
+        // Use a set to track unique asset IDs and prevent duplicates
+        var uniqueAssetIds = Set<String>()
+        
+        // Only count each photo once, even if it appears in multiple albums
+        for (categoryName, albumGroup) in categorizedAlbums {
+            // Skip the "All" category to prevent double-counting
+            if categoryName == "All" { continue }
+            
+            for album in albumGroup {
+                let assets = album.fetchAssets()
+                for asset in assets {
+                    uniqueAssetIds.insert(asset.localIdentifier)
+                }
+            }
+        }
+        
+        // Update discovered photo count with unique photos only
+        discoveredPhotoCount = uniqueAssetIds.count
+        
+        // Log the updated statistics
+        print("📊 Photo Statistics: \(discoveredPhotoCount) of \(totalPhotoCount) photos in albums")
     }
     
     /// Extract location name from assets
@@ -331,5 +805,28 @@ class DiscoverViewModel: ObservableObject {
         }
         
         self.categorizedAlbums = categorized
+    }
+    
+    /// Categorize albums for a specific page, preserving existing categories
+    private func categorizeAlbumsForPage(_ pageAlbums: [SmartAlbumGroup]) {
+        var categorized: [String: [SmartAlbumGroup]] = [:]
+        
+        // Group albums by category
+        for (categoryName, predicate) in categories {
+            let matchingAlbums = pageAlbums.filter(predicate)
+            if !matchingAlbums.isEmpty {
+                categorized[categoryName] = matchingAlbums
+            }
+        }
+        
+        // Add an "All" category if we have albums
+        if !pageAlbums.isEmpty {
+            categorized["All"] = pageAlbums
+        }
+        
+        self.categorizedAlbums = categorized
+        
+        // Update photo count statistics after categorization
+        updatePhotoCountStatistics()
     }
 } 

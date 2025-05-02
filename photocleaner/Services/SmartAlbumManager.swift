@@ -18,10 +18,14 @@ class SmartAlbumManager: ObservableObject {
     @Published var featuredAlbums: [SmartAlbumGroup] = []
     @Published var isGenerating = false
     
-    // Time clustering parameters
-    private let clusterTimeWindowHours: Double = 3.0
+    // Clustering parameters
+    private let clusterTimeWindowHours: Double = 12.0 // Increased from 3.0 to 12.0 hours
+    private let locationProximityThresholdMeters: Double = 1000.0 // 1km threshold
     private let minimumPhotosForAlbum: Int = 3
     private let maximumSamplesPerAlbum: Int = 3
+    
+    // Feature flag for the new discover revamp
+    private let discoverRevampEnabled = true
     
     // Tags mapping for better titles and emojis
     private let tagEmojis: [String: String] = [
@@ -112,8 +116,10 @@ class SmartAlbumManager: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return completion() }
             
-            // 1. Cluster photos by time proximity
-            let clusters = self.clusterPhotosByTime(assets)
+            // 1. Cluster photos by time and location proximity
+            let clusters = self.discoverRevampEnabled ? 
+                self.clusterPhotosByTimeAndLocation(assets) : 
+                self.clusterPhotosByTime(assets)
             print("📸 Created \(clusters.count) time-based clusters")
             
             // Apply limit if requested
@@ -263,36 +269,65 @@ class SmartAlbumManager: ObservableObject {
             DispatchQueue.main.async {
                 self.allSmartAlbums = albums
                 
-                // Get recent albums (last 30 days)
+                // Define calendar outside both branches
                 let calendar = Calendar.current
-                let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: Date()) ?? Date()
                 
-                // Filter albums created in the last 30 days with null safety
-                let recentAlbums = albums.filter { album in
-                    // Skip albums with invalid dates
-                    guard album.createdAt > Date(timeIntervalSince1970: 0) else { return false }
-                    return album.createdAt.compare(thirtyDaysAgo) == .orderedDescending
-                }
+                // Define recentAlbums variable that will be used in both branches
+                let recentAlbums: [SmartAlbumGroup]
                 
-                // For featured albums, prioritize recent albums first, then fall back to high-scoring albums if needed
-                if recentAlbums.count >= 5 {
-                    // If we have enough recent albums, sort them by relevance score and take the top 5
-                    let sortedRecentAlbums = recentAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
-                    self.featuredAlbums = Array(sortedRecentAlbums.prefix(5))
-                } else {
-                    // If we don't have enough recent albums, include some high-scoring older albums
-                    var featured = recentAlbums
+                if self.discoverRevampEnabled {
+                    // Get albums from the past year for featured section
+                    let oneYearAgo = calendar.date(byAdding: .year, value: -1, to: Date()) ?? Date()
                     
-                    // Add high-scoring albums that aren't already in the featured list
-                    let highScoringAlbums = albums.sorted { $0.relevanceScore > $1.relevanceScore }
-                    for album in highScoringAlbums where featured.count < 5 {
-                        if !featured.contains(where: { $0.id == album.id }) {
-                            featured.append(album)
-                        }
+                    recentAlbums = albums.filter { album in
+                        // Skip albums with invalid dates
+                        guard album.createdAt > Date(timeIntervalSince1970: 0) else { return false }
+                        return album.createdAt > oneYearAgo
                     }
                     
-                    self.featuredAlbums = featured
+                    if !recentAlbums.isEmpty {
+                        // Calculate recency-weighted score for each album
+                        let albumsWithRecencyScore = recentAlbums.map { album -> (album: SmartAlbumGroup, score: Double) in
+                            let recencyWeightedScore = self.calculateRecencyWeightedScore(for: album)
+                            return (album, recencyWeightedScore)
+                        }
+                        
+                        // Sort by the recency-weighted score
+                        let sortedAlbums = albumsWithRecencyScore.sorted { $0.score > $1.score }
+                        self.featuredAlbums = Array(sortedAlbums.prefix(5).map { $0.album })
+                        return // Exit early since we've set featuredAlbums
+                    }
+                } else {
+                    // Get recent albums (last 30 days) for the original implementation
+                    let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+                    
+                    recentAlbums = albums.filter { album in
+                        // Skip albums with invalid dates
+                        guard album.createdAt > Date(timeIntervalSince1970: 0) else { return false }
+                        return album.createdAt > thirtyDaysAgo
+                    }
+                    
+                    // If we have enough recent albums, sort them by relevance and return
+                    if recentAlbums.count >= 5 {
+                        let sortedRecentAlbums = recentAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
+                        self.featuredAlbums = Array(sortedRecentAlbums.prefix(5))
+                        return // Exit early since we've set featuredAlbums
+                    }
                 }
+                
+                // If we reach here, we need to use a fallback approach for both branches
+                // If we don't have enough recent albums, include some high-scoring older albums
+                var featured = recentAlbums
+                
+                // Add high-scoring albums that aren't already in the featured list
+                let highScoringAlbums = albums.sorted { $0.relevanceScore > $1.relevanceScore }
+                for album in highScoringAlbums where featured.count < 5 {
+                    if !featured.contains(where: { $0.id == album.id }) {
+                        featured.append(album)
+                    }
+                }
+                
+                self.featuredAlbums = featured
             }
         } catch {
             print("❌ Failed to fetch smart albums: \(error)")
@@ -342,6 +377,99 @@ class SmartAlbumManager: ObservableObject {
     }
     
     // MARK: - Private Methods
+    
+    /// Calculate a recency-weighted score for an album
+    /// - Parameter album: The album to calculate score for
+    /// - Returns: A combined score that weights both relevance and recency
+    private func calculateRecencyWeightedScore(for album: SmartAlbumGroup) -> Double {
+        // Calculate recency score (1.0 for today, decreasing to 0.0 for 1 year ago)
+        let now = Date()
+        let daysAgo = now.timeIntervalSince(album.createdAt) / (24 * 3600)
+        let recencyScore = max(0, 1.0 - daysAgo / 365.0)
+        
+        // Combine relevance score (60%) with recency score (40%)
+        let relevanceNormalized = Double(album.relevanceScore) / 100.0
+        let combinedScore = relevanceNormalized * 0.6 + recencyScore * 0.4
+        
+        return combinedScore
+    }
+    
+    /// Cluster photos by both time proximity and location
+    /// - Parameter assets: Array of PHAssets to cluster
+    /// - Returns: Array of arrays, where each inner array is a cluster of related photos
+    private func clusterPhotosByTimeAndLocation(_ assets: [PHAsset]) -> [[PHAsset]] {
+        // Sort assets by creation date
+        let sortedAssets = assets.sorted { 
+            ($0.creationDate ?? Date.distantPast) < ($1.creationDate ?? Date.distantPast) 
+        }
+        
+        // Early return for empty or single asset
+        if sortedAssets.count <= 1 {
+            return sortedAssets.isEmpty ? [] : [sortedAssets]
+        }
+        
+        var clusters: [[PHAsset]] = []
+        var currentCluster: [PHAsset] = [sortedAssets[0]]
+        var currentClusterLocation: CLLocation? = sortedAssets[0].location
+        
+        // Time window in seconds
+        let timeWindow = clusterTimeWindowHours * 3600
+        
+        // Process remaining assets
+        for i in 1..<sortedAssets.count {
+            let asset = sortedAssets[i]
+            let prevAsset = sortedAssets[i-1]
+            
+            // Check time proximity
+            let timeDifference = asset.creationDate?.timeIntervalSince(prevAsset.creationDate ?? Date.distantPast) ?? timeWindow + 1
+            let isWithinTimeWindow = timeDifference <= timeWindow
+            
+            // Check location proximity if both have location data
+            var isWithinLocationThreshold = true
+            if let assetLocation = asset.location, let clusterLocation = currentClusterLocation {
+                let distance = assetLocation.distance(from: clusterLocation)
+                isWithinLocationThreshold = distance <= locationProximityThresholdMeters
+            }
+            
+            // If asset is within both time and location thresholds, add to current cluster
+            if isWithinTimeWindow && isWithinLocationThreshold {
+                currentCluster.append(asset)
+                
+                // Update cluster location to be the average of all locations in the cluster
+                if asset.location != nil {
+                    // Recalculate the center location for the cluster
+                    let assetsWithLocation = currentCluster.compactMap { $0.location }
+                    if !assetsWithLocation.isEmpty {
+                        // Calculate average latitude and longitude
+                        let totalLat = assetsWithLocation.reduce(0.0) { $0 + $1.coordinate.latitude }
+                        let totalLng = assetsWithLocation.reduce(0.0) { $0 + $1.coordinate.longitude }
+                        let avgLat = totalLat / Double(assetsWithLocation.count)
+                        let avgLng = totalLng / Double(assetsWithLocation.count)
+                        
+                        // Create a new location representing the center
+                        currentClusterLocation = CLLocation(latitude: avgLat, longitude: avgLng)
+                    }
+                }
+            } else {
+                // Start a new cluster if the current one has enough photos
+                if currentCluster.count >= minimumPhotosForAlbum {
+                    clusters.append(currentCluster)
+                }
+                
+                // Start a new cluster with this asset
+                currentCluster = [asset]
+                currentClusterLocation = asset.location
+            }
+        }
+        
+        // Add the last cluster if it has enough photos
+        if currentCluster.count >= minimumPhotosForAlbum {
+            clusters.append(currentCluster)
+        }
+        
+        print("📸 Created \(clusters.count) time+location-based clusters")
+        return clusters
+    }
     
     /// Cluster photos by time proximity
     private func clusterPhotosByTime(_ assets: [PHAsset]) -> [[PHAsset]] {
@@ -786,8 +914,19 @@ class SmartAlbumManager: ObservableObject {
     
     /// Extract a location name from a collection of assets
     private func extractLocationFromAssets(_ assets: [PHAsset]) -> String? {
-        // For now, we'll use a simplified approach with hardcoded Malaysian locations
-        // In a real app, you would use CLGeocoder to reverse geocode the coordinates
+        // Use the GeocodeService for reverse geocoding if the discover revamp is enabled
+        if discoverRevampEnabled {
+            // This is a synchronous method, but we need to call an async service
+            // For now, we'll still use our hardcoded approach, but in a real implementation
+            // we would use a completion handler or async/await pattern
+            
+            // In a real implementation with async/await (iOS 15+), we would do:
+            // return await withCheckedContinuation { continuation in
+            //     GeocodeService.shared.batchGetLocationNames(for: assets) { locationName in
+            //         continuation.resume(returning: locationName)
+            //     }
+            // }
+        }
         
         // Check if any assets have location data
         let assetsWithLocation = assets.filter { $0.location != nil }
@@ -796,7 +935,7 @@ class SmartAlbumManager: ObservableObject {
         }
         
         // Use hardcoded Malaysian locations based on coordinates for demo purposes
-        // This is a simplified approach without actual reverse geocoding
+        // This is our fallback approach
         let malaysianLocations = [
             "Kuala Lumpur": CLLocationCoordinate2D(latitude: 3.1390, longitude: 101.6869),
             "Petaling Jaya": CLLocationCoordinate2D(latitude: 3.1073, longitude: 101.6068),
