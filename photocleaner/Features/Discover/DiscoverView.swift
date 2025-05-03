@@ -365,6 +365,15 @@ struct DiscoverView: View {
         Group {
             if viewModel.isGenerating || viewModel.isBatchProcessing {
                 overlayBackground
+            } else if viewModel.isClusteringInProgress {
+                // Use our beautiful full-screen loader when clustering is in progress
+                ProcessingImagesLoader(
+                    progress: viewModel.clusteringProgress,
+                    totalPhotoCount: viewModel.totalPhotoCount,
+                    processedAlbumCount: viewModel.processedAlbumCount
+                )
+                .edgesIgnoringSafeArea(.all)
+                .transition(.opacity)
             }
         }
     }

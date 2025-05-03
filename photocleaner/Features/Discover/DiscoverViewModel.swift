@@ -29,6 +29,7 @@ class DiscoverViewModel: ObservableObject {
     @Published var isClusteringInProgress: Bool = false
     @Published var clusteringProgress: Double = 0.0
     @Published var photoGroups: [PhotoGroup] = []
+    @Published var processedAlbumCount: Int = 0 // Track the number of processed albums
     
     // Pagination properties
     @Published var hasMoreAlbums: Bool = false
@@ -264,6 +265,7 @@ class DiscoverViewModel: ObservableObject {
         
         isClusteringInProgress = true
         clusteringProgress = 0.0
+        processedAlbumCount = 0 // Reset processed album count
         
         // Show toast notification
         toast?.show("Processing photo library by time and location...", duration: 2.0)
@@ -272,6 +274,12 @@ class DiscoverViewModel: ObservableObject {
         let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.clusteringProgress = self.clusteringManager.progress
+            
+            // Estimate processed album count based on progress
+            let estimatedAlbumCount = Int(self.clusteringProgress * 20)
+            if estimatedAlbumCount > self.processedAlbumCount {
+                self.processedAlbumCount = estimatedAlbumCount
+            }
         }
         
         do {
@@ -287,6 +295,7 @@ class DiscoverViewModel: ObservableObject {
             self.photoGroups = photoGroups
             self.isClusteringInProgress = false
             self.clusteringProgress = 1.0
+            self.processedAlbumCount = photoGroups.count // Set actual count
             
             // Set flag to indicate we have clustering results
             self.hasClusteringResults = true
@@ -301,6 +310,7 @@ class DiscoverViewModel: ObservableObject {
             progressTimer.invalidate()
             self.isClusteringInProgress = false
             self.clusteringProgress = 0
+            self.processedAlbumCount = 0
             
             // Show error message
             self.toast?.show("Error processing photo library: \(error.localizedDescription)", duration: 3.0)
