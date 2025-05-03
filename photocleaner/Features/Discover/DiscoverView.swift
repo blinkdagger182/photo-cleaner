@@ -207,78 +207,107 @@ struct DiscoverView: View {
     // Category view with album grid
     private func categoryView(title: String, albums: [SmartAlbumGroup]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.title3)
-                        .fontWeight(.bold)
-                    
-                    // Simplified description for Events category - we only use time and location now
-                    if title == "Events" {
-                        Text("Smart clustering based on time and location")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            // Category header with collapsible button
+            Button(action: {
+                viewModel.toggleCategoryCollapse(title)
+            }) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(title)
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                            
+                            Image(systemName: viewModel.isCategoryCollapsed(title) ? "chevron.right" : "chevron.down")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .animation(.easeInOut, value: viewModel.isCategoryCollapsed(title))
+                                .padding(.leading, 2)
+                        }
+                        
+                        // Simplified description for Events category - we only use time and location now
+                        if title == "Events" {
+                            Text("Smart clustering based on time and location")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
-                }
-                
-                Spacer()
-                
-                // Add sort button only for Events category
-                if title == "Events" {
-                    Menu {
-                        ForEach(DiscoverViewModel.EventSortOption.allCases) { option in
-                            Button(action: {
-                                viewModel.setEventSortOption(option)
-                            }) {
-                                HStack {
-                                    Text(option.rawValue)
-                                    if viewModel.eventsSortOption == option {
-                                        Image(systemName: "checkmark")
+                    
+                    Spacer()
+                    
+                    // Add sort button only for Events category
+                    if title == "Events" {
+                        Menu {
+                            ForEach(DiscoverViewModel.EventSortOption.allCases) { option in
+                                Button(action: {
+                                    viewModel.setEventSortOption(option)
+                                }) {
+                                    HStack {
+                                        Text(option.rawValue)
+                                        if viewModel.eventsSortOption == option {
+                                            Image(systemName: "checkmark")
+                                        }
                                     }
                                 }
                             }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            if viewModel.isSortingEvents {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                                    .scaleEffect(0.7)
-                                    .padding(.trailing, 4)
+                        } label: {
+                            HStack(spacing: 4) {
+                                if viewModel.isSortingEvents {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                        .scaleEffect(0.7)
+                                        .padding(.trailing, 4)
+                                }
+                                
+                                Text(viewModel.eventsSortOption.rawValue)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.caption)
                             }
-                            
-                            Text(viewModel.eventsSortOption.rawValue)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                            
-                            Image(systemName: "arrow.up.arrow.down")
-                                .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color(.systemGray5))
+                            .cornerRadius(8)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(Color(.systemGray5))
-                        .cornerRadius(8)
+                        .disabled(viewModel.isSortingEvents)
                     }
-                    .disabled(viewModel.isSortingEvents)
                 }
             }
+            .buttonStyle(PlainButtonStyle())
             .padding(.horizontal)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .background(Color(.systemBackground).opacity(0.01)) // Make entire area tappable
             
-            Spacer()
-            // Use fallback implementation
-            ZStack {
-                FallbackAlbumGrid(albums: albums) { album in
-                    viewModel.selectAlbum(album)
+            // Divider line
+            if !viewModel.isCategoryCollapsed(title) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.15))
+                    .frame(height: 1)
+                    .padding(.horizontal)
+            }
+            
+            // Album grid content - only shown if category is not collapsed
+            if !viewModel.isCategoryCollapsed(title) {
+                // Use fallback implementation
+                ZStack {
+                    FallbackAlbumGrid(albums: albums) { album in
+                        viewModel.selectAlbum(album)
+                    }
+                    
+                    if title == "Events" && viewModel.isSortingEvents && albums.isEmpty {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                    }
                 }
-                // .frame(height: CGFloat(ceil(Double(albums.count) / 2.0) * 180))
-                
-                if title == "Events" && viewModel.isSortingEvents && albums.isEmpty {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                }
+                .padding(.top, 6) // Add small top padding to separate from divider
             }
         }
-        .padding(.bottom, 2)
+        .padding(.vertical, 6) // Add consistent vertical padding
+        .animation(.easeInOut(duration: 0.25), value: viewModel.isCategoryCollapsed(title))
     }
     
     // Empty state view

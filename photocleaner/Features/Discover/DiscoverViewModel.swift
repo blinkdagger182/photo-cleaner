@@ -53,6 +53,9 @@ class DiscoverViewModel: ObservableObject {
     @Published var featuredSortByMostPhotos: Bool = true
     @Published var isSortingFeatured: Bool = false
     
+    // Collapsible categories tracking
+    @Published var collapsedCategories: Set<String> = []
+    
     // Flag to indicate if we have clustering results available - Always true now
     @Published var hasClusteringResults: Bool = true
     
@@ -178,6 +181,20 @@ class DiscoverViewModel: ObservableObject {
     }
     
     // MARK: - Public Methods
+    
+    /// Toggles the collapse state of a category
+    func toggleCategoryCollapse(_ category: String) {
+        if collapsedCategories.contains(category) {
+            collapsedCategories.remove(category)
+        } else {
+            collapsedCategories.insert(category)
+        }
+    }
+    
+    /// Checks if a category is collapsed
+    func isCategoryCollapsed(_ category: String) -> Bool {
+        return collapsedCategories.contains(category)
+    }
     
     /// Load smart albums from the repository with pagination support
     /// This method is now commented out as we're using only clustering-based albums

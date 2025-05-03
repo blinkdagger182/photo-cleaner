@@ -199,58 +199,6 @@ struct ProcessingImagesLoader: View {
     
     // MARK: - Methods
     
-    /// Starts the image transitions with dynamic timing
-    private func startImageTransitions() {
-        // Cancel any existing task
-        transitionTask?.cancel()
-        
-        // Start with fade-in
-        withAnimation(.easeIn(duration: transitionDuration)) {
-            opacity = 1.0
-        }
-        
-        // Create a new task for transitions
-        transitionTask = Task {
-            // Continue until the task is cancelled
-            while !Task.isCancelled && !images.isEmpty {
-                // Random delay between transitions (0.3-2.0 seconds)
-                let delay = Int.random(in: 1...10) <= 8 
-                    ? Double.random(in: 0.3...0.7)  // 80% quick transitions
-                    : Double.random(in: 1.0...2.0)  // 20% longer pauses
-                
-                try? await Task.sleep(for: .seconds(delay))
-                
-                // Exit if task was cancelled during sleep
-                if Task.isCancelled { break }
-                
-                // Transition to next image with crossfade
-                await transitionToNextImage()
-            }
-        }
-    }
-    
-    /// Transitions to the next image with animation
-    @MainActor
-    private func transitionToNextImage() async {
-        guard images.count > 1 else { return }
-        
-        // Fade out current image
-        withAnimation(.easeOut(duration: transitionDuration)) {
-            opacity = 0
-        }
-        
-        // Wait for fade-out to complete
-        try? await Task.sleep(for: .seconds(transitionDuration))
-        
-        // Move to next image
-        currentImageIndex = (currentImageIndex + 1) % images.count
-        
-        // Fade in new image
-        withAnimation(.easeIn(duration: transitionDuration)) {
-            opacity = 1.0
-        }
-    }
-    
     /// Loads sample images from the photo library
     private func loadImages() {
         // Cancel any existing task
@@ -317,8 +265,63 @@ struct ProcessingImagesLoader: View {
         let loadTasks = 3
         var tasks: [Task<Void, Error>] = []
         
+        // First task - load a batch of images quickly 
+        let firstBatchTask = Task {
+            // Set up fetch options for recent photos
+            let recentFetchOptions = PHFetchOptions()
+            recentFetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            recentFetchOptions.fetchLimit = 10 // Get first 10 recent photos
+            
+            let recentAssets = PHAsset.fetchAssets(with: .image, options: recentFetchOptions)
+            let count = recentAssets.count
+            
+            if count > 0 {
+                // Fast image request options for initial batch
+                let fastOptions = PHImageRequestOptions()
+                fastOptions.deliveryMode = .opportunistic // Will deliver fast version first
+                fastOptions.resizeMode = .fast
+                fastOptions.isNetworkAccessAllowed = true
+                
+                // Process the first 3-5 images quickly
+                let initialBatchSize = min(5, count)
+                for i in 0..<initialBatchSize {
+                    // Check if task is cancelled
+                    try Task.checkCancellation()
+                    
+                    let asset = recentAssets.object(at: i)
+                    
+                    if let image = try await loadFastImageFromAsset(asset) {
+                        await manager.addImage(image)
+                        
+                        // After each of the first few images is loaded, update UI immediately
+                        let currentBatch = await manager.getImages()
+                        await MainActor.run {
+                            self.images = currentBatch
+                            
+                            // Make images visible and start slideshow as soon as we have the first image
+                            if self.images.count == 1 {
+                                self.opacity = 1.0
+                                self.isLoading = false
+                            }
+                        }
+                        
+                        // Brief pause between loads to allow UI to update
+                        if i < 2 { // Only for first couple of images
+                            try await Task.sleep(for: .milliseconds(100))
+                        }
+                    }
+                }
+            }
+        }
+        
+        tasks.append(firstBatchTask)
+        
+        // Regular tasks to load more diverse images
         for taskIndex in 0..<loadTasks {
             let task = Task {
+                // Allow first batch task to get a head start
+                try await Task.sleep(for: .milliseconds(300))
+                
                 // Set up fetch options
                 let fetchOptions = PHFetchOptions()
                 
@@ -385,18 +388,15 @@ struct ProcessingImagesLoader: View {
                         // Add to our collection
                         await manager.addImage(image)
                         
-                        // Update UI immediately with the first few images
+                        // Update UI occasionally as we load more images
                         processedCount += 1
                         
-                        if processedCount <= 3 {
-                            // Get current images and update UI
+                        if processedCount % 3 == 0 {
+                            // Update the UI periodically with more images
                             let currentImages = await manager.getImages()
                             await MainActor.run {
                                 self.images = currentImages
-                                if self.images.count == 1 {
-                                    // Make first image visible immediately
-                                    self.opacity = 1.0
-                                }
+                                self.isLoading = false
                             }
                         }
                     }
@@ -438,6 +438,37 @@ struct ProcessingImagesLoader: View {
                 task.cancel()
             }
             throw error
+        }
+    }
+    
+    /// Loads a fast version of an image - optimized for quick display
+    private func loadFastImageFromAsset(_ asset: PHAsset) async throws -> UIImage? {
+        try await withCheckedThrowingContinuation { continuation in
+            // Use a medium size for faster loading but still good quality
+            let targetSize = CGSize(width: 600, height: 600)
+            
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .fastFormat
+            options.resizeMode = .fast
+            options.isNetworkAccessAllowed = true
+            
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: targetSize,
+                contentMode: .aspectFill,
+                options: options
+            ) { image, info in
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                
+                if let image = image {
+                    continuation.resume(returning: image)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
         }
     }
     
@@ -506,6 +537,67 @@ struct ProcessingImagesLoader: View {
         }
         
         return fallbackImages
+    }
+    
+    /// Starts the image transitions with dynamic timing
+    private func startImageTransitions() {
+        // Cancel any existing task
+        transitionTask?.cancel()
+        
+        // Start with fade-in for first image
+        withAnimation(.easeIn(duration: transitionDuration)) {
+            opacity = 1.0
+        }
+        
+        // Create a new task for transitions
+        transitionTask = Task {
+            // Short delay before starting slideshow to let first image load
+            try? await Task.sleep(for: .seconds(0.5))
+            
+            // Continue until the task is cancelled
+            while !Task.isCancelled {
+                // Wait for at least 2 images before starting transitions
+                if images.count < 2 {
+                    try? await Task.sleep(for: .seconds(0.5))
+                    continue
+                }
+                
+                // Random delay between transitions
+                let delay = Int.random(in: 1...10) <= 8 
+                    ? Double.random(in: 0.3...0.7)  // 80% quick transitions
+                    : Double.random(in: 1.0...2.0)  // 20% longer pauses
+                
+                try? await Task.sleep(for: .seconds(delay))
+                
+                // Exit if task was cancelled during sleep
+                if Task.isCancelled { break }
+                
+                // Transition to next image with crossfade
+                await transitionToNextImage()
+            }
+        }
+    }
+    
+    /// Transitions to the next image with animation
+    @MainActor
+    private func transitionToNextImage() async {
+        guard images.count > 1 else { return }
+        
+        // Fade out current image
+        withAnimation(.easeOut(duration: transitionDuration)) {
+            opacity = 0
+        }
+        
+        // Wait for fade-out to complete
+        try? await Task.sleep(for: .seconds(transitionDuration))
+        
+        // Move to next image
+        currentImageIndex = (currentImageIndex + 1) % images.count
+        
+        // Fade in new image
+        withAnimation(.easeIn(duration: transitionDuration)) {
+            opacity = 1.0
+        }
     }
 }
 
