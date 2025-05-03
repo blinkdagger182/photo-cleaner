@@ -17,13 +17,13 @@ class SwipeCardViewModel: ObservableObject {
     @Published var showDeletePreview = false
     @Published var showRCPaywall = false
     @Published var isSharing = false
+    @Published var discoverSwipeTracker: DiscoverSwipeTracker? = nil
     
     // MARK: - Internal Properties
     private let group: PhotoGroup
     var photoManager: PhotoManager!
     var toast: ToastService!
     var imageViewTracker: ImageViewTracker?
-    var discoverSwipeTracker: DiscoverSwipeTracker?
     var isDiscoverTab: Bool = false
     private var hasStartedLoading = false
     private var viewHasAppeared = false
@@ -72,6 +72,11 @@ class SwipeCardViewModel: ObservableObject {
         guard photoManager != nil, toast != nil else {
             print("Warning: photoManager or toast not set before onAppear")
             return
+        }
+        
+        // Initialize discoverSwipeTracker if this is the discover tab
+        if isDiscoverTab && discoverSwipeTracker == nil {
+            discoverSwipeTracker = DiscoverSwipeTracker.shared
         }
         
         viewHasAppeared = true
@@ -302,8 +307,16 @@ class SwipeCardViewModel: ObservableObject {
             imageViewTracker?.incrementViewCount()
             
             // Track swipe count specifically for Discover tab paywall
-            if isDiscoverTab {
+            if isDiscoverTab && !SubscriptionManager.shared.isPremium {
+                // Make sure we have a reference to the tracker
+                if discoverSwipeTracker == nil {
+                    discoverSwipeTracker = DiscoverSwipeTracker.shared
+                }
+                
+                // Increment the swipe count
                 discoverSwipeTracker?.incrementSwipeCount()
+                
+                // Check if we should show the paywall
                 showRCPaywall = discoverSwipeTracker?.showRCPaywall ?? false
             }
         }
@@ -555,7 +568,7 @@ class SwipeCardViewModel: ObservableObject {
             imageViewTracker?.incrementViewCount()
             
             // Track swipe count specifically for Discover tab paywall
-            if isDiscoverTab {
+            if isDiscoverTab && !SubscriptionManager.shared.isPremium {
                 discoverSwipeTracker?.incrementSwipeCount()
                 showRCPaywall = discoverSwipeTracker?.showRCPaywall ?? false
             }
@@ -1098,6 +1111,15 @@ class SwipeCardViewModel: ObservableObject {
     
     /// Shares the current image in original quality with a promotional link
     func shareCurrentImage() {
+        // Check if user has premium subscription
+        if !SubscriptionManager.shared.isPremium {
+            // Show the paywall after a short delay
+            DispatchQueue.main.asyncAfter(deadline: .now()) {
+                self.showRCPaywall = true
+            }
+            return
+        }
+        
         guard let asset = group.asset(at: currentIndex) else {
             toast?.show("Unable to share this image", duration: 2.0)
             return

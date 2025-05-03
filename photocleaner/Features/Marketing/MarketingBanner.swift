@@ -94,9 +94,8 @@ struct PremiumAlertBanner: View {
             Button(action: {
                 onDismiss() // First dismiss the banner
                 onTap() // Then go to discover tab
-                showPaywall = true // Show the paywall
             }) {
-                Text("Unlock cln+")
+                Text("View Collections")
                     .font(.headline)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 14)

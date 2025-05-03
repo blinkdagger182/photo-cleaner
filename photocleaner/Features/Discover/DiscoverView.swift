@@ -28,9 +28,10 @@ struct DiscoverView: View {
             }
         }
         .sheet(item: $viewModel.selectedGroup) { group in
-            SwipeCardView(group: group, forceRefresh: $viewModel.forceRefresh)
+            SwipeCardView(group: group, forceRefresh: $viewModel.forceRefresh, isDiscoverTab: true)
                 .environmentObject(photoManager)
                 .environmentObject(toast)
+                .environmentObject(SubscriptionManager.shared)
         }
     }
     

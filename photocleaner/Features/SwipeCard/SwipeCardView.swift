@@ -331,14 +331,26 @@ struct SwipeCardView: View {
                                     .scaleEffect(0.7)
                                     .tint(.primary)
                             } else {
-                                Image(systemName: "square.and.arrow.up")
-                                    .foregroundColor(.primary)
+                                let isPremium = subscriptionManager.isPremium
+
+                                if isPremium {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .foregroundColor(.blue)
+                                } else {
+                                    Image("share_locked")
+                                        .resizable()
+                                        .renderingMode(.template)
+                                        .scaledToFit()
+                                        .frame(width: 36, height: 36)
+                                }
                             }
                         }
                         .padding(.vertical, 6)
                         .padding(.horizontal, 10)
                         .background(Color(.systemGroupedBackground).opacity(0.8))
                         .cornerRadius(8)
+                        .contentShape(Rectangle()) // Makes the entire area tappable
+                        .buttonStyle(.plain)
                     }
                     .disabled(viewModel.isSharing)
                 }
@@ -444,13 +456,6 @@ struct SwipeCardView: View {
         .fullScreenCover(isPresented: $viewModel.showRCPaywall) {
             PaywallView()
                 .environmentObject(subscriptionManager)
-        }
-        .onChange(of: ImageViewTracker.shared.shouldShowPaywall) { shouldShow in
-            if shouldShow && !subscriptionManager.isPremium {
-                showPaywall = true
-                // Reset the flag after showing the paywall
-                ImageViewTracker.shared.shouldShowPaywall = false
-            }
         }
     }
 
