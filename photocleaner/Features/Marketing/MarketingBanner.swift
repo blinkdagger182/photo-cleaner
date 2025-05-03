@@ -6,6 +6,7 @@ struct MarketingBanner: View {
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
+
             Button(action: onTap) {
                 HStack(spacing: 16) {
                 // Logo/Icon section
@@ -41,22 +42,17 @@ struct MarketingBanner: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(red: 0.15, green: 0.08, blue: 0.4))
-                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                Image("gradient-background")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .frame(maxWidth: .infinity, maxHeight: 70)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
             )
             .padding(.horizontal, 16)
             }
             .buttonStyle(ScaleButtonStyle())
-            
-            // Dismiss button
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(.white.opacity(0.7))
-                    .background(Color.clear)
-            }
-            .padding(12)
         }
     }
 }
@@ -81,4 +77,44 @@ struct MarketingBanner: View {
         Spacer()
     }
     .background(Color.gray.opacity(0.2))
+}
+
+struct PremiumAlertBanner: View {
+    var onTap: () -> Void
+    var onDismiss: () -> Void
+    @Binding var showPaywall: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image("premium_alert_banner") // Add the image to Assets
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity)
+
+            Button(action: {
+                onDismiss() // First dismiss the banner
+                onTap() // Then go to discover tab
+                showPaywall = true // Show the paywall
+            }) {
+                Text("Unlock cln+")
+                    .font(.headline)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(Color.mint)
+                    .foregroundColor(.black)
+                    .cornerRadius(20)
+            }
+
+            Button(action: onDismiss) {
+                Text("Maybe later")
+                    .font(.footnote)
+                    .foregroundColor(.gray)
+                    .padding(.bottom, 4)
+            }
+        }
+        .background(Color.white.opacity(0.9))
+        .cornerRadius(24)
+        .padding()
+        .shadow(radius: 8)
+    }
 }

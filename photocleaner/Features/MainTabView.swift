@@ -1,4 +1,5 @@
 import SwiftUI
+import RevenueCat
 
 struct MainTabView: View {
     // Environment objects
@@ -10,8 +11,16 @@ struct MainTabView: View {
     @State private var currentTab = 0
     @State private var showMarketingBanner = true
     
+    // Paywall state
+    @State private var showPaywall = false
+    @State private var currentOffering: Offering?
+    @State private var isLoadingOffering = false
+    
     // UserDefaults key for banner visibility
     private let marketingBannerKey = "hasHiddenMarketingBanner"
+    @State private var showPremiumAlertBanner = false
+
+    private let premiumAlertDismissKey = "lastDismissedPremiumAlert"
     
     // For swipe gesture navigation
     @State private var dragOffset: CGFloat = 0
@@ -19,10 +28,10 @@ struct MainTabView: View {
     
     // Tab titles
     private let tabs = ["Library", "Discover"]
-    
+
     // For matched geometry effect
     @Namespace private var namespace
-    
+
     var body: some View {
         // Check if user has previously dismissed the banner
         let hasHiddenBanner = UserDefaults.standard.bool(forKey: marketingBannerKey)
@@ -111,7 +120,7 @@ struct MainTabView: View {
             
             // Marketing banner that appears only on the Library tab
             // and only for non-subscribed users who haven't dismissed it
-            if currentTab == 0 && showMarketingBanner && !subscriptionManager.isPremium && !hasHiddenBanner {
+            if currentTab == 0 && showMarketingBanner && !subscriptionManager.isPremium && !hasHiddenBanner && !showPremiumAlertBanner{ 
                 MarketingBanner {
                     // Switch to Discover tab when banner is tapped
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -130,5 +139,84 @@ struct MainTabView: View {
                 .zIndex(1) // Ensure banner appears above tab content
             }
         }
+        .onAppear {
+            showPremiumAlertBanner = shouldShowPremiumAlert()
+        }
+        .sheet(isPresented: $showPaywall) {
+            // Reset offering if the sheet is dismissed
+            if currentOffering == nil {
+                isLoadingOffering = false
+            }
+        } content: {
+            Group {
+                if let offering = currentOffering {
+                    // Show paywall with the loaded offering
+                    PaywallView()
+                        .environmentObject(subscriptionManager)
+                } else {
+                    // Show loading view while fetching offering
+                    VStack {
+                        ProgressView("Loading subscription options...")
+                            .padding()
+                        
+                        Button("Cancel") {
+                            showPaywall = false
+                        }
+                        .padding()
+                    }
+                    .onAppear {
+                        loadOffering()
+                    }
+                }
+            }
+        }
+
+        if showPremiumAlertBanner && !subscriptionManager.isPremium {
+            PremiumAlertBanner(
+                onTap: {
+                    // onTap - Go to discover tab
+                    currentTab = 1
+                },
+                onDismiss: {
+                    // Dismiss the banner
+                    withAnimation {
+                        showPremiumAlertBanner = false
+                    }
+                    UserDefaults.standard.set(Date(), forKey: premiumAlertDismissKey)
+                },
+                showPaywall: $showPaywall
+            )
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .zIndex(2)
+        }
+    }
+    
+    private func loadOffering() {
+        guard !isLoadingOffering else { return }
+        
+        isLoadingOffering = true
+        
+        Task {
+            do {
+                let offerings = try await Purchases.shared.offerings()
+                currentOffering = offerings.current
+            } catch {
+                // Handle error
+                print("Failed to load offerings: \(error)")
+                
+                // Dismiss the sheet if offerings can't be loaded
+                showPaywall = false
+            }
+            
+            isLoadingOffering = false
+        }
+    }
+    
+    func shouldShowPremiumAlert() -> Bool {
+        guard let last = UserDefaults.standard.object(forKey: premiumAlertDismissKey) as? Date else {
+            return true
+        }
+//        return Calendar.current.dateComponents([.day], from: last, to: Date()).day ?? 4 > 3
+        return true
     }
 }

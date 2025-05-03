@@ -334,9 +334,24 @@ class DiscoverViewModel: ObservableObject {
             categorizedAlbums["All"] = allAlbums
         }
         
-        // Set featured albums (top 5 by relevance score)
-        let sortedByScore = allAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
-        featuredAlbums = Array(sortedByScore.prefix(5))
+        // Set featured albums (top 5 by combined relevance score and image count)
+        let sortedAlbums = allAlbums.sorted { album1, album2 in
+            // Get image counts
+            let count1 = album1.assetIds.count
+            let count2 = album2.assetIds.count
+            
+            // Calculate a combined score that considers both relevance and image count
+            // Weight: 70% relevance score, 30% image count (normalized)
+            let maxCount = max(count1, count2)
+            let normalizedCount1 = maxCount > 0 ? Double(count1) / Double(maxCount) : 0
+            let normalizedCount2 = maxCount > 0 ? Double(count2) / Double(maxCount) : 0
+            
+            let score1 = 0.7 * Double(album1.relevanceScore) + 0.3 * normalizedCount1 * 100
+            let score2 = 0.7 * Double(album2.relevanceScore) + 0.3 * normalizedCount2 * 100
+            
+            return score1 > score2
+        }
+        featuredAlbums = Array(sortedAlbums.prefix(5))
         
         // Update empty state
         showEmptyState = allAlbums.isEmpty
@@ -390,14 +405,30 @@ class DiscoverViewModel: ObservableObject {
         let startIndex = (page - 1) * albumsPerPage
         let endIndex = min(startIndex + albumsPerPage, allAlbums.count)
         
+        
         // Check if there are more albums to load
         hasMoreAlbums = endIndex < allAlbums.count || photoManager.allAssets.count > allAlbums.count * 10
         
         // If it's the first page, set featured albums
         if page == 1 {
-            // Get top 5 albums for featured section
-            let sortedByScore = allAlbums.sorted { $0.relevanceScore > $1.relevanceScore }
-            featuredAlbums = Array(sortedByScore.prefix(5))
+            // Get top 5 albums based on combined relevance score and image count
+            let sortedAlbums = allAlbums.sorted { album1, album2 in
+                // Get image counts
+                let count1 = album1.assetIds.count
+                let count2 = album2.assetIds.count
+                
+                // Calculate a combined score that considers both relevance and image count
+                // Weight: 70% relevance score, 30% image count (normalized)
+                let maxCount = max(count1, count2)
+                let normalizedCount1 = maxCount > 0 ? Double(count1) / Double(maxCount) : 0
+                let normalizedCount2 = maxCount > 0 ? Double(count2) / Double(maxCount) : 0
+                
+                let score1 = 0.7 * Double(album1.relevanceScore) + 0.3 * normalizedCount1 * 100
+                let score2 = 0.7 * Double(album2.relevanceScore) + 0.3 * normalizedCount2 * 100
+                
+                return score1 > score2
+            }
+            featuredAlbums = Array(sortedAlbums.prefix(5))
             showEmptyState = allAlbums.isEmpty
             
             // Reset categorized albums on first page
