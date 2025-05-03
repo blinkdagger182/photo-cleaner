@@ -220,7 +220,7 @@ struct DiscoverView: View {
                 FallbackFeaturedCarousel(albums: viewModel.featuredAlbums) { album in
                     viewModel.selectAlbum(album)
                 }
-                .frame(height: 320)
+                .frame(height: 300)
                 
                 if viewModel.isSortingFeatured && viewModel.featuredAlbums.isEmpty {
                     ProgressView()

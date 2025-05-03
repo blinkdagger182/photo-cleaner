@@ -32,6 +32,11 @@ struct MainTabView: View {
     // Tab titles
     private let tabs = ["Library", "Discover"]
 
+    // State for header visibility
+    @State private var headerVisible = true
+    @State private var scrollOffset: CGFloat = 0
+    @State private var lastScrollOffset: CGFloat = 0
+
     // For matched geometry effect
     @Namespace private var namespace
 
@@ -62,6 +67,9 @@ struct MainTabView: View {
             }
             .padding(.vertical, 10)
             .animation(.easeInOut, value: currentTab)
+            .offset(y: headerVisible ? 0 : -70) // Hide above screen when not visible
+            .opacity(headerVisible ? 1 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: headerVisible)
             
             // Tab indicator
             HStack(spacing: 0) {
