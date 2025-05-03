@@ -2,6 +2,7 @@ import Photos
 import SwiftUI
 import Combine
 import UIKit
+import UniformTypeIdentifiers
 
 @MainActor
 class SwipeCardViewModel: ObservableObject {
@@ -15,6 +16,7 @@ class SwipeCardViewModel: ObservableObject {
     @Published var swipeLabelColor: Color = .green
     @Published var showDeletePreview = false
     @Published var showRCPaywall = false
+    @Published var isSharing = false
     
     // MARK: - Internal Properties
     private let group: PhotoGroup
@@ -1089,6 +1091,350 @@ class SwipeCardViewModel: ObservableObject {
                     self.offset = .zero
                 }
             } onDismiss: { }
+        }
+    }
+    
+    // MARK: - Sharing Functionality
+    
+    /// Shares the current image in original quality with a promotional link
+    func shareCurrentImage() {
+        guard let asset = group.asset(at: currentIndex) else {
+            toast?.show("Unable to share this image", duration: 2.0)
+            return
+        }
+        
+        // Set sharing state to true
+        isSharing = true
+        
+        // Show loading indicator
+        toast?.show("Preparing high-quality image...", duration: 1.5)
+        
+        // Load original quality image
+        Task {
+            do {
+                let originalImage = await loadOriginalQualityImage(from: asset)
+                
+                await MainActor.run {
+                    if let originalImage = originalImage {
+                        // Create sharing sources
+                        let imageSource = PhotoSharingActivityItemSource(image: originalImage, albumTitle: group.title)
+                        let textSource = TextSharingActivityItemSource(text: "Organized with PhotoCleaner - The smart way to declutter your photo library!")
+                        
+                        // Get the rootmost presented view controller
+                        func getTopViewController() -> UIViewController? {
+                            // Get the root view controller
+                            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                  let rootViewController = windowScene.windows.first?.rootViewController else {
+                                return nil
+                            }
+                            
+                            var topController = rootViewController
+                            
+                            // Navigate through presented controllers to find the topmost one
+                            while let presentedViewController = topController.presentedViewController {
+                                topController = presentedViewController
+                            }
+                            
+                            return topController
+                        }
+                        
+                        // Create and prepare the share sheet
+                        let activityViewController = UIActivityViewController(
+                            activityItems: [imageSource, textSource],
+                            applicationActivities: nil
+                        )
+                        
+                        // Add completion handler to reset sharing state
+                        activityViewController.completionWithItemsHandler = { [weak self] _, completed, _, _ in
+                            self?.isSharing = false
+                            
+                            // Show success message if the share was completed
+                            if completed {
+                                self?.toast?.show("Photo shared successfully!", duration: 1.5)
+                            }
+                        }
+                        
+                        // Exclude certain activity types that don't make sense for this content
+                        activityViewController.excludedActivityTypes = [
+                            .assignToContact,
+                            .addToReadingList,
+                            .openInIBooks
+                        ]
+                        
+                        // Present the share sheet on the topmost view controller
+                        if let topViewController = getTopViewController() {
+                            // For iPad, we need to specify where the popover should appear
+                            if let popoverController = activityViewController.popoverPresentationController {
+                                popoverController.sourceView = topViewController.view
+                                popoverController.sourceRect = CGRect(x: UIScreen.main.bounds.midX, 
+                                                                     y: UIScreen.main.bounds.midY, 
+                                                                     width: 0, height: 0)
+                                popoverController.permittedArrowDirections = []
+                            }
+                            
+                            // Ensure we're dismissing any view controller that might be presented first
+                            if topViewController.presentedViewController != nil {
+                                topViewController.dismiss(animated: true) {
+                                    topViewController.present(activityViewController, animated: true)
+                                }
+                            } else {
+                                topViewController.present(activityViewController, animated: true)
+                            }
+                        } else {
+                            // Fallback in case we can't get a valid view controller
+                            toast?.show("Unable to share: no valid view controller found", duration: 2.0)
+                            isSharing = false
+                        }
+                    } else {
+                        toast?.show("Failed to prepare image for sharing", duration: 2.0)
+                        isSharing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    toast?.show("Error preparing image: \(error.localizedDescription)", duration: 2.0)
+                    isSharing = false
+                }
+            }
+        }
+    }
+    
+    /// Loads the original quality image from a PHAsset
+    private func loadOriginalQualityImage(from asset: PHAsset) async -> UIImage? {
+        do {
+            // First, try to get the highest quality image through PHImageManager
+            let highQualityImage = try await loadHighestQualityImage(from: asset)
+            if let highQualityImage = highQualityImage {
+                return highQualityImage
+            }
+            
+            // If that fails, try to access and convert the original asset resource data
+            return try await loadOriginalAssetResource(from: asset)
+        } catch {
+            print("Error loading original quality image: \(error)")
+            
+            // Fallback to using any cached image we already have
+            if currentIndex < preloadedImages.count, let cachedImage = preloadedImages[currentIndex] {
+                return cachedImage
+            }
+            
+            return nil
+        }
+    }
+    
+    /// Loads the highest quality image through PHImageManager
+    private func loadHighestQualityImage(from asset: PHAsset) async throws -> UIImage? {
+        return try await withCheckedThrowingContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.version = .original
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            options.resizeMode = .none
+            options.isSynchronous = false
+            
+            var requestID: PHImageRequestID = 0
+            var degradedImage: UIImage? = nil
+            
+            // Add a flag to track if continuation has been resumed
+            var hasResumed = false
+            
+            // Helper function to safely resume continuation only once
+            func safeResumeWithImage(_ image: UIImage?) {
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(returning: image)
+            }
+            
+            func safeResumeWithError(_ error: Error) {
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(throwing: error)
+            }
+            
+            // Create the request for full-size image
+            requestID = PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: PHImageManagerMaximumSize,
+                contentMode: .aspectFit,
+                options: options
+            ) { image, info in
+                if let image = image,
+                   let info = info,
+                   info[PHImageResultIsDegradedKey] as? Bool == false {
+                    // We got a high-quality image
+                    safeResumeWithImage(image)
+                } else if let error = info?[PHImageErrorKey] as? Error {
+                    safeResumeWithError(error)
+                } else if info?[PHImageCancelledKey] as? Bool == true {
+                    safeResumeWithError(NSError(domain: "Share", code: 2, userInfo: [NSLocalizedDescriptionKey: "Image request was cancelled"]))
+                } else if let image = image, info?[PHImageResultIsDegradedKey] as? Bool == true {
+                    // Store the degraded image as a fallback
+                    degradedImage = image
+                    
+                    // If the image is in iCloud, don't wait too long
+                    if info?[PHImageResultIsInCloudKey] as? Bool == true {
+                        // Set a short timeout to avoid waiting forever
+                        Task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 second wait
+                            // If we haven't already resumed the continuation, do it now with the degraded image
+                            PHImageManager.default().cancelImageRequest(requestID)
+                            safeResumeWithImage(degradedImage)
+                        }
+                    }
+                }
+            }
+            
+            // Set a timeout for the entire request
+            Task {
+                try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 second timeout
+                PHImageManager.default().cancelImageRequest(requestID)
+                // If we haven't resumed yet, use the degraded image if available, or resume with nil
+                if let degradedImage = degradedImage {
+                    safeResumeWithImage(degradedImage)
+                } else {
+                    safeResumeWithImage(nil)
+                }
+            }
+        }
+    }
+    
+    /// Loads the original asset resource data and converts it to an image
+    private func loadOriginalAssetResource(from asset: PHAsset) async throws -> UIImage? {
+        return try await withCheckedThrowingContinuation { continuation in
+            // Get all resources for this asset
+            let resources = PHAssetResource.assetResources(for: asset)
+            
+            // Find the original resource
+            let originalResource = resources.first { resource in
+                resource.type == .photo || resource.type == .fullSizePhoto
+            }
+            
+            guard let resource = originalResource else {
+                continuation.resume(returning: nil)
+                return
+            }
+            
+            let options = PHAssetResourceRequestOptions()
+            options.isNetworkAccessAllowed = true
+            
+            // Create a temporary file to store the data
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+            
+            // Add a flag to track if continuation has been resumed
+            var hasResumed = false
+            
+            // Helper function to safely resume continuation only once
+            func safeResumeWithImage(_ image: UIImage?) {
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(returning: image)
+            }
+            
+            func safeResumeWithError(_ error: Error) {
+                guard !hasResumed else { return }
+                hasResumed = true
+                continuation.resume(throwing: error)
+            }
+            
+            // Request the data
+            PHAssetResourceManager.default().requestData(for: resource, options: options, dataReceivedHandler: { data in
+                // Data is received in chunks, so we need to append it to our file
+                if let fileHandle = try? FileHandle(forWritingTo: tempURL) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    try? fileHandle.close()
+                } else {
+                    // First chunk, create the file
+                    try? data.write(to: tempURL)
+                }
+            }, completionHandler: { error in
+                if let error = error {
+                    try? FileManager.default.removeItem(at: tempURL)
+                    safeResumeWithError(error)
+                    return
+                }
+                
+                // Create an image from the file
+                if let imageData = try? Data(contentsOf: tempURL),
+                   let image = UIImage(data: imageData) {
+                    try? FileManager.default.removeItem(at: tempURL)
+                    safeResumeWithImage(image)
+                } else {
+                    try? FileManager.default.removeItem(at: tempURL)
+                    safeResumeWithImage(nil)
+                }
+            })
+            
+            // Set a timeout
+            Task {
+                try? await Task.sleep(nanoseconds: 15_000_000_000) // 15 second timeout
+                try? FileManager.default.removeItem(at: tempURL)
+                safeResumeWithImage(nil)
+            }
+        }
+    }
+
+    /// Custom class to handle different types of sharing content
+    class PhotoSharingActivityItemSource: NSObject, UIActivityItemSource {
+        private let image: UIImage
+        private let albumTitle: String
+        
+        init(image: UIImage, albumTitle: String) {
+            self.image = image
+            self.albumTitle = albumTitle
+            super.init()
+        }
+        
+        func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+            return image
+        }
+        
+        func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+            return image
+        }
+        
+        func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
+            return "Photo from \(albumTitle)"
+        }
+        
+        func activityViewController(_ activityViewController: UIActivityViewController, thumbnailImageForActivityType activityType: UIActivity.ActivityType?, suggestedSize size: CGSize) -> UIImage? {
+            // Create a thumbnail version for the activity controller
+            let renderer = UIGraphicsImageRenderer(size: size)
+            return renderer.image { _ in
+                image.draw(in: CGRect(origin: .zero, size: size))
+            }
+        }
+        
+        func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+            return UTType.image.identifier
+        }
+    }
+    
+    /// Class to handle text content for sharing
+    class TextSharingActivityItemSource: NSObject, UIActivityItemSource {
+        private let text: String
+        
+        init(text: String) {
+            self.text = text
+            super.init()
+        }
+        
+        func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+            return text
+        }
+        
+        func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+            // Customize text based on the sharing platform
+            if activityType == .message || activityType == .mail {
+                // For messages and email, include a more detailed message
+                return "Check out this photo I organized with PhotoCleaner!\n\nPhotoCleaner helps me declutter my photo library automatically. Try it: https://photocleaner.app"
+            } else if activityType == .postToFacebook || activityType == .postToTwitter || activityType == .postToWeibo {
+                // For social media, keep it shorter
+                return "Organized with Cln. - Swipe To Clean - The smart way to declutter your photo library! https://cln.it.com"
+            }
+            
+            // Default sharing text
+            return "Organized with Cln. - Swipe To Clean. Get it: https://cln.it.com"
         }
     }
 } 

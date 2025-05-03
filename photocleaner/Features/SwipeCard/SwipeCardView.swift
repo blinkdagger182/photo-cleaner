@@ -317,6 +317,32 @@ struct SwipeCardView: View {
             .navigationTitle(group.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        if viewModel.isCurrentImageReadyForInteraction() {
+                            viewModel.shareCurrentImage()
+                        } else {
+                            toast.show("Please wait for the image to load before sharing", duration: 2.0)
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            if viewModel.isSharing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .tint(.primary)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(Color(.systemGroupedBackground).opacity(0.8))
+                        .cornerRadius(8)
+                    }
+                    .disabled(viewModel.isSharing)
+                }
+                
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Next") {
                         viewModel.prepareDeletePreview()
