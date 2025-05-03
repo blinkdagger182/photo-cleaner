@@ -84,7 +84,7 @@ struct FallbackFeaturedCarousel: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 16) {
                 ForEach(albums) { album in
                     FallbackFeaturedCell(album: album)
                         .onTapGesture {
@@ -92,7 +92,7 @@ struct FallbackFeaturedCarousel: View {
                         }
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 8)
         }
     }
 }
@@ -102,17 +102,17 @@ struct FallbackFeaturedCell: View {
     let album: SmartAlbumGroup
     
     var body: some View {
-        VStack(alignment: .leading) {
-            // Cover image or placeholder
+        VStack(alignment: .leading, spacing: 0) {
+            // Cover image or placeholder with no inner padding
             ZStack {
                 if let asset = album.fetchAssets().first {
-                    HighQualityAssetImage(asset: asset, size: CGSize(width: 250, height: 150))
-                        .frame(width: 250, height: 150)
+                    HighQualityAssetImage(asset: asset, size: CGSize(width: 320, height: 200))
+                        .frame(width: 320, height: 200)
                         .clipped()
                 } else {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: 250, height: 150)
+                        .frame(width: 320, height: 200)
                 }
                 
                 // Gradient overlay for text readability
@@ -133,10 +133,9 @@ struct FallbackFeaturedCell: View {
             
             // Photo count
             Text("\(album.fetchAssets().count) photos")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .frame(width: 250)
     }
 }
 

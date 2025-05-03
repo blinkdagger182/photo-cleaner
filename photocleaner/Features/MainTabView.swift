@@ -37,8 +37,32 @@ struct MainTabView: View {
         let hasHiddenBanner = UserDefaults.standard.bool(forKey: marketingBannerKey)
         
         VStack(spacing: 0) {
-            // Tab indicator at the top
-            HStack(spacing: 20) {
+            // CLN Logo at the top
+            HStack {
+                Spacer()
+                
+                // Display CLN logo or CLN+ logo based on the selected tab
+                
+                Image("CLN")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 50)
+                    .transition(.opacity)
+                if currentTab == 1 {
+                    Image("+")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 35)
+                        .transition(.opacity)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .animation(.easeInOut, value: currentTab)
+            
+            // Tab indicator
+            HStack(spacing: 0) {
                 ForEach(0..<tabs.count, id: \.self) { index in
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -47,20 +71,27 @@ struct MainTabView: View {
                     }) {
                         VStack(spacing: 8) {
                             Text(tabs[index])
-                                .font(.system(size: 16, weight: currentTab == index ? .semibold : .medium))
+                                .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(currentTab == index ? .primary : .secondary)
-                            
-                            // Indicator line
-                            Rectangle()
-                                .fill(currentTab == index ? Color.accentColor : Color.clear)
-                                .frame(height: 2)
-                                .matchedGeometryEffect(id: "tab_indicator", in: namespace, isSource: currentTab == index)
                         }
+                        .frame(maxWidth: .infinity)
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
+            .padding(.horizontal)
+            
+            // Indicator line with matched geometry effect
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 2)
+                
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: UIScreen.main.bounds.width / 2, height: 2)
+                    .offset(x: currentTab == 0 ? 0 : UIScreen.main.bounds.width / 2)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentTab)
+            }
             
             // Main content with swipe gesture
             let screenWidth = UIScreen.main.bounds.width

@@ -43,6 +43,25 @@ class DiscoverViewModel: ObservableObject {
     @Published var batchProcessingProgress: Double = 0.0
     @Published var isBatchProcessing: Bool = false
     
+    // Sort order for events
+    @Published var eventsShowMostRecentFirst: Bool = true
+    @Published var eventsSortOption: EventSortOption = .newestFirst
+    @Published var isSortingEvents: Bool = false
+    
+    // Sort order for featured albums
+    @Published var featuredSortByMostPhotos: Bool = true
+    @Published var isSortingFeatured: Bool = false
+    
+    // Sort options for Events
+    enum EventSortOption: String, CaseIterable, Identifiable {
+        case newestFirst = "Newest First"
+        case oldestFirst = "Oldest First"
+        case mostPhotos = "Most Photos"
+        case mostRelevant = "Most Relevant"
+        
+        var id: String { self.rawValue }
+    }
+    
     // Computed property to access all smart albums
     var allSmartAlbums: [SmartAlbumGroup] {
         return smartAlbumManager.allSmartAlbums
@@ -315,6 +334,9 @@ class DiscoverViewModel: ObservableObject {
             }
         }
         
+        // Sort event albums by date (most recent first by default)
+        sortEventAlbums(&eventAlbums)
+        
         // Update the categorized albums
         if !eventAlbums.isEmpty {
             categorizedAlbums["Events"] = eventAlbums
@@ -334,24 +356,10 @@ class DiscoverViewModel: ObservableObject {
             categorizedAlbums["All"] = allAlbums
         }
         
-        // Set featured albums (top 5 by combined relevance score and image count)
-        let sortedAlbums = allAlbums.sorted { album1, album2 in
-            // Get image counts
-            let count1 = album1.assetIds.count
-            let count2 = album2.assetIds.count
-            
-            // Calculate a combined score that considers both relevance and image count
-            // Weight: 70% relevance score, 30% image count (normalized)
-            let maxCount = max(count1, count2)
-            let normalizedCount1 = maxCount > 0 ? Double(count1) / Double(maxCount) : 0
-            let normalizedCount2 = maxCount > 0 ? Double(count2) / Double(maxCount) : 0
-            
-            let score1 = 0.7 * Double(album1.relevanceScore) + 0.3 * normalizedCount1 * 100
-            let score2 = 0.7 * Double(album2.relevanceScore) + 0.3 * normalizedCount2 * 100
-            
-            return score1 > score2
-        }
-        featuredAlbums = Array(sortedAlbums.prefix(5))
+        // Set featured albums (only event albums, sorted by photo count or relevance)
+        // We exclude utility albums and screenshots from featured section
+        let sortedForFeatured = sortAlbumsForFeatured(eventAlbums)
+        featuredAlbums = Array(sortedForFeatured.prefix(5))
         
         // Update empty state
         showEmptyState = allAlbums.isEmpty
@@ -411,24 +419,33 @@ class DiscoverViewModel: ObservableObject {
         
         // If it's the first page, set featured albums
         if page == 1 {
-            // Get top 5 albums based on combined relevance score and image count
-            let sortedAlbums = allAlbums.sorted { album1, album2 in
-                // Get image counts
-                let count1 = album1.assetIds.count
-                let count2 = album2.assetIds.count
+            // Separate albums by type
+            var eventAlbums: [SmartAlbumGroup] = []
+            var otherAlbums: [SmartAlbumGroup] = []
+            
+            for album in allAlbums {
+                // Check if this is a utility or screenshot album
+                let isUtilityOrScreenshot = album.title == "Utilities" || 
+                                           album.title == "Screenshots" || 
+                                           album.title == "Receipts" || 
+                                           album.title == "Documents" || 
+                                           album.title == "Whiteboards" || 
+                                           album.title == "QR Codes"
                 
-                // Calculate a combined score that considers both relevance and image count
-                // Weight: 70% relevance score, 30% image count (normalized)
-                let maxCount = max(count1, count2)
-                let normalizedCount1 = maxCount > 0 ? Double(count1) / Double(maxCount) : 0
-                let normalizedCount2 = maxCount > 0 ? Double(count2) / Double(maxCount) : 0
-                
-                let score1 = 0.7 * Double(album1.relevanceScore) + 0.3 * normalizedCount1 * 100
-                let score2 = 0.7 * Double(album2.relevanceScore) + 0.3 * normalizedCount2 * 100
-                
-                return score1 > score2
+                if isUtilityOrScreenshot {
+                    otherAlbums.append(album)
+                } else {
+                    eventAlbums.append(album)
+                }
             }
-            featuredAlbums = Array(sortedAlbums.prefix(5))
+            
+            // Sort event albums by date
+            sortEventAlbums(&eventAlbums)
+            
+            // For featured albums, only use event albums (filtered and sorted)
+            let sortedForFeatured = sortAlbumsForFeatured(eventAlbums)
+            featuredAlbums = Array(sortedForFeatured.prefix(5))
+            
             showEmptyState = allAlbums.isEmpty
             
             // Reset categorized albums on first page
@@ -859,5 +876,88 @@ class DiscoverViewModel: ObservableObject {
         
         // Update photo count statistics after categorization
         updatePhotoCountStatistics()
+    }
+    
+    // Sort albums for featured section based on user preference
+    private func sortAlbumsForFeatured(_ albums: [SmartAlbumGroup]) -> [SmartAlbumGroup] {
+        // Filter out utilities and screenshots albums
+        let filteredAlbums = albums.filter { album in
+            // Exclude utility albums, screenshots, receipts, etc.
+            !(album.title == "Utilities" || 
+              album.title == "Screenshots" || 
+              album.title == "Receipts" || 
+              album.title == "Documents" || 
+              album.title == "Whiteboards" || 
+              album.title == "QR Codes")
+        }
+        
+        return filteredAlbums.sorted { album1, album2 in
+            if featuredSortByMostPhotos {
+                // Sort by photo count (most photos first)
+                return album1.assetIds.count > album2.assetIds.count
+            } else {
+                // Sort by relevance score
+                return album1.relevanceScore > album2.relevanceScore
+            }
+        }
+    }
+    
+    // Sort event albums based on the selected sort option
+    private func sortEventAlbums(_ albums: inout [SmartAlbumGroup]) {
+        albums.sort { album1, album2 in
+            switch eventsSortOption {
+            case .newestFirst:
+                return album1.createdAt > album2.createdAt
+            case .oldestFirst:
+                return album1.createdAt < album2.createdAt
+            case .mostPhotos:
+                return album1.assetIds.count > album2.assetIds.count
+            case .mostRelevant:
+                return album1.relevanceScore > album2.relevanceScore
+            }
+        }
+    }
+    
+    // Set the event sort option and resort
+    func setEventSortOption(_ option: EventSortOption) {
+        guard eventsSortOption != option else { return }
+        
+        isSortingEvents = true
+        
+        // Use a small delay to allow the UI to update with spinner
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            self.eventsSortOption = option
+            
+            // If we have events in categories, resort them
+            if var eventAlbums = self.categorizedAlbums["Events"] {
+                self.sortEventAlbums(&eventAlbums)
+                self.categorizedAlbums["Events"] = eventAlbums
+            }
+            
+            self.isSortingEvents = false
+        }
+    }
+    
+    // Toggle featured albums sort order
+    func toggleFeaturedSortOrder() {
+        isSortingFeatured = true
+        
+        // Use a small delay to allow the UI to update with spinner
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            self.featuredSortByMostPhotos.toggle()
+            
+            // Re-sort featured albums
+            let allAlbums = self.categorizedAlbums.values.flatMap { $0 }
+            if !allAlbums.isEmpty {
+                let sortedForFeatured = self.sortAlbumsForFeatured(allAlbums)
+                self.featuredAlbums = Array(sortedForFeatured.prefix(5))
+            }
+            
+            self.isSortingFeatured = false
+        }
     }
 } 

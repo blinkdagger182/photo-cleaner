@@ -81,19 +81,6 @@ struct DiscoverView: View {
                 .disabled(viewModel.isClusteringInProgress)
                 .padding(.trailing, 8)
                 
-                // Refresh button
-                Button(action: {
-                    viewModel.loadAlbums(forceRefresh: true)
-                }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.title2)
-                }
-                .disabled(viewModel.isLoading || viewModel.isGenerating || viewModel.isClusteringInProgress)
-                
-                Image("CLN")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(height: 40)
             }
             .padding(.horizontal)
             
@@ -157,16 +144,52 @@ struct DiscoverView: View {
     // Featured albums carousel
     private var featuredAlbumsView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Featured Albums")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
+            HStack {
+                Text("Featured Albums")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                Button(action: {
+                    viewModel.toggleFeaturedSortOrder()
+                }) {
+                    HStack(spacing: 4) {
+                        if viewModel.isSortingFeatured {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(0.7)
+                                .padding(.trailing, 4)
+                        }
+                        
+                        Text(viewModel.featuredSortByMostPhotos ? "Most Photos" : "Most Relevant")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(8)
+                }
+                .disabled(viewModel.isSortingFeatured)
+            }
+            .padding(.horizontal)
             
             // Use fallback implementation
-            FallbackFeaturedCarousel(albums: viewModel.featuredAlbums) { album in
-                viewModel.selectAlbum(album)
+            ZStack {
+                FallbackFeaturedCarousel(albums: viewModel.featuredAlbums) { album in
+                    viewModel.selectAlbum(album)
+                }
+                .frame(height: 260)
+                
+                if viewModel.isSortingFeatured && viewModel.featuredAlbums.isEmpty {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                }
             }
-            .frame(height: 220)
         }
         .padding(.bottom, 2)
     }
@@ -174,16 +197,67 @@ struct DiscoverView: View {
     // Category view with album grid
     private func categoryView(title: String, albums: [SmartAlbumGroup]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.title3)
-                .fontWeight(.bold)
-                .padding(.horizontal)
-            
-            // Use fallback implementation
-            FallbackAlbumGrid(albums: albums) { album in
-                viewModel.selectAlbum(album)
+            HStack {
+                Text(title)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                // Add sort button only for Events category
+                if title == "Events" {
+                    Menu {
+                        ForEach(DiscoverViewModel.EventSortOption.allCases) { option in
+                            Button(action: {
+                                viewModel.setEventSortOption(option)
+                            }) {
+                                HStack {
+                                    Text(option.rawValue)
+                                    if viewModel.eventsSortOption == option {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if viewModel.isSortingEvents {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .scaleEffect(0.7)
+                                    .padding(.trailing, 4)
+                            }
+                            
+                            Text(viewModel.eventsSortOption.rawValue)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                            
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.caption)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Color(.systemGray5))
+                        .cornerRadius(8)
+                    }
+                    .disabled(viewModel.isSortingEvents)
+                }
             }
-            .frame(height: CGFloat(ceil(Double(albums.count) / 2.0) * 180))
+            .padding(.horizontal)
+            
+            Spacer()
+            // Use fallback implementation
+            ZStack {
+                FallbackAlbumGrid(albums: albums) { album in
+                    viewModel.selectAlbum(album)
+                }
+                // .frame(height: CGFloat(ceil(Double(albums.count) / 2.0) * 180))
+                
+                if title == "Events" && viewModel.isSortingEvents && albums.isEmpty {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                }
+            }
         }
         .padding(.bottom, 2)
     }

@@ -46,23 +46,6 @@ struct PhotoGroupView: View {
                             .background(Color.yellow.opacity(0.1))
                             .cornerRadius(12)
                         }
-
-                        Spacer()
-
-                        // 🟧 Right: cln. logo, vertically centered
-                        VStack {
-                            Spacer(minLength: 0)
-                            Image("CLN")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(height: 50)
-                                .opacity(viewModel.fadeIn ? 1 : 0)
-                                .onAppear {
-                                    viewModel.triggerFadeInAnimation()
-                                }
-                            Spacer(minLength: 0)
-                        }
-                        .frame(height: 70) // Match left VStack's approximate height
                     }
                     .padding(.horizontal)
                     .padding(.top, 16)
