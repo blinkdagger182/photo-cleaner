@@ -104,7 +104,7 @@ struct FallbackFeaturedCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Cover image or placeholder with no inner padding
-            ZStack(alignment: .center) {
+            ZStack(alignment: .bottomLeading) {
                 if let asset = album.fetchAssets().first {
                     HighQualityAssetImage(asset: asset, size: CGSize(width: 340, height: 220), contentMode: .fill)
                         .frame(width: 340, height: 220)
@@ -122,21 +122,27 @@ struct FallbackFeaturedCell: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+                .frame(width: 340, height: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
+            .padding(.horizontal, 4)
             
             // Album title
             Text(album.title)
                 .font(.headline)
                 .fontWeight(.medium)
                 .lineLimit(2)
-                .padding(.top, 4)
+                .padding(.top, 8)
+                .padding(.horizontal, 8)
             
             // Photo count
             Text("\(album.fetchAssets().count) photos")
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
         }
+        .frame(width: 350)
     }
 }
 

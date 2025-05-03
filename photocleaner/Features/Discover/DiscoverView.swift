@@ -113,25 +113,20 @@ struct DiscoverView: View {
                 }
                 .disabled(viewModel.isClusteringInProgress)
                 .padding(.trailing, 8)
-                
-                // Note: Removed the toggle button since we're only using clustering now
             }
             .padding(.horizontal)
             
             // Photo count statistics
-            HStack {
-                if viewModel.isClusteringInProgress {
+            if viewModel.isClusteringInProgress {
+                HStack {
                     Text("Processing \(viewModel.totalPhotoCount) photos...")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                } 
+                    Spacer()
+                }
+                .padding(.horizontal)
                 
-                Spacer()
-            }
-            .padding(.horizontal)
-            
-            // Clustering progress indicator
-            if viewModel.isClusteringInProgress {
+                // Clustering progress indicator
                 VStack(spacing: 4) {
                     ProgressView(value: viewModel.clusteringProgress, total: 1.0)
                         .progressViewStyle(LinearProgressViewStyle())
@@ -165,29 +160,26 @@ struct DiscoverView: View {
                             .foregroundColor(.accentColor)
                     }
                 }
+                .padding(.horizontal)
             }
         }
-        .padding(.horizontal)
         .padding(.top, 8)
     }
     
     // Featured albums carousel
     private var featuredAlbumsView: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Section title
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Featured Albums")
                         .font(.title2)
                         .fontWeight(.bold)
-                    
-                    // Simplified description - we only use time and location now
-//                    Text("Smart clustering based on time and location")
-//                        .font(.caption)
-//                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
+                // Sort button
                 Button(action: {
                     viewModel.toggleFeaturedSortOrder()
                 }) {
@@ -215,20 +207,56 @@ struct DiscoverView: View {
             }
             .padding(.horizontal)
             
-            // Use fallback implementation
+            // Featured albums content
             ZStack {
-                FallbackFeaturedCarousel(albums: viewModel.featuredAlbums) { album in
-                    viewModel.selectAlbum(album)
-                }
-                .frame(height: 300)
-                
                 if viewModel.isSortingFeatured && viewModel.featuredAlbums.isEmpty {
-                    ProgressView()
-                        .scaleEffect(1.5)
+                    // Show skeleton loader when sorting/loading
+                    featuredSkeletonView
+                } else {
+                    // Regular carousel
+                    FallbackFeaturedCarousel(albums: viewModel.featuredAlbums) { album in
+                        viewModel.selectAlbum(album)
+                    }
+                    .frame(height: 300)
+                    .padding(.horizontal, 6) // Add additional horizontal padding to prevent clipping
                 }
             }
+            .padding(.top, 10)
+            .padding(.bottom, 2)
         }
-        .padding(.bottom, 2)
+    }
+    
+    // Skeleton loader for featured albums
+    private var featuredSkeletonView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 15) {
+                ForEach(0..<2, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Album photo placeholder
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .frame(width: UIScreen.main.bounds.width * 0.8, height: 240)
+                            .cornerRadius(8)
+                        
+                        // Title and count placeholders
+                        VStack(alignment: .leading, spacing: 4) {
+                            Rectangle()
+                                .fill(Color(.systemGray5))
+                                .frame(width: UIScreen.main.bounds.width * 0.5, height: 18)
+                                .cornerRadius(4)
+                            
+                            Rectangle()
+                                .fill(Color(.systemGray5))
+                                .frame(width: UIScreen.main.bounds.width * 0.3, height: 14)
+                                .cornerRadius(4)
+                        }
+                        .padding(.horizontal, 5)
+                    }
+                }
+                .padding(.leading)
+            }
+        }
+        .frame(height: 300)
     }
     
     // Category view with album grid
@@ -253,7 +281,7 @@ struct DiscoverView: View {
                                 .padding(.leading, 2)
                         }
                         
-                        // Simplified description for Events category - we only use time and location now
+                        // Simplified description for Events category
                         if title == "Events" {
                             Text("Smart clustering based on time and location")
                                 .font(.caption)
@@ -319,15 +347,15 @@ struct DiscoverView: View {
             
             // Album grid content - only shown if category is not collapsed
             if !viewModel.isCategoryCollapsed(title) {
-                // Use fallback implementation
                 ZStack {
-                    FallbackAlbumGrid(albums: albums) { album in
-                        viewModel.selectAlbum(album)
-                    }
-                    
                     if title == "Events" && viewModel.isSortingEvents && albums.isEmpty {
-                        ProgressView()
-                            .scaleEffect(1.5)
+                        // Show skeleton grid when sorting/loading
+                        eventsSkeletonGrid
+                    } else {
+                        // Regular album grid
+                        FallbackAlbumGrid(albums: albums) { album in
+                            viewModel.selectAlbum(album)
+                        }
                     }
                 }
                 .padding(.top, 6) // Add small top padding to separate from divider
@@ -335,6 +363,39 @@ struct DiscoverView: View {
         }
         .padding(.vertical, 6) // Add consistent vertical padding
         .animation(.easeInOut(duration: 0.25), value: viewModel.isCategoryCollapsed(title))
+    }
+    
+    // Skeleton grid for events when loading
+    private var eventsSkeletonGrid: some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 15),
+            GridItem(.flexible(), spacing: 15),
+        ], spacing: 15) {
+            ForEach(0..<4, id: \.self) { _ in
+                // Event item skeleton
+                VStack(alignment: .leading, spacing: 6) {
+                    // Photo placeholder
+                    Rectangle()
+                        .fill(Color(.systemGray5))
+                        .frame(height: (UIScreen.main.bounds.width - 50) / 2)
+                        .cornerRadius(8)
+                    
+                    // Title placeholder
+                    Rectangle()
+                        .fill(Color(.systemGray5))
+                        .frame(width: (UIScreen.main.bounds.width - 50) / 3, height: 16)
+                        .cornerRadius(4)
+                    
+                    // Photo count placeholder
+                    Rectangle()
+                        .fill(Color(.systemGray5))
+                        .frame(width: (UIScreen.main.bounds.width - 50) / 4, height: 12)
+                        .cornerRadius(4)
+                        .opacity(0.7)
+                }
+            }
+        }
+        .padding(.horizontal)
     }
     
     // Empty state view
@@ -390,7 +451,7 @@ struct DiscoverView: View {
                     .padding(.horizontal, 20)
                     .foregroundColor(.white)
                     .background(Color.black)
-                    .cornerRadius(24)
+                    .cornerRadius(22)
                     .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
                     .overlay(
                         Group {
@@ -422,8 +483,8 @@ struct DiscoverView: View {
             if viewModel.isGenerating || viewModel.isBatchProcessing {
                 overlayBackground
             } else if viewModel.isClusteringInProgress {
-                // Use our beautiful full-screen loader when clustering is in progress
-                ProcessingImagesLoader(
+                // Use our beautiful skeleton loader when clustering is in progress
+                SkeletonLoaderView(
                     progress: viewModel.clusteringProgress,
                     totalPhotoCount: viewModel.totalPhotoCount,
                     processedAlbumCount: viewModel.processedAlbumCount
@@ -500,4 +561,18 @@ struct DiscoverView: View {
         .foregroundColor(.white)
         .cornerRadius(8)
     }
+}
+
+#Preview{
+    
+    SkeletonLoaderView(
+        progress: 50, totalPhotoCount: 33000, processedAlbumCount: 16)
+}
+
+
+
+#Preview {
+    OnboardingView()
+        .environmentObject(PhotoManager.preview)
+        .environmentObject(ToastService.preview)
 }
