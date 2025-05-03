@@ -78,14 +78,13 @@ class PhotoClusteringManager: ObservableObject {
                 // 4. Create PhotoGroup objects from clusters
                 let photoGroups = try await createPhotoGroups(from: eventClusters, allAssets: allAssets)
                 
-                // 5. Create utility albums
+                // 5. Create utility albums (only screenshots)
                 let utilityGroups = try await createUtilityAlbums(from: allAssets)
                 
-                // 6. Create system albums
-                let systemGroups = try await createSystemAlbums()
+                // 6. System albums are now empty
                 
-                // 7. Combine all groups
-                let allGroups = photoGroups + utilityGroups + systemGroups
+                // 7. Combine all groups (events and screenshots only)
+                let allGroups = photoGroups + utilityGroups
                 
                 // Complete processing
                 await MainActor.run {
@@ -475,59 +474,18 @@ class PhotoClusteringManager: ObservableObject {
             clusteringQueue.async {
                 var utilityGroups: [PhotoGroup] = []
                 
-                // Group assets by utility type
-                var receiptAssets: [PHAsset] = []
-                var documentAssets: [PHAsset] = []
+                // Only collect screenshot assets
                 var screenshotAssets: [PHAsset] = []
-                var whiteboardAssets: [PHAsset] = []
-                var qrCodeAssets: [PHAsset] = []
                 
                 // Process each asset
                 for asset in assets {
                     // Check for screenshots using PHAssetMediaSubtype
                     if asset.mediaSubtypes.contains(.photoScreenshot) {
                         screenshotAssets.append(asset)
-                        continue
-                    }
-                    
-                    // Determine utility type
-                    let utilityType = self.determineUtilityType(asset)
-                    
-                    switch utilityType {
-                    case .receipt:
-                        receiptAssets.append(asset)
-                    case .document:
-                        documentAssets.append(asset)
-                    case .whiteboard:
-                        whiteboardAssets.append(asset)
-                    case .qrCode:
-                        qrCodeAssets.append(asset)
-                    default:
-                        break
                     }
                 }
                 
-                // Create utility groups
-                if !receiptAssets.isEmpty {
-                    let receiptGroup = PhotoGroup(
-                        assets: receiptAssets,
-                        title: "Receipts",
-                        monthDate: nil,
-                        lastViewedIndex: 0
-                    )
-                    utilityGroups.append(receiptGroup)
-                }
-                
-                if !documentAssets.isEmpty {
-                    let documentGroup = PhotoGroup(
-                        assets: documentAssets,
-                        title: "Documents",
-                        monthDate: nil,
-                        lastViewedIndex: 0
-                    )
-                    utilityGroups.append(documentGroup)
-                }
-                
+                // Create Screenshots album only if we have screenshots
                 if !screenshotAssets.isEmpty {
                     let screenshotGroup = PhotoGroup(
                         assets: screenshotAssets,
@@ -536,38 +494,6 @@ class PhotoClusteringManager: ObservableObject {
                         lastViewedIndex: 0
                     )
                     utilityGroups.append(screenshotGroup)
-                }
-                
-                if !whiteboardAssets.isEmpty {
-                    let whiteboardGroup = PhotoGroup(
-                        assets: whiteboardAssets,
-                        title: "Whiteboards",
-                        monthDate: nil,
-                        lastViewedIndex: 0
-                    )
-                    utilityGroups.append(whiteboardGroup)
-                }
-                
-                if !qrCodeAssets.isEmpty {
-                    let qrCodeGroup = PhotoGroup(
-                        assets: qrCodeAssets,
-                        title: "QR Codes",
-                        monthDate: nil,
-                        lastViewedIndex: 0
-                    )
-                    utilityGroups.append(qrCodeGroup)
-                }
-                
-                // Create a combined "Utilities" group with all utility assets
-                let allUtilityAssets = receiptAssets + documentAssets + screenshotAssets + whiteboardAssets + qrCodeAssets
-                if !allUtilityAssets.isEmpty {
-                    let utilitiesGroup = PhotoGroup(
-                        assets: allUtilityAssets,
-                        title: "Utilities",
-                        monthDate: nil,
-                        lastViewedIndex: 0
-                    )
-                    utilityGroups.append(utilitiesGroup)
                 }
                 
                 continuation.resume(returning: utilityGroups)
@@ -580,30 +506,7 @@ class PhotoClusteringManager: ObservableObject {
     /// Create system albums (Deleted, Saved)
     /// - Returns: Array of PhotoGroup objects for system albums
     private func createSystemAlbums() async throws -> [PhotoGroup] {
-        return await withCheckedContinuation { continuation in
-            clusteringQueue.async {
-                var systemGroups: [PhotoGroup] = []
-                
-                // Create "Deleted" album (empty initially)
-                let deletedGroup = PhotoGroup(
-                    assets: [],
-                    title: "Deleted",
-                    monthDate: nil,
-                    lastViewedIndex: 0
-                )
-                systemGroups.append(deletedGroup)
-                
-                // Create "Saved" album (empty initially)
-                let savedGroup = PhotoGroup(
-                    assets: [],
-                    title: "Saved",
-                    monthDate: nil,
-                    lastViewedIndex: 0
-                )
-                systemGroups.append(savedGroup)
-                
-                continuation.resume(returning: systemGroups)
-            }
-        }
+        // Return an empty array since we don't want to show system albums
+        return []
     }
 }

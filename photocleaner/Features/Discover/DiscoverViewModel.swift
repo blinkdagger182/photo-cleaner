@@ -345,20 +345,24 @@ class DiscoverViewModel: ObservableObject {
         // Convert PhotoGroup objects to SmartAlbumGroup objects
         var eventAlbums: [SmartAlbumGroup] = []
         var utilityAlbums: [SmartAlbumGroup] = []
-        var systemAlbums: [SmartAlbumGroup] = []
         
         for group in photoGroups {
             // Create a SmartAlbumGroup from the PhotoGroup
             let smartAlbum = createSmartAlbumFromPhotoGroup(group)
             
             // Categorize the album based on its title
-            if group.title == "Utilities" || group.title == "Screenshots" || 
-               group.title == "Receipts" || group.title == "Documents" || 
-               group.title == "Whiteboards" || group.title == "QR Codes" {
+            if group.title == "Screenshots" {
+                // Only include Screenshots in the utilities category
                 utilityAlbums.append(smartAlbum)
-            } else if group.title == "Deleted" || group.title == "Saved" {
-                systemAlbums.append(smartAlbum)
-            } else {
+            } else if !group.title.starts(with: "System") && 
+                      group.title != "Deleted" && 
+                      group.title != "Saved" && 
+                      group.title != "Utilities" && 
+                      group.title != "Receipts" && 
+                      group.title != "Documents" && 
+                      group.title != "Whiteboards" && 
+                      group.title != "QR Codes" {
+                // Add all non-system, non-utility albums to events
                 eventAlbums.append(smartAlbum)
             }
         }
@@ -375,12 +379,8 @@ class DiscoverViewModel: ObservableObject {
             categorizedAlbums["Utilities"] = utilityAlbums
         }
         
-        if !systemAlbums.isEmpty {
-            categorizedAlbums["System"] = systemAlbums
-        }
-        
-        // Add an "All" category
-        let allAlbums = eventAlbums + utilityAlbums + systemAlbums
+        // Add an "All" category with only events and screenshots
+        let allAlbums = eventAlbums + utilityAlbums
         if !allAlbums.isEmpty {
             categorizedAlbums["All"] = allAlbums
         }
@@ -399,9 +399,6 @@ class DiscoverViewModel: ObservableObject {
     
     /// Create a SmartAlbumGroup from a PhotoGroup
     private func createSmartAlbumFromPhotoGroup(_ photoGroup: PhotoGroup) -> SmartAlbumGroup {
-        // This is a simplified version - in a real implementation, we would
-        // create a proper SmartAlbumGroup with all the necessary properties
-        
         // Create a new SmartAlbumGroup
         let context = PersistenceController.shared.container.viewContext
         let smartAlbum = SmartAlbumGroup(context: context)
@@ -410,22 +407,29 @@ class DiscoverViewModel: ObservableObject {
         smartAlbum.id = photoGroup.id
         smartAlbum.title = photoGroup.title
         smartAlbum.createdAt = photoGroup.monthDate ?? Date()
-        smartAlbum.relevanceScore = Int32.random(in: 50...100) // Placeholder score between 50-100
+        
+        // For screenshots, ensure high relevance score
+        if photoGroup.title.contains("Screenshot") {
+            smartAlbum.relevanceScore = 90 // High relevance for screenshots
+            smartAlbum.tags = ["screenshot", "utility"]
+        } else {
+            smartAlbum.relevanceScore = Int32.random(in: 50...100) // Placeholder score between 50-100
+            
+            // Set tags based on the title
+            if photoGroup.title.contains("Morning") {
+                smartAlbum.tags = ["morning"]
+            } else if photoGroup.title.contains("Afternoon") {
+                smartAlbum.tags = ["afternoon"]
+            } else if photoGroup.title.contains("Evening") {
+                smartAlbum.tags = ["evening"]
+            } else if photoGroup.title.contains("Night") {
+                smartAlbum.tags = ["night"]
+            }
+        }
         
         // Set asset identifiers
         let assetIdentifiers = photoGroup.assets.map { $0.localIdentifier }
         smartAlbum.assetIds = assetIdentifiers
-        
-        // Set tags based on the title
-        if photoGroup.title.contains("Morning") {
-            smartAlbum.tags = ["morning"]
-        } else if photoGroup.title.contains("Afternoon") {
-            smartAlbum.tags = ["afternoon"]
-        } else if photoGroup.title.contains("Evening") {
-            smartAlbum.tags = ["evening"]
-        } else if photoGroup.title.contains("Night") {
-            smartAlbum.tags = ["night"]
-        }
         
         return smartAlbum
     }
@@ -909,15 +913,10 @@ class DiscoverViewModel: ObservableObject {
     
     // Sort albums for featured section based on user preference
     private func sortAlbumsForFeatured(_ albums: [SmartAlbumGroup]) -> [SmartAlbumGroup] {
-        // Filter out utilities and screenshots albums
+        // Filter out screenshots and utility albums
         let filteredAlbums = albums.filter { album in
-            // Exclude utility albums, screenshots, receipts, etc.
-            !(album.title == "Utilities" || 
-              album.title == "Screenshots" || 
-              album.title == "Receipts" || 
-              album.title == "Documents" || 
-              album.title == "Whiteboards" || 
-              album.title == "QR Codes")
+            // Exclude screenshot albums
+            !album.title.contains("Screenshot")
         }
         
         return filteredAlbums.sorted { album1, album2 in
