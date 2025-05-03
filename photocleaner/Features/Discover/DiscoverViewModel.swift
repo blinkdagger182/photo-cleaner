@@ -123,10 +123,8 @@ class DiscoverViewModel: ObservableObject {
         // Set up batch processing subscribers
         setupBatchProcessingSubscribers()
         
-        // Start processing right away to generate clustering-based albums
-        Task { @MainActor in
-            await processEntireLibrary()
-        }
+        // Remove automatic processing at initialization to improve startup time
+        // The processing will be triggered when loadAlbums is called
     }
     
     private func setupBatchProcessingSubscribers() {
@@ -196,79 +194,24 @@ class DiscoverViewModel: ObservableObject {
         return collapsedCategories.contains(category)
     }
     
-    /// Load smart albums from the repository with pagination support
-    /// This method is now commented out as we're using only clustering-based albums
-    /* 
+    /// Load albums from clustering results or start processing if needed
     func loadAlbums(forceRefresh: Bool = false) {
-        // We now only use clustering results
-        if hasClusteringResults && !forceRefresh {
-            return
-        }
-        
-        // Rest of existing loadAlbums code
         isLoading = true
         
         // Show loading toast on main thread
         Task { @MainActor [weak self] in
-            self?.toast?.show("Refreshing albums...", duration: 1.5)
+            self?.toast?.show("Loading albums...", duration: 1.5)
         }
         
-        if forceRefresh {
-            // Check if we should use batch processing for large libraries
-            let assetCount = photoManager.allAssets.count
-            
-            if assetCount > 5000 { // Use batch processing for large libraries
-                startBatchProcessing()
-            } else { // Use regular processing for smaller libraries
-                // Perform a full refresh by regenerating albums
-                smartAlbumManager.refreshSmartAlbums(from: photoManager.allAssets) { [weak self] in
-                    guard let self = self else { return }
-                    
-                    DispatchQueue.main.async {
-                        // Load first page of albums
-                        self.loadAlbumsPage(page: 1)
-                        self.updatePhotoCountStatistics()
-                        self.isLoading = false
-                        
-                        // Show completion toast
-                        self.toast?.show("Albums refreshed!", duration: 1.5)
-                    }
-                }
-            }
-        } else {
-            // Just load existing albums from CoreData
-            smartAlbumManager.loadSmartAlbums()
-            
-            // Load first page of albums
-            loadAlbumsPage(page: 1)
-            
-            // Update photo count statistics
-            updatePhotoCountStatistics()
-            
-            isLoading = false
-            
-            // Show completion toast with delay
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
-                self?.toast?.show("Albums loaded!", duration: 1.5)
-            }
-        }
-    }
-    */
-    
-    // We'll keep a simplified loadAlbums method that just calls processEntireLibrary
-    func loadAlbums(forceRefresh: Bool = false) {
-        if forceRefresh {
-            Task { @MainActor in
-                await processEntireLibrary()
-            }
-        } else if photoGroups.isEmpty {
+        // Check if we need to process the library
+        if photoGroups.isEmpty || forceRefresh {
             Task { @MainActor in
                 await processEntireLibrary()
             }
         } else {
-            // We already have clustering results, just update UI
+            // If we already have data, just display it
             updateUIWithPhotoGroups(photoGroups)
+            isLoading = false
         }
     }
     

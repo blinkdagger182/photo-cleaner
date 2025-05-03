@@ -7,6 +7,9 @@ struct DiscoverView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
     
+    // Add loading state
+    @State private var isInitializing = true
+    
     init(photoManager: PhotoManager) {
         _viewModel = StateObject(wrappedValue: DiscoverViewModel(photoManager: photoManager))
     }
@@ -18,13 +21,40 @@ struct DiscoverView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                contentView
+            ZStack {
+                ScrollView {
+                    contentView
+                }
+                .overlay(processingOverlay)
+                
+                // Show initializing overlay until first data load is complete
+                if isInitializing {
+                    Color.systemBackground
+                        .ignoresSafeArea()
+                        .overlay(
+                            VStack(spacing: 20) {
+                                ProgressView()
+                                    .scaleEffect(1.5)
+                                Text("Loading Discover tab...")
+                                    .font(.headline)
+                            }
+                        )
+                }
             }
-            .overlay(processingOverlay)
             .onAppear {
                 connectToastService()
-                viewModel.loadAlbums()
+                
+                // Only load data when view appears for the first time
+                if isInitializing {
+                    viewModel.loadAlbums()
+                    
+                    // Mark initialization as complete
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        withAnimation {
+                            isInitializing = false
+                        }
+                    }
+                }
             }
         }
         .sheet(item: $viewModel.selectedGroup) { group in
@@ -94,11 +124,7 @@ struct DiscoverView: View {
                     Text("Processing \(viewModel.totalPhotoCount) photos...")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                } else {
-                    Text("\(viewModel.discoveredPhotoCount) of \(viewModel.totalPhotoCount) photos in albums")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                } 
                 
                 Spacer()
             }

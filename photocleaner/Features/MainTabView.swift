@@ -11,6 +11,9 @@ struct MainTabView: View {
     @State private var currentTab = 0
     @State private var showMarketingBanner = true
     
+    // Track if Discover tab has been loaded already
+    @State private var discoverTabInitialized = false
+    
     // Paywall state
     @State private var showPaywall = false
     @State private var currentOffering: Offering?
@@ -66,6 +69,11 @@ struct MainTabView: View {
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             currentTab = index
+                            
+                            // If switching to Discover tab, mark it as initialized
+                            if index == 1 {
+                                discoverTabInitialized = true
+                            }
                         }
                     }) {
                         VStack(spacing: 8) {
@@ -102,11 +110,19 @@ struct MainTabView: View {
                     .environmentObject(toast)
                     .offset(x: currentTab == 0 ? dragOffset : -screenWidth + dragOffset)
                 
-                // Discover view (at index 1)
-                DiscoverView(photoManager: photoManager)
-                    .environmentObject(photoManager)
-                    .environmentObject(toast)
-                    .offset(x: currentTab == 0 ? screenWidth + dragOffset : dragOffset)
+                // Discover view (at index 1) - only initialize when selected
+                if currentTab == 1 || discoverTabInitialized {
+                    DiscoverView(photoManager: photoManager)
+                        .environmentObject(photoManager)
+                        .environmentObject(toast)
+                        .offset(x: currentTab == 0 ? screenWidth + dragOffset : dragOffset)
+                        .onAppear {
+                            // Mark Discover tab as initialized when it appears
+                            if !discoverTabInitialized {
+                                discoverTabInitialized = true
+                            }
+                        }
+                }
             }
             .gesture(
                 DragGesture()
@@ -135,6 +151,8 @@ struct MainTabView: View {
                                (currentTab == 0 && predictedEndTranslation < -screenWidth/3) {
                                 // Swiped left with enough force/distance, go to Discover
                                 currentTab = 1
+                                // Mark Discover tab as initialized
+                                discoverTabInitialized = true
                             } else if (currentTab == 1 && translation > screenWidth/4) || 
                                       (currentTab == 1 && velocity > 500) ||
                                       (currentTab == 1 && predictedEndTranslation > screenWidth/3) {
@@ -155,6 +173,8 @@ struct MainTabView: View {
                     // Switch to Discover tab when banner is tapped
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         currentTab = 1
+                        // Mark Discover tab as initialized when switching to it
+                        discoverTabInitialized = true
                     }
                 } onDismiss: {
                     // Hide banner and save preference
@@ -206,6 +226,8 @@ struct MainTabView: View {
                 onTap: {
                     // onTap - Go to discover tab
                     currentTab = 1
+                    // Mark Discover tab as initialized
+                    discoverTabInitialized = true
                 },
                 onDismiss: {
                     // Dismiss the banner
