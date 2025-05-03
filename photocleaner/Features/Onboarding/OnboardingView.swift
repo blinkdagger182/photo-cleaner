@@ -181,8 +181,6 @@ struct SwipeCard: View {
         cardContainer
             .overlay(alignment: .topLeading) { keepLabel }
             .overlay(alignment: .topTrailing) { deleteLabel }
-            .overlay(alignment: .trailing) { rightArrowHint }
-            .overlay(alignment: .leading) { leftArrowHint }
             .frame(maxWidth: .infinity)
     }
     
