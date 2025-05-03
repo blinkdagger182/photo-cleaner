@@ -1,6 +1,7 @@
 import Photos
 import SwiftUI
 import UIKit
+import StoreKit
 
 struct SwipeCardView: View {
     let group: PhotoGroup
@@ -13,6 +14,11 @@ struct SwipeCardView: View {
     
     // State for paywall presentation
     @State private var showPaywall = false
+    
+    // State for memory saved modal
+    @State private var showMemorySavedModal = false
+    @State private var memorySavedMB: Double = 0
+    @State private var totalMemoryMB: Double = 0
     
     // Use the new ViewModel to manage state
     @StateObject private var viewModel: SwipeCardViewModel
@@ -445,7 +451,14 @@ struct SwipeCardView: View {
             // Clean up any observers when the preview is dismissed
             viewModel.onDeletePreviewDismissed()
         }) {
-            DeletePreviewView(forceRefresh: $forceRefresh)
+            DeletePreviewView(forceRefresh: $forceRefresh, onDeletionComplete: { result in
+                // Handle the deletion result by showing the memory saved modal
+                if result.success {
+                    self.memorySavedMB = result.memorySavedMB
+                    self.totalMemoryMB = result.totalMemoryMB
+                    self.showMemorySavedModal = true
+                }
+            })
                 .environmentObject(photoManager)
                 .environmentObject(toast)
         }
@@ -457,6 +470,32 @@ struct SwipeCardView: View {
             PaywallView()
                 .environmentObject(subscriptionManager)
         }
+        .overlay {
+            if showMemorySavedModal {
+                // Semi-transparent background
+                Color.black.opacity(0.4)
+                    .edgesIgnoringSafeArea(.all)
+                    .onTapGesture {
+                        // Do nothing, prevent tap through
+                    }
+                
+                // Modal
+                MemorySavedModal(
+                    memorySavedMB: memorySavedMB,
+                    totalMemoryMB: totalMemoryMB,
+                    onClose: {
+                        showMemorySavedModal = false
+                    },
+                    onRate: {
+                        requestAppReview()
+                        showMemorySavedModal = false
+                    }
+                )
+                .transition(.scale.combined(with: .opacity))
+                .zIndex(100)
+            }
+        }
+        .animation(.spring(), value: showMemorySavedModal)
     }
 
     // MARK: - Gestures
@@ -509,6 +548,28 @@ struct SwipeCardView: View {
                 }
             }
         }
+    }
+
+    // Function to request app review
+    private func requestAppReview() {
+        // Check if we're on a physical device (StoreKit review prompts don't work in simulators)
+        #if !targetEnvironment(simulator)
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            print("No window scene found, skipping review request")
+            return
+        }
+        
+        // Request the review
+        if #available(iOS 14.0, *) {
+            SKStoreReviewController.requestReview(in: windowScene)
+        } else {
+            // Fallback on earlier versions
+            SKStoreReviewController.requestReview()
+        }
+        #else
+        // We're running in the simulator, show a message via toast
+        toast.show("App review requested. This only works on physical devices.", duration: 2.0)
+        #endif
     }
 }
 

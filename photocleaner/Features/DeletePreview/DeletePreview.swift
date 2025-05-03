@@ -1,6 +1,14 @@
 import SwiftUI
 import Photos
 import AVFoundation
+import StoreKit
+
+// Define a completion handler to pass data back to parent view
+struct DeletionResult {
+    let success: Bool
+    let memorySavedMB: Double
+    let totalMemoryMB: Double
+}
 
 /// A custom ViewModifier to add swipe to unmark functionality
 struct SwipeToUnmark: ViewModifier {
@@ -66,6 +74,7 @@ struct DeletePreviewView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
     @Binding var forceRefresh: Bool
+    var onDeletionComplete: ((DeletionResult) -> Void)? = nil
     
     // Remove the entries binding and use a @State variable instead
     @State private var previewEntries: [DeletePreviewEntry] = []
@@ -359,6 +368,18 @@ struct DeletePreviewView: View {
         let toDelete = previewEntries.filter { selectedEntries.contains($0.id) }
         let assetsToDelete = toDelete.map { $0.asset }
 
+        // Calculate actual memory saved from file sizes
+        let savedBytes = toDelete.map { $0.fileSize }.reduce(0, +)
+        let memorySavedMB = Double(savedBytes) / (1024 * 1024) // Convert bytes to MB
+        
+        // Get device total storage
+        var totalStorageSpace: Double = 0
+        if let deviceSpaceTuple = getDeviceStorage() {
+            totalStorageSpace = deviceSpaceTuple.totalSpace
+        } else {
+            totalStorageSpace = 1024 * 64 // Fallback to 64GB if we can't get the actual value
+        }
+        
         Task {
             // Wait for the hardDeleteAssets operation and get the success status
             let deletionSucceeded = await photoManager.hardDeleteAssets(assetsToDelete)
@@ -372,9 +393,21 @@ struct DeletePreviewView: View {
                     // Play success sound when deletion completes and we show the green tick
                     SoundManager.shared.playSound(named: "air-whoosh")
                     
+                    // Delay to allow completion animation to be visible
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        // Create deletion result to pass back to parent
+                        let result = DeletionResult(
+                            success: true,
+                            memorySavedMB: memorySavedMB,
+                            totalMemoryMB: totalStorageSpace
+                        )
+                        
+                        // Dismiss this view
                         dismiss()
                         forceRefresh.toggle()
+                        
+                        // Pass result back to parent view
+                        onDeletionComplete?(result)
                     }
                 } else {
                     // Deletion failed or was canceled by user - reset UI and inform user
@@ -385,6 +418,31 @@ struct DeletePreviewView: View {
                 }
             }
         }
+    }
+
+    // Helper function to get device storage info
+    private func getDeviceStorage() -> (totalSpace: Double, freeSpace: Double)? {
+        let fileManager = FileManager.default
+        
+        do {
+            let documentDirectoryURL = try fileManager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+            
+            // Get the volume of the current directory
+            let resourceValues = try documentDirectoryURL.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey])
+            
+            if let totalCapacity = resourceValues.volumeTotalCapacity,
+               let availableCapacity = resourceValues.volumeAvailableCapacity {
+                // Convert to MB
+                let totalSpaceMB = Double(totalCapacity) / (1024 * 1024)
+                let freeSpaceMB = Double(availableCapacity) / (1024 * 1024)
+                
+                return (totalSpaceMB, freeSpaceMB)
+            }
+        } catch {
+            print("Error getting device storage: \(error.localizedDescription)")
+        }
+        
+        return nil
     }
 
     /// Unmark a photo from deletion and remove it from the current view
@@ -403,5 +461,27 @@ struct DeletePreviewView: View {
             // Show toast notification
             toast.show("Photo removed from deletion list", duration: 1.5)
         }
+    }
+
+    // Function to request app review
+    private func requestAppReview() {
+        // Check if we're on a physical device (StoreKit review prompts don't work in simulators)
+        #if !targetEnvironment(simulator)
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            print("No window scene found, skipping review request")
+            return
+        }
+        
+        // Request the review
+        if #available(iOS 14.0, *) {
+            SKStoreReviewController.requestReview(in: windowScene)
+        } else {
+            // Fallback on earlier versions
+            SKStoreReviewController.requestReview()
+        }
+        #else
+        // We're running in the simulator, show a message via toast
+        toast.show("App review requested. This only works on physical devices.", duration: 2.0)
+        #endif
     }
 }
