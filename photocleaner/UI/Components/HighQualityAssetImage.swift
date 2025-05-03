@@ -52,8 +52,8 @@ struct HighQualityAssetImage: View {
         // Scale based on screen scale for proper resolution
         let scale = UIScreen.main.scale
         let targetSize = CGSize(
-            width: min(size.width * scale, 600),
-            height: min(size.height * scale, 600)
+            width: min(size.width * scale, 1200),  // Increased max size for better quality
+            height: min(size.height * scale, 1200)  // Increased max size for better quality
         )
         
         // Track if we've already resumed to prevent multiple resumes

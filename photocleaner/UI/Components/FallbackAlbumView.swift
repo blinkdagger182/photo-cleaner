@@ -84,7 +84,7 @@ struct FallbackFeaturedCarousel: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 20) {
+            HStack(spacing: 12) {
                 ForEach(albums) { album in
                     FallbackFeaturedCell(album: album)
                         .onTapGesture {
@@ -92,7 +92,7 @@ struct FallbackFeaturedCarousel: View {
                         }
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 4)
         }
     }
 }
@@ -103,26 +103,30 @@ struct FallbackFeaturedCell: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Cover image or placeholder with no inner padding
-            ZStack {
-                if let asset = album.fetchAssets().first {
-                    HighQualityAssetImage(asset: asset, size: CGSize(width: 320, height: 200))
-                        .frame(width: 320, height: 200)
-                        .clipped()
-                } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 320, height: 200)
-                }
-                
-                // Gradient overlay for text readability
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.7)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+            // Create an image container with proper aspect ratio and dimensions
+            if let asset = album.fetchAssets().first {
+                // Use larger size to ensure high quality
+                HighQualityAssetImage(asset: asset, size: CGSize(width: 800, height: 600), contentMode: .fill)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 340, height: 240)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 2)
+                    .overlay(
+                        // Gradient overlay for text readability
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.7)]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    )
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 340, height: 240)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 2)
             }
-            .cornerRadius(12)
             
             // Album title
             Text(album.title)
@@ -136,6 +140,7 @@ struct FallbackFeaturedCell: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .frame(width: 340)
     }
 }
 
