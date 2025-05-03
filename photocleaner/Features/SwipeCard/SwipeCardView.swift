@@ -125,22 +125,6 @@ struct SwipeCardView: View {
                                                             .tint(.white)
                                                     }
                                                 )
-                                        } else {
-                                            // No previous image available, show skeleton with less white
-                                            RoundedRectangle(cornerRadius: 30)
-                                                .fill(Color(white: 0.95))
-                                                .frame(width: geometry.size.width * 0.85)
-                                                .shadow(radius: 8)
-                                                .overlay(
-                                                    VStack {
-                                                        ProgressView()
-                                                            .padding(.bottom, 8)
-                                                        Text("Loading image...")
-                                                            .font(.caption)
-                                                            .foregroundColor(.gray)
-                                                    }
-                                                )
-                                                .padding()
                                         }
                                     }
 
@@ -496,6 +480,23 @@ struct SwipeCardView: View {
             }
         }
         .animation(.spring(), value: showMemorySavedModal)
+        #if DEBUG
+        // Add debug overlay for swipe count in Discover tab
+        .overlay(alignment: .topTrailing) {
+            if isDiscoverTab {
+                let swipeCount = viewModel.discoverSwipeTracker?.swipeCount ?? 0
+                let threshold = viewModel.discoverSwipeTracker?.threshold ?? 5
+                
+                Text("Swipes: \(swipeCount)/\(threshold)")
+                    .font(.caption)
+                    .padding(6)
+                    .background(Color.black.opacity(0.7))
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                    .padding(8)
+            }
+        }
+        #endif
     }
 
     // MARK: - Gestures

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Combine
 
 @MainActor
 class DiscoverSwipeTracker: ObservableObject {
@@ -15,6 +16,11 @@ class DiscoverSwipeTracker: ObservableObject {
     private let swipeCountKey = "discoverSwipeCount"
     private let lastResetDateKey = "lastSwipeCountResetDate"
     
+    // Publicly expose the threshold
+    var threshold: Int {
+        return swipeThreshold
+    }
+    
     // MARK: - Initialization
     private init() {
         loadSavedData()
@@ -22,17 +28,22 @@ class DiscoverSwipeTracker: ObservableObject {
     }
     
     // MARK: - Public Methods
-    func incrementSwipeCount() {
+    func incrementSwipeCount() -> Bool {
         // Check if we need to reset for a new day
         checkAndResetForNewDay()
         
+        // Check if we're about to exceed the threshold
+        if swipeCount >= swipeThreshold && !SubscriptionManager.shared.isPremium {
+            // We should show the paywall and undo the swipe
+            showRCPaywall = true
+            return true
+        }
+        
+        // If we're under the threshold, increment the counter normally
         swipeCount += 1
         saveState()
         
-        // Check if we've reached the threshold
-        if swipeCount >= swipeThreshold && !showRCPaywall {
-            showRCPaywall = true
-        }
+        return false
     }
     
     func resetCounter() {
