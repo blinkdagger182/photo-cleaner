@@ -79,21 +79,67 @@ struct MarketingBanner: View {
     .background(Color.gray.opacity(0.2))
 }
 
+// struct PremiumAlertBanner: View {
+//     var onTap: () -> Void
+//     var onDismiss: () -> Void
+//     @Binding var showPaywall: Bool
+
+//     var body: some View {
+//         VStack(spacing: 12) {
+//             Image("premium_alert_banner") // Add the image to Assets
+//                 .resizable()
+//                 .aspectRatio(contentMode: .fit)
+//                 .frame(maxWidth: .infinity)
+
+//             Button(action: {
+//                 onDismiss() // First dismiss the banner
+//                 onTap() // Then go to discover tab
+//             }) {
+//                 Text("View Collections")
+//                     .font(.headline)
+//                     .padding(.horizontal, 24)
+//                     .padding(.vertical, 14)
+//                     .background(Color.mint)
+//                     .foregroundColor(.black)
+//                     .cornerRadius(20)
+//             }
+
+//             Button(action: onDismiss) {
+//                 Text("Maybe later")
+//                     .font(.footnote)
+//                     .foregroundColor(.gray)
+//                     .padding(.bottom, 4)
+//             }
+//         }
+//         .background(Color.white.opacity(0.9))
+//         .cornerRadius(24)
+//         .padding()
+//         .shadow(radius: 8)
+//     }
+// }
+
 struct PremiumAlertBanner: View {
     var onTap: () -> Void
     var onDismiss: () -> Void
     @Binding var showPaywall: Bool
 
+    @State private var offset: CGSize = .zero
+    @GestureState private var dragOffset: CGSize = .zero
+
+    // Thresholds
+    private let dismissThreshold: CGFloat = 150
+    private let velocityThreshold: CGFloat = 1000
+
     var body: some View {
         VStack(spacing: 12) {
-            Image("premium_alert_banner") // Add the image to Assets
+            Image("premium_alert_banner")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity)
 
             Button(action: {
-                onDismiss() // First dismiss the banner
-                onTap() // Then go to discover tab
+                onDismiss()
+                onTap()
             }) {
                 Text("View Collections")
                     .font(.headline)
@@ -105,7 +151,7 @@ struct PremiumAlertBanner: View {
             }
 
             Button(action: onDismiss) {
-                Text("Maybe later")
+                Text("Swipe To Dismiss")
                     .font(.footnote)
                     .foregroundColor(.gray)
                     .padding(.bottom, 4)
@@ -115,5 +161,37 @@ struct PremiumAlertBanner: View {
         .cornerRadius(24)
         .padding()
         .shadow(radius: 8)
+        .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
+        .gesture(
+            DragGesture()
+                .updating($dragOffset) { value, state, _ in
+                    state = value.translation
+                }
+                .onEnded { value in
+                    let totalOffset = CGSize(
+                        width: offset.width + value.translation.width,
+                        height: offset.height + value.translation.height
+                    )
+
+                    let velocity = sqrt(pow(value.predictedEndTranslation.width, 2) + pow(value.predictedEndTranslation.height, 2))
+
+                    if abs(totalOffset.width) > dismissThreshold || abs(totalOffset.height) > dismissThreshold || velocity > velocityThreshold {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            offset = CGSize(
+                                width: value.translation.width > 0 ? 1000 : -1000,
+                                height: value.translation.height > 0 ? 1000 : -1000
+                            )
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onDismiss()
+                        }
+                    } else {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                            offset = .zero
+                        }
+                    }
+                }
+        )
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: dragOffset)
     }
 }
