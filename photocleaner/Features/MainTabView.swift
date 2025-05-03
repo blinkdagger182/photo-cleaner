@@ -38,11 +38,10 @@ struct MainTabView: View {
         
         VStack(spacing: 0) {
             // CLN Logo at the top
-            HStack {
+            HStack (spacing: -4) {
                 Spacer()
                 
                 // Display CLN logo or CLN+ logo based on the selected tab
-                
                 Image("CLN")
                     .resizable()
                     .aspectRatio(contentMode: .fit)

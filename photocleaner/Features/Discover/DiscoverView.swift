@@ -71,16 +71,19 @@ struct DiscoverView: View {
                 
                 Spacer()
                 
-                // Advanced clustering button
+                // Advanced clustering button - refresh the clustering
                 Button(action: {
-                    viewModel.processEntireLibrary()
+                    Task {
+                        await viewModel.processEntireLibrary()
+                    }
                 }) {
-                    Image(systemName: "rectangle.stack.fill.badge.plus")
+                    Image(systemName: "square.stack.3d.up")
                         .font(.title2)
                 }
                 .disabled(viewModel.isClusteringInProgress)
                 .padding(.trailing, 8)
                 
+                // Note: Removed the toggle button since we're only using clustering now
             }
             .padding(.horizontal)
             
@@ -145,9 +148,16 @@ struct DiscoverView: View {
     private var featuredAlbumsView: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Featured Albums")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Featured Albums")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    // Simplified description - we only use time and location now
+//                    Text("Smart clustering based on time and location")
+//                        .font(.caption)
+//                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 
@@ -198,9 +208,18 @@ struct DiscoverView: View {
     private func categoryView(title: String, albums: [SmartAlbumGroup]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(title)
-                    .font(.title3)
-                    .fontWeight(.bold)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    
+                    // Simplified description for Events category - we only use time and location now
+                    if title == "Events" {
+                        Text("Smart clustering based on time and location")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 
                 Spacer()
                 
@@ -279,7 +298,9 @@ struct DiscoverView: View {
                 .padding(.horizontal, 24)
             
             Button(action: {
-                viewModel.generateAlbums()
+                Task {
+                    await viewModel.processEntireLibrary()
+                }
             }) {
                 Text("Generate Smart Albums")
                     .padding()
@@ -298,13 +319,15 @@ struct DiscoverView: View {
         VStack {
             if viewModel.hasMoreAlbums {
                 Button(action: {
-                    viewModel.loadMoreAlbums()
+                    Task {
+                        viewModel.loadMoreAlbums()
+                    }
                 }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "arrow.counterclockwise")
+                        Image(systemName: "square.stack.3d.up")
                             .font(.system(size: 16))
                         
-                        Text("Bring Back More Days")
+                        Text("Reprocess Photo Library")
                             .font(.system(size: 16, weight: .medium))
                     }
                     .padding(.vertical, 12)
@@ -326,7 +349,7 @@ struct DiscoverView: View {
                 .disabled(viewModel.isLoadingMore)
                 .padding(.vertical, 16)
             } else if !viewModel.categorizedAlbums.isEmpty {
-                Text("All albums loaded")
+                Text("All photos processed")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.vertical, 16)

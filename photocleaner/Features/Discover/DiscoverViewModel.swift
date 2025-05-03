@@ -52,6 +52,9 @@ class DiscoverViewModel: ObservableObject {
     @Published var featuredSortByMostPhotos: Bool = true
     @Published var isSortingFeatured: Bool = false
     
+    // Flag to indicate if we have clustering results available - Always true now
+    @Published var hasClusteringResults: Bool = true
+    
     // Sort options for Events
     enum EventSortOption: String, CaseIterable, Identifiable {
         case newestFirst = "Newest First"
@@ -116,8 +119,10 @@ class DiscoverViewModel: ObservableObject {
         // Set up batch processing subscribers
         setupBatchProcessingSubscribers()
         
-        // Load albums with existing data first
-        self.loadAlbums()
+        // Start processing right away to generate clustering-based albums
+        Task { @MainActor in
+            await processEntireLibrary()
+        }
     }
     
     private func setupBatchProcessingSubscribers() {
@@ -157,16 +162,32 @@ class DiscoverViewModel: ObservableObject {
         toast?.show(message, duration: duration)
     }
     
+    // Check if we have clustering results - Now only uses clustering results
+    private func checkForClusteringResults() {
+        // Load albums with clustering data if available, otherwise generate them
+        if !photoGroups.isEmpty {
+            hasClusteringResults = true
+            updateUIWithPhotoGroups(photoGroups)
+        } else {
+            // No clustering results yet, start processing
+            Task { @MainActor in
+                await processEntireLibrary()
+            }
+        }
+    }
+    
     // MARK: - Public Methods
     
     /// Load smart albums from the repository with pagination support
+    /// This method is now commented out as we're using only clustering-based albums
+    /* 
     func loadAlbums(forceRefresh: Bool = false) {
-        // Reset pagination if it's a force refresh
-        if forceRefresh {
-            currentPage = 1
-            categorizedAlbums = [:]
+        // We now only use clustering results
+        if hasClusteringResults && !forceRefresh {
+            return
         }
         
+        // Rest of existing loadAlbums code
         isLoading = true
         
         // Show loading toast on main thread
@@ -215,54 +236,27 @@ class DiscoverViewModel: ObservableObject {
             }
         }
     }
+    */
     
-    /// Load more albums (next page)
-    func loadMoreAlbums() {
-        guard !isLoadingMore else { return }
-        
-        isLoadingMore = true
-        
-        Task { @MainActor [weak self] in
-            self?.toast?.show("Bringing back more days...", duration: 1.5)
-        }
-        
-        // First check if we need to generate more albums
-        let existingCount = smartAlbumManager.allSmartAlbums.count
-        let totalAssets = photoManager.allAssets.count
-        
-        // If we have lots of photos but few albums, generate more
-        if existingCount < 100 && totalAssets > existingCount * 50 {
-            // Generate more albums (batch of 20) from the photo library
-            isGenerating = true
-            
-            smartAlbumManager.generateSmartAlbums(from: photoManager.allAssets, limit: existingCount + 20) { [weak self] in
-                guard let self = self else { return }
-                
-                DispatchQueue.main.async {
-                    self.isGenerating = false
-                    self.currentPage += 1
-                    self.loadAlbumsPage(page: self.currentPage)
-                    self.isLoadingMore = false
-                    
-                    // Update photo count statistics
-                    self.updatePhotoCountStatistics()
-                }
+    // We'll keep a simplified loadAlbums method that just calls processEntireLibrary
+    func loadAlbums(forceRefresh: Bool = false) {
+        if forceRefresh {
+            Task { @MainActor in
+                await processEntireLibrary()
+            }
+        } else if photoGroups.isEmpty {
+            Task { @MainActor in
+                await processEntireLibrary()
             }
         } else {
-            // Just load the next page of existing albums
-            currentPage += 1
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                guard let self = self else { return }
-                self.loadAlbumsPage(page: self.currentPage)
-                self.isLoadingMore = false
-            }
+            // We already have clustering results, just update UI
+            updateUIWithPhotoGroups(photoGroups)
         }
     }
     
     /// Process the entire photo library using advanced clustering
     @MainActor
-    func processEntireLibrary() {
+    func processEntireLibrary() async {
         guard !isClusteringInProgress else {
             toast?.show("Already processing photo library", duration: 1.5)
             return
@@ -272,18 +266,16 @@ class DiscoverViewModel: ObservableObject {
         clusteringProgress = 0.0
         
         // Show toast notification
-        toast?.show("Processing entire photo library...", duration: 2.0)
+        toast?.show("Processing photo library by time and location...", duration: 2.0)
         
         // Set up a timer to update the UI with progress
         let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            DispatchQueue.main.async {
-                self.clusteringProgress = self.clusteringManager.progress
-            }
+            self.clusteringProgress = self.clusteringManager.progress
         }
         
-        // Start the clustering process
-        Task {
+        do {
+            // Start the clustering process
             let photoGroups = await withCheckedContinuation { continuation in
                 clusteringManager.processEntireLibrary { groups in
                     continuation.resume(returning: groups)
@@ -291,23 +283,33 @@ class DiscoverViewModel: ObservableObject {
             }
             
             // Stop the progress timer on the main thread
-            await MainActor.run {
-                progressTimer.invalidate()
-                self.photoGroups = photoGroups
-                self.isClusteringInProgress = false
-                self.clusteringProgress = 1.0
-                
-                // Show completion toast
-                self.toast?.show("Processed \(photoGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)
-                
-                // Update the UI with the new photo groups
-                self.updateUIWithPhotoGroups(photoGroups)
-            }
+            progressTimer.invalidate()
+            self.photoGroups = photoGroups
+            self.isClusteringInProgress = false
+            self.clusteringProgress = 1.0
+            
+            // Set flag to indicate we have clustering results
+            self.hasClusteringResults = true
+            
+            // Show completion toast
+            self.toast?.show("Processed \(photoGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)
+            
+            // Update the UI with the new photo groups
+            self.updateUIWithPhotoGroups(photoGroups)
+        } catch {
+            // Handle any errors that might occur
+            progressTimer.invalidate()
+            self.isClusteringInProgress = false
+            self.clusteringProgress = 0
+            
+            // Show error message
+            self.toast?.show("Error processing photo library: \(error.localizedDescription)", duration: 3.0)
+            print("Error processing photo library: \(error)")
         }
     }
     
     /// Update the UI with the new photo groups
-    private func updateUIWithPhotoGroups(_ photoGroups: [PhotoGroup]) {
+    func updateUIWithPhotoGroups(_ photoGroups: [PhotoGroup]) {
         // Reset the current state
         currentPage = 1
         categorizedAlbums = [:]
@@ -822,7 +824,7 @@ class DiscoverViewModel: ObservableObject {
                 timeOfDayCounts["morning", default: 0] += 1
             case 12..<17:
                 timeOfDayCounts["afternoon", default: 0] += 1
-            case 17..<21:
+            case 17..<24:
                 timeOfDayCounts["evening", default: 0] += 1
             default:
                 timeOfDayCounts["night", default: 0] += 1
@@ -958,6 +960,15 @@ class DiscoverViewModel: ObservableObject {
             }
             
             self.isSortingFeatured = false
+        }
+    }
+    
+    // New simplified implementation that just reprocesses the library
+    func loadMoreAlbums() {
+        // For our clustering-based approach, "load more" just reprocesses the entire library 
+        // using time and location metadata to create optimized photo groups
+        Task { @MainActor in
+            await processEntireLibrary()
         }
     }
 } 

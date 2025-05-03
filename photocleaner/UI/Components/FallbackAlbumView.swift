@@ -84,7 +84,7 @@ struct FallbackFeaturedCarousel: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
+            HStack(spacing: 20) {
                 ForEach(albums) { album in
                     FallbackFeaturedCell(album: album)
                         .onTapGesture {
