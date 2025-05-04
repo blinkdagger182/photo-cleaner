@@ -230,6 +230,10 @@ struct MainTabView: View {
         }
 
         if showPremiumAlertBanner && !subscriptionManager.isPremium {
+            Color.black.opacity(0.6)
+            .ignoresSafeArea()
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.25), value: showPremiumAlertBanner)
             PremiumAlertBanner(
                 onTap: {
                     // onTap - Go to discover tab

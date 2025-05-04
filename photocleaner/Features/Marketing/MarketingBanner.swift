@@ -135,7 +135,7 @@ struct PremiumAlertBanner: View {
             Image("premium_alert_banner")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: .infinity)
+                .frame(width: 280) // Smaller width
 
             Button(action: {
                 onDismiss()

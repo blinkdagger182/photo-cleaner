@@ -339,18 +339,8 @@ struct SwipeCardView: View {
                                     .scaleEffect(0.7)
                                     .tint(.primary)
                             } else {
-                                let isPremium = subscriptionManager.isPremium
-
-                                if isPremium {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .foregroundColor(.blue)
-                                } else {
-                                    Image("share_locked")
-                                        .resizable()
-                                        .renderingMode(.template)
-                                        .scaledToFit()
-                                        .frame(width: 36, height: 36)
-                                }
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundColor(.blue)
                             }
                         }
                         .padding(.vertical, 6)
