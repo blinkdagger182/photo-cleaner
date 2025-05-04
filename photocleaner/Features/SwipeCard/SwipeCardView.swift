@@ -85,146 +85,14 @@ struct SwipeCardView: View {
                             }
                             .padding(.top, 60)
                         } else {
-                            // Show images with proper fallbacks
-                            ForEach(
-                                (0..<min(2, max(group.count - viewModel.currentIndex, 0))).reversed(),
-                                id: \.self
-                            ) { index in
-                                let actualIndex = viewModel.currentIndex + index
-
-                                if index == 0 && actualIndex < viewModel.preloadedImages.count,
-                                   let image = viewModel.preloadedImages[actualIndex] {
-                                    // Use our new SwipePhotoCard component for the top card with live photo support
-                                    SwipePhotoCard(
-                                        asset: group.asset(at: actualIndex) ?? PHAsset(),
-                                        image: image,
-                                        index: actualIndex,
-                                        isTopCard: true,
-                                        offset: viewModel.offset
-                                    )
-                                    .frame(maxWidth: .infinity)
-                                    .gesture(
-                                        DragGesture()
-                                            .onChanged { value in
-                                                // Only process drag if not currently zooming
-                                                if currentScale <= 1.0 {
-                                                    viewModel.handleDragGesture(value: value)
-                                                    
-                                                    // Preload next image when drag starts to ensure it's ready
-                                                    if value.translation.width < -20 || value.translation.width > 20 {
-                                                        viewModel.preloadNextImageIfNeeded()
-                                                    }
-                                                }
-                                            }
-                                            .onEnded { value in
-                                                // Only process drag end if not currently zooming
-                                                if currentScale <= 1.0 {
-                                                    viewModel.handleDragGestureEnd(value: value)
-                                                }
-                                            }
-                                    )
-                                    .simultaneousGesture(magnification)
-                                    .id("\(viewModel.currentIndex)-\(index)") // Key for animation
-                                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
-                                } else if index == 1 && actualIndex < viewModel.preloadedImages.count,
-                                          let image = viewModel.preloadedImages[actualIndex] {
-                                    // Use our SwipePhotoCard for background card too, but without gesture support
-                                    SwipePhotoCard(
-                                        asset: group.asset(at: actualIndex) ?? PHAsset(),
-                                        image: image,
-                                        index: actualIndex,
-                                        isTopCard: false,
-                                        offset: .zero // Background card doesn't move
-                                    )
-                                    .frame(maxWidth: .infinity)
-                                    .opacity(0.4) // Background card is dimmed
-                                    .id("\(viewModel.currentIndex)-\(index)") // Key for animation
-                                    .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
-                                } else if actualIndex < group.count {
-                                    // We don't have an image for the background card yet
-                                    // Just show an empty placeholder to avoid wrong images
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.1))
-                                        .frame(maxWidth: .infinity)
-                                        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                                        .padding(.top, 20)
-                                        .opacity(0.4)
-                                }
-                            }
+                            // Show cards using a simpler approach
+                            cardStack(geometry: geometry)
                             
                             // Add Static drag label with same style as before, but above cards
-                            if viewModel.offset != .zero, let swipeLabel = viewModel.swipeLabel {
-                                let labelColor = swipeLabel == "Delete" ? 
-                                    Color(red: 0.55, green: 0.35, blue: 0.98) : // Purple for Delete
-                                    Color.green                                 // Green for Keep
-                                    
-                                Text(swipeLabel.uppercased())
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(labelColor)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.clear)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(labelColor, lineWidth: 3)
-                                            )
-                                    )
-                                    .rotationEffect(.degrees(-15))
-                                    .opacity(1)
-                                    .offset(
-                                        x: swipeLabel == "Keep" ? -40 : 40,
-                                        y: -geometry.size.height / 4
-                                    )
-                                    .transition(.opacity.combined(with: .move(edge: .top)))
-                                    .animation(.easeInOut(duration: 0.2), value: swipeLabel)
-                                    .zIndex(100) // Ensure it's above cards
-                            }
+                            dragLabel
                             
                             // Fly-off animation label
-                            if showFlyOffLabel {
-                                Text(flyOffLabelText.uppercased())
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(flyOffLabelColor)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.clear)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(flyOffLabelColor, lineWidth: 3)
-                                            )
-                                    )
-                                    .rotationEffect(flyOffLabelRotation)
-                                    .opacity(flyOffLabelOpacity)
-                                    .offset(flyOffLabelOffset)
-                                    .zIndex(101) // Above everything
-                            }
-
-                            // Show a loading indicator when actively loading more images
-                            // if viewModel.isLoading {
-                            //     HStack {
-                            //         Spacer()
-                            //         VStack {
-                            //             Spacer()
-                            //             ProgressView()
-                            //                 .scaleEffect(1.5)
-                            //             Text("Loading more...")
-                            //                 .font(.caption)
-                            //                 .foregroundColor(.gray)
-                            //                 .padding(.top, 8)
-                            //             Spacer()
-                            //         }
-                            //         Spacer()
-                            //     }
-                            //     .frame(width: 150, height: 100)
-                            //     .background(Color.white.opacity(0.9))
-                            //     .cornerRadius(12)
-                            //     .shadow(radius: 8)
-                            //     .padding(.bottom, 50)
-                            // }
+                            flyOffLabel
                         }
                     }
 
@@ -509,23 +377,26 @@ struct SwipeCardView: View {
     }
 
     // MARK: - Gestures
-    var magnification: some Gesture {
+    private var magnification: some Gesture {
         MagnificationGesture(minimumScaleDelta: 0.01)
             .onChanged { value in
-                // Only allow zooming with two fingers
+                // Only allow zooming with two fingers if we're not in the middle of a long press
                 if value != 1.0 {  // This helps identify a true pinch gesture
                     // Allow zooming to a larger scale (Instagram-like)
+                    self.currentScale = max(value, 1.0)
                     self.finalScale = max(value, 1.0)
                     
-                    // Reset any drag offset when zooming starts
-                    if self.currentScale == 1.0 && self.finalScale > 1.0 {
-                        viewModel.offset = .zero
+                    // Reset any drag offset when zooming starts to prevent conflicts
+                    if value > 1.2 && viewModel.offset != .zero {
+                        withAnimation(.spring(response: 0.3)) {
+                            viewModel.offset = .zero
+                        }
                     }
                 }
             }
             .onEnded { _ in
                 // Always animate back to original size when gesture ends (Instagram-like behavior)
-                withAnimation(.spring()) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     self.currentScale = 1.0
                     self.finalScale = 1.0
                 }
@@ -541,21 +412,30 @@ struct SwipeCardView: View {
 
     private func skeletonStack(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
+            // Create multiple stacked skeleton rectangles
             ForEach((0..<2).reversed(), id: \.self) { index in
-                ZStack {
-                    RoundedRectangle(cornerRadius: 30)
-                        .fill(Color(white: 0.9))
-                        .frame(width: width, height: height)
-                        .offset(x: CGFloat(index * 6), y: CGFloat(index * 6))
-                        .shadow(radius: 6)
-                        .shimmering()
+                createSkeletonRectangle(width: width, height: height, index: index)
+            }
+        }
+    }
+    
+    // Helper to create a single skeleton rectangle
+    private func createSkeletonRectangle(width: CGFloat, height: CGFloat, index: Int) -> some View {
+        let offset = CGFloat(index * 6)
+        
+        return ZStack {
+            RoundedRectangle(cornerRadius: 30)
+                .fill(Color(white: 0.9))
+                .frame(width: width, height: height)
+                .offset(x: offset, y: offset)
+                .shadow(radius: 6)
+                .shimmering()
 
-                    if index == 0 {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(1.5)
-                    }
-                }
+            // Only show progress indicator on the top rectangle
+            if index == 0 {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle())
+                    .scaleEffect(1.5)
             }
         }
     }
@@ -580,6 +460,246 @@ struct SwipeCardView: View {
         // We're running in the simulator, show a message via toast
         toast.show("App review requested. This only works on physical devices.", duration: 2.0)
         #endif
+    }
+
+    // MARK: - Card Stack
+    @ViewBuilder
+    private func cardStack(geometry: GeometryProxy) -> some View {
+        // Break down the complex expression into separate functions
+        CardStackContent(viewModel: viewModel, group: group)
+            .environment(\.currentScaleValue, currentScale)
+    }
+    
+    // Extract the card stack content into a separate struct
+    private struct CardStackContent: View {
+        @ObservedObject var viewModel: SwipeCardViewModel
+        let group: PhotoGroup
+        
+        var body: some View {
+            // Get the list of visible indices to display
+            let visibleIndices = getVisibleCardIndices()
+            
+            // Show cards in reverse order (background first, then foreground)
+            ForEach(visibleIndices.reversed(), id: \.self) { relativeIndex in
+                CardView(
+                    viewModel: viewModel,
+                    group: group,
+                    relativeIndex: relativeIndex
+                )
+            }
+        }
+        
+        // Helper to get indices for visible cards
+        private func getVisibleCardIndices() -> [Int] {
+            // Calculate how many cards could be shown
+            let visibleCount = min(2, max(group.count - viewModel.currentIndex, 0))
+            
+            // Return an array of indices relative to the current card (0 = current, 1 = next)
+            return Array(0..<visibleCount)
+        }
+    }
+    
+    // Extract card view into a separate struct
+    private struct CardView: View {
+        @ObservedObject var viewModel: SwipeCardViewModel
+        let group: PhotoGroup
+        let relativeIndex: Int
+        
+        var body: some View {
+            let actualIndex = viewModel.currentIndex + relativeIndex
+            
+            if relativeIndex == 0 {
+                // Top card (the one user interacts with)
+                TopCardView(
+                    viewModel: viewModel,
+                    group: group,
+                    actualIndex: actualIndex
+                )
+            } else {
+                // Background card (just for visual effect)
+                BackgroundCardView(
+                    viewModel: viewModel,
+                    group: group,
+                    actualIndex: actualIndex
+                )
+            }
+        }
+    }
+    
+    // Extract top card view into a separate struct
+    private struct TopCardView: View {
+        @ObservedObject var viewModel: SwipeCardViewModel
+        let group: PhotoGroup
+        let actualIndex: Int
+        @Environment(\.currentScaleValue) private var currentScale: CGFloat
+        
+        var body: some View {
+            if isImageAvailable() {
+                createPhotoCard()
+            } else {
+                EmptyView()
+            }
+        }
+        
+        // Helper to check if an image is available at the given index
+        private func isImageAvailable() -> Bool {
+            return actualIndex < viewModel.preloadedImages.count && viewModel.preloadedImages[actualIndex] != nil
+        }
+        
+        // Helper to create the photo card with all its modifiers
+        private func createPhotoCard() -> some View {
+            let asset = group.asset(at: actualIndex) ?? PHAsset()
+            let image = viewModel.preloadedImages[actualIndex]!
+            
+            return SwipePhotoCard(
+                asset: asset,
+                image: image,
+                index: actualIndex,
+                isTopCard: true,
+                offset: viewModel.offset
+            )
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(dragGesture)
+            .id("\(viewModel.currentIndex)-0") // Key for animation
+            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
+        }
+        
+        // Extract drag gesture to reduce complexity
+        private var dragGesture: some Gesture {
+            DragGesture()
+                .onChanged { value in
+                    // Only process drag if not currently zooming
+                    if currentScale <= 1.0 {
+                        viewModel.handleDragGesture(value: value)
+                        
+                        // Preload next image when drag starts to ensure it's ready
+                        if value.translation.width < -20 || value.translation.width > 20 {
+                            viewModel.preloadNextImageIfNeeded()
+                        }
+                    }
+                }
+                .onEnded { value in
+                    // Only process drag end if not currently zooming
+                    if currentScale <= 1.0 {
+                        viewModel.handleDragGestureEnd(value: value)
+                    }
+                }
+        }
+    }
+    
+    // Extract background card view into a separate struct
+    private struct BackgroundCardView: View {
+        @ObservedObject var viewModel: SwipeCardViewModel
+        let group: PhotoGroup
+        let actualIndex: Int
+        
+        var body: some View {
+            if isImageAvailable() {
+                createBackgroundPhotoCard()
+            } else if actualIndex < group.count {
+                createPlaceholderCard()
+            } else {
+                EmptyView()
+            }
+        }
+        
+        // Helper to check if an image is available
+        private func isImageAvailable() -> Bool {
+            return actualIndex < viewModel.preloadedImages.count && viewModel.preloadedImages[actualIndex] != nil
+        }
+        
+        // Helper to create a background photo card
+        private func createBackgroundPhotoCard() -> some View {
+            let asset = group.asset(at: actualIndex) ?? PHAsset()
+            let image = viewModel.preloadedImages[actualIndex]!
+            
+            return SwipePhotoCard(
+                asset: asset,
+                image: image,
+                index: actualIndex,
+                isTopCard: false,
+                offset: .zero // Background card doesn't move
+            )
+            .frame(maxWidth: .infinity)
+            .opacity(0.4) // Background card is dimmed
+            .id("\(viewModel.currentIndex)-1") // Key for animation
+            .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
+        }
+        
+        // Helper to create a placeholder background card
+        private func createPlaceholderCard() -> some View {
+            Rectangle()
+                .fill(Color.gray.opacity(0.1))
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                .padding(.top, 20)
+                .opacity(0.4)
+        }
+    }
+    
+    // Drag label
+    private var dragLabel: some View {
+        Group {
+            if viewModel.offset != .zero, let swipeLabel = viewModel.swipeLabel {
+                createSwipeLabelView(text: swipeLabel)
+            }
+        }
+    }
+    
+    // Helper to create a swipe label view
+    private func createSwipeLabelView(text: String) -> some View {
+        let isKeep = text == "Keep"
+        let labelColor = isKeep ? Color.green : Color(red: 0.55, green: 0.35, blue: 0.98)
+        let offsetX = isKeep ? -40.0 : 40.0
+        
+        return Text(text.uppercased())
+            .font(.system(size: 36, weight: .bold))
+            .foregroundColor(labelColor)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(createLabelBackground(color: labelColor))
+            .rotationEffect(.degrees(-15))
+            .opacity(1)
+            .offset(
+                x: offsetX,
+                y: -UIScreen.main.bounds.height / 6
+            )
+            .transition(.opacity.combined(with: .move(edge: .top)))
+            .animation(.easeInOut(duration: 0.2), value: text)
+            .zIndex(100) // Ensure it's above cards
+    }
+    
+    // Helper to create the label background
+    private func createLabelBackground(color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(color, lineWidth: 3)
+            )
+    }
+    
+    // Fly-off animation label
+    private var flyOffLabel: some View {
+        Group {
+            if showFlyOffLabel {
+                createFlyOffLabelView()
+            }
+        }
+    }
+    
+    // Helper to create the fly-off label view
+    private func createFlyOffLabelView() -> some View {
+        Text(flyOffLabelText.uppercased())
+            .font(.system(size: 36, weight: .bold))
+            .foregroundColor(flyOffLabelColor)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(createLabelBackground(color: flyOffLabelColor))
+            .rotationEffect(flyOffLabelRotation)
+            .opacity(flyOffLabelOpacity)
+            .offset(flyOffLabelOffset)
+            .zIndex(101) // Above everything
     }
 }
 
@@ -645,5 +765,17 @@ struct ShimmerModifier: ViewModifier {
                     phase = 1.5
                 }
         )
+    }
+}
+
+// Add a custom environment key for passing the current scale
+private struct CurrentScaleKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 1.0
+}
+
+extension EnvironmentValues {
+    var currentScaleValue: CGFloat {
+        get { self[CurrentScaleKey.self] }
+        set { self[CurrentScaleKey.self] = newValue }
     }
 }

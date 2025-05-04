@@ -33,18 +33,40 @@ extension PHAsset {
     
     /// Attempts to get the file size of the asset
     func getFileSize(completion: @escaping (Int64?) -> Void) {
-        // Most backward compatible approach using PHImageManager
-        let manager = PHImageManager.default()
-        let options = PHImageRequestOptions()
-        options.isNetworkAccessAllowed = true
-        options.deliveryMode = .fastFormat
-        options.resizeMode = .none
+        // Create resource options for better performance
+        let options = PHContentEditingInputRequestOptions()
+        options.canHandleAdjustmentData = { _ in return false }
         
-        // Use the standard requestImageData method available on older iOS versions
-        manager.requestImageData(for: self, options: options) { (data, _, _, _) in
-            if let data = data {
-                completion(Int64(data.count))
-            } else {
+        // Request the file URL which gives more reliable size information
+        requestContentEditingInput(with: options) { (input, _) in
+            guard let url = input?.fullSizeImageURL else {
+                // Fallback to the older method if URL isn't available
+                let manager = PHImageManager.default()
+                let imageOptions = PHImageRequestOptions()
+                imageOptions.isNetworkAccessAllowed = true
+                imageOptions.deliveryMode = .fastFormat
+                imageOptions.resizeMode = .none
+                
+                manager.requestImageData(for: self, options: imageOptions) { (data, _, _, _) in
+                    if let data = data {
+                        completion(Int64(data.count))
+                    } else {
+                        completion(nil)
+                    }
+                }
+                return
+            }
+            
+            // Get file size from URL
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                if let size = attributes[.size] as? NSNumber {
+                    completion(size.int64Value)
+                } else {
+                    completion(nil)
+                }
+            } catch {
+                print("Error getting file size: \(error)")
                 completion(nil)
             }
         }

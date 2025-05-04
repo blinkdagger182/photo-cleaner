@@ -27,14 +27,20 @@ class SwipeCardViewModel: ObservableObject {
     var isDiscoverTab: Bool = false
     private var hasStartedLoading = false
     private var viewHasAppeared = false
-    private let maxBufferSize = 10  // Increased from 5 to 10 images in memory
-    private let preloadThreshold = 5  // Increased from 3 to 5 images ahead for preloading
+    private let maxBufferSize = 8  // Reduced from 10 to 8 images in memory to reduce memory pressure
+    private let preloadThreshold = 3  // Reduced from 5 to 3 images ahead for preloading
     private let lastViewedIndexKeyPrefix = "LastViewedIndex_"
     private var loadedCount = 0
     private var imageFetchTasks: [Int: Task<UIImage?, Never>] = [:]
     private var imageLoadingTimeouts: [Int: DispatchWorkItem] = [:]
     private var loadRetryCount: [Int: Int] = [:]
-    private let maxRetryCount = 3
+    private let maxRetryCount = 2  // Reduced from 3 to 2 for faster failure
+    private var concurrentLoadsCount = 0 // Track how many images are loading simultaneously
+    private let maxConcurrentLoads = 2 // Limit concurrent loads to avoid overloading
+    private var pendingIndices: [Int] = [] // Queue of pending image loads
+    
+    // Store request IDs for PHImageManager requests
+    private var requestIDs: [Int: Int] = [:]
     
     // Haptic feedback generator
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
@@ -138,11 +144,11 @@ class SwipeCardViewModel: ObservableObject {
         
         // Check if swipe exceeds threshold or has significant velocity
         if value.translation.width < -threshold || (value.translation.width < -50 && velocity < -300) {
-            // Delete swipe (left) - Immediate action 
-            triggerDeleteWithAnimation(value)
+            // Delete swipe (left) - call our direct animation method instead
+            triggerDeleteAnimationDirectly() 
         } else if value.translation.width > threshold || (value.translation.width > 50 && velocity > 300) {
-            // Keep swipe (right) - Immediate action
-            triggerKeepWithAnimation(value)
+            // Keep swipe (right) - call our direct animation method instead
+            triggerKeepAnimationDirectly()
         } else {
             // Non-action territory - Spring back to center
             let springResponse = 0.55 // Faster spring for more responsive feel
@@ -157,233 +163,14 @@ class SwipeCardViewModel: ObservableObject {
         }
     }
     
-    private func triggerDeleteWithAnimation(_ value: DragGesture.Value) {
-        // Calculate velocity for more natural feeling
-        let velocity = value.predictedEndLocation.x - value.location.x
-        let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
-        let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
-        
-        // Capture current state before any animations
-        guard let asset = group.asset(at: currentIndex) else { return }
-        let capturedIndex = currentIndex
-        
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
-        // Trigger fly-off animation
-        let label = "Delete"
-        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
-        triggerLabelFlyOff?(label, color, value.translation)
-        
-        // Start preloading next image silently - use exactly +1 to ensure we load the next one
-        Task {
-            if capturedIndex + 1 < group.count {
-                await loadImage(at: capturedIndex + 1, quality: .screen)
-            }
-        }
-        
-        // Create a fly-off animation that NEVER springs back
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off to the left with a bit of vertical movement based on gesture
-            offset = CGSize(
-                width: -UIScreen.main.bounds.width * 2.0, // Even further to ensure it's off-screen
-                height: value.translation.height * 1.5
-            )
-        }
-        
-        // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
-            // Important: Disable all animations temporarily
-            UIView.setAnimationsEnabled(false)
-            
-            // Mark for deletion in background
-            self.photoManager.markForDeletion(asset)
-            
-            // Add the current image to the deletion preview if available
-            if capturedIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[capturedIndex] {
-                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
-            }
-            
-            // First update the index while the old card is off screen - increment by exactly 1
-            self.currentIndex = capturedIndex + 1
-            
-            // THEN reset the offset with absolutely no animation 
-            self.offset = .zero
-            
-            // Re-enable animations after state is reset
-            UIView.setAnimationsEnabled(true)
-            
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Undo the deletion action
-                    self.photoManager.unmarkForDeletion(asset)
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                } else {
-                    // Make sure we only use moveToNext (not moveToNextWithAnimation)
-                    // to avoid double incrementation of the index
-                    Task {
-                        // Just ensure the next image is available
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        // Do NOT use moveToNextWithAnimation here, as we've already moved the index
-                    }
-                    
-                    self.toast.show(
-                        "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                    ) {
-                        // Undo action
-                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                        self.photoManager.unmarkForDeletion(asset)
-                        withAnimation {
-                            self.currentIndex = capturedIndex
-                            self.offset = .zero
-                        }
-                    } onDismiss: { }
-                }
-            } else {
-                // Non-discover tab - normal flow continues
-                // Just make sure the image is loaded - don't move to next again
-                Task {
-                    // Just ensure the next image is available
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    // Do NOT use moveToNextWithAnimation here, as we've already moved the index
-                }
-                
-                self.toast.show(
-                    "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                ) {
-                    // Undo action
-                    self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                    self.photoManager.unmarkForDeletion(asset)
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                } onDismiss: { }
-            }
-        }
-    }
-    
-    private func triggerKeepWithAnimation(_ value: DragGesture.Value) {
-        // Calculate velocity for more natural feeling
-        let velocity = value.predictedEndLocation.x - value.location.x
-        let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
-        let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
-        
-        // Capture current state before any animations
-        let capturedIndex = currentIndex
-        
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
-        // Trigger fly-off animation
-        let label = "Keep"
-        let color = Color.green
-        triggerLabelFlyOff?(label, color, value.translation)
-        
-        // Start preloading next image silently - use exactly +1 to ensure we load the next one
-        Task {
-            if capturedIndex + 1 < group.count {
-                await loadImage(at: capturedIndex + 1, quality: .screen)
-            }
-        }
-        
-        // Create a fly-off animation that NEVER springs back
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off to the right with a bit of vertical movement based on gesture
-            offset = CGSize(
-                width: UIScreen.main.bounds.width * 2.0, // Even further to ensure it's off-screen
-                height: value.translation.height * 1.5
-            )
-        }
-        
-        // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
-            // Important: Disable all animations temporarily
-            UIView.setAnimationsEnabled(false)
-            
-            // First update the index while the old card is off screen - increment by exactly 1
-            self.currentIndex = capturedIndex + 1
-            
-            // THEN reset the offset with absolutely no animation
-            self.offset = .zero
-            
-            // Re-enable animations after state is reset
-            UIView.setAnimationsEnabled(true)
-            
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                } else {
-                    // Just ensure the next image is available - don't move to next again
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        // Do NOT use moveToNextWithAnimation here, as we've already moved the index
-                    }
-                }
-            } else {
-                // Load next image - don't move to next again
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    // Do NOT use moveToNextWithAnimation here, as we've already moved the index
-                }
-            }
-        }
-    }
-    
     // Improved version of moveToNext that adds a fade-in animation for the next card
     // and tracks image views for subscription threshold
     private func moveToNextWithAnimation() async {
         let nextIndex = currentIndex + 1
         
         await MainActor.run {
-            preloadNextImage()
+            // Preload the next image
+            preloadNextImageIfNeeded()
 
             // Track image view count for general subscription threshold
             imageViewTracker?.incrementViewCount()
@@ -801,6 +588,7 @@ class SwipeCardViewModel: ObservableObject {
     enum ImageQuality {
         case thumbnail
         case screen
+        case highQuality
     }
     
     private func loadImagesInRange(from startIndex: Int, count: Int, quality: ImageQuality) async {
@@ -815,16 +603,28 @@ class SwipeCardViewModel: ObservableObject {
             }
         }
         
-        // Load images in parallel but with limited concurrency
-        await withTaskGroup(of: (Int, UIImage?).self) { group in
+        // Load images in parallel but with limited concurrency (max 3 concurrent loads)
+        await withTaskGroup(of: (Int, UIImage?).self, returning: Void.self) { group in
+            // Limit concurrency to 3 to prevent memory issues and reduce contention
+            let maxConcurrentLoads = 3
+            var activeLoads = 0
+            
             for i in startIndex..<endIndex {
+                // Wait if we already have max concurrent loads
+                if activeLoads >= maxConcurrentLoads {
+                    // Wait for a load to complete before starting a new one
+                    _ = await group.next()
+                    activeLoads -= 1
+                }
+                
                 group.addTask {
+                    activeLoads += 1
                     let image = await self.loadImage(at: i, quality: quality)
                     return (i, image)
                 }
             }
             
-            // Process results as they complete
+            // Process all remaining results
             for await (index, image) in group {
                 if quality == .thumbnail {
                     // Only update if there's no high-quality image already
@@ -840,482 +640,268 @@ class SwipeCardViewModel: ObservableObject {
         loadedCount = max(loadedCount, endIndex)
     }
     
-    private func loadImage(at index: Int, quality: ImageQuality) async -> UIImage? {
-        guard index < group.count, let asset = group.asset(at: index) else { return nil }
+    @MainActor
+    func loadImage(at index: Int, quality: ImageQuality = .screen) async -> UIImage? {
+        print("SwipeCardViewModel: Loading image at index \(index), concurrent loads: \(concurrentLoadsCount)")
         
-        // For high-quality requests, check if we already have this loaded
-        if quality == .screen && highQualityImagesStatus[index] == true {
-            return preloadedImages[index]
+        // Return existing image if we already have it
+        if index < preloadedImages.count, let existingImage = preloadedImages[index] {
+            return existingImage
         }
         
-        // Cancel any existing task for this index if it's the same quality level or upgrading from thumbnail
-        // We don't want to cancel a high-quality request when a thumbnail request comes in
-        let taskKey = "\(index)-\(quality == .screen ? "high" : "low")"
-        imageFetchTasks[index]?.cancel()
-        
-        // Cancel any existing timeout for this index
-        if let existingTimeout = imageLoadingTimeouts[index] {
-            existingTimeout.cancel()
-            imageLoadingTimeouts.removeValue(forKey: index)
+        // Make sure the index is valid
+        guard index >= 0, index < group.count else {
+            print("SwipeCardViewModel: Invalid index \(index)")
+            return nil
         }
         
-        // Track retry count
-        if quality == .screen {
-            loadRetryCount[index] = (loadRetryCount[index] ?? 0) + 1
+        // Make sure we don't exceed the maximum concurrent loads
+        let shouldQueue = concurrentLoadsCount >= maxConcurrentLoads
+        if shouldQueue {
+            // Add to pending queue if too many concurrent loads
+            if !pendingIndices.contains(index) {
+                pendingIndices.append(index)
+                print("SwipeCardViewModel: Queuing index \(index), current queue: \(pendingIndices)")
+            }
+            return nil
         }
         
-        // Create and store a new task
-        let task = Task {
-            let options = PHImageRequestOptions()
-            options.isNetworkAccessAllowed = true
-            options.isSynchronous = false
-            options.version = .current
+        // Cancel any existing task for this index
+        cancelImageTask(index: index)
+        
+        // Get the asset for this index
+        guard let asset = group.asset(at: index) else {
+            print("SwipeCardViewModel: No asset at index \(index)")
+            return nil
+        }
+        
+        // Track this load
+        concurrentLoadsCount += 1
+        
+        // Calculate target size based on screen scale for more efficient loading
+        let screenSize = UIScreen.main.bounds.size
+        let screenScale = UIScreen.main.scale
+        var targetSize = CGSize(
+            width: screenSize.width * screenScale * 1.2,
+            height: screenSize.height * screenScale * 1.2
+        )
+        
+        if quality == .thumbnail {
+            // Smaller size for thumbnails
+            targetSize = CGSize(
+                width: targetSize.width * 0.5,
+                height: targetSize.height * 0.5
+            )
+        }
+        
+        // Create PHImageRequestOptions with appropriate settings
+        let options = PHImageRequestOptions()
+        options.deliveryMode = quality == .highQuality ? .highQualityFormat : .opportunistic
+        options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+        
+        // Set a timeout for image loading
+        let timeoutDuration: TimeInterval = quality == .highQuality ? 5.0 : 3.0
+        let timeoutItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            print("SwipeCardViewModel: Image load timeout for index \(index)")
             
-            // Configure based on quality level
-            switch quality {
-            case .thumbnail:
-                options.deliveryMode = .fastFormat
-                options.resizeMode = .fast
-            case .screen:
-                options.deliveryMode = .highQualityFormat
-                options.resizeMode = .exact
+            // Clean up the pending request
+            DispatchQueue.main.async {
+                self.cancelImageTask(index: index)
+                self.imageLoadingTimeouts.removeValue(forKey: index)
+                self.concurrentLoadsCount = max(0, self.concurrentLoadsCount - 1)
+                self.processNextPendingLoad()
             }
+        }
+        
+        // Store the timeout item
+        imageLoadingTimeouts[index] = timeoutItem
+        
+        // Schedule the timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeoutDuration, execute: timeoutItem)
+        
+        // Create a task to load the image
+        let task = Task<UIImage?, Never> { [weak self] in
+            guard let self = self else { return nil }
             
-            // Determine target size based on quality
-            let targetSize: CGSize
-            switch quality {
-            case .thumbnail:
-                targetSize = CGSize(width: 300, height: 300)
-            case .screen:
-                let scale = UIScreen.main.scale
-                let screenSize = UIScreen.main.bounds.size
-                targetSize = CGSize(
-                    width: min(screenSize.width * scale, 1200),
-                    height: min(screenSize.height * scale, 1200)
-                )
-            }
-            
-            // Create a timeout handler to fall back to lower quality if needed
-            let timeoutHandler = DispatchWorkItem { [weak self] in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    // Timeout occurred, cancel the current task
-                    self.imageFetchTasks[index]?.cancel()
-                    self.imageFetchTasks.removeValue(forKey: index)
-                    
-                    // Only try fallback if we're still on this index or close to it
-                    if abs(index - self.currentIndex) <= 5 {
-                        if quality == .screen && (self.loadRetryCount[index] ?? 0) < self.maxRetryCount {
-                            // If high quality failed, try medium quality
-                            print("⚠️ Timeout loading high-quality image at index \(index). Falling back to thumbnail.")
-                            _ = await self.loadImage(at: index, quality: .thumbnail)
-                        } else if index == self.currentIndex {
-                            // If we've exhausted retries and it's the current image, allow user to proceed anyway
-                            print("⚠️ Failed to load image at index \(index) after multiple attempts.")
-                            
-                            // Update UI to show the image is problematic but still allow interaction
-                            await MainActor.run {
-                                // Set a placeholder or fallback image if possible
-                                if self.preloadedImages.count > index {
-                                    if self.preloadedImages[index] == nil {
-                                        self.preloadedImages[index] = UIImage(systemName: "exclamationmark.triangle")
-                                    }
-                                    self.highQualityImagesStatus[index] = true // Mark as "loaded" to allow interaction
-                                }
-                                
-                                // Show toast notification
-                                self.toast?.show("Image couldn't be loaded fully. You can still proceed.", duration: 2.5)
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Store the timeout handler and schedule it
-            await MainActor.run {
-                self.imageLoadingTimeouts[index] = timeoutHandler
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0, execute: timeoutHandler)
-            }
-            
-            let image = await withCheckedContinuation { continuation in
-                PHImageManager.default().requestImage(
-                    for: asset,
-                    targetSize: targetSize,
-                    contentMode: .aspectFit,
-                    options: options
-                ) { image, _ in
+            // Return result for async/await
+            return await withCheckedContinuation { continuation in
+                // Flag to track if continuation has been resumed
+                var hasResumed = false
+                
+                // Function to safely resume continuation only once
+                func safeResume(with image: UIImage?) {
+                    guard !hasResumed else { return }
+                    hasResumed = true
                     continuation.resume(returning: image)
                 }
-            }
-            
-            // Cancel the timeout handler as we got a result
-            await MainActor.run {
-                if let timeoutItem = self.imageLoadingTimeouts[index] {
-                    timeoutItem.cancel()
-                    self.imageLoadingTimeouts.removeValue(forKey: index)
-                }
-            }
-            
-            // Process the image if needed to avoid DisplayP3 color space issues
-            let processedImage = await convertToStandardColorSpaceIfNeeded(image)
-            
-            // Update UI with image
-            if !Task.isCancelled {
-                await MainActor.run {
-                    // Check if we're still in a valid range
-                    if index < self.preloadedImages.count {
-                        // If this is a high-quality image, always update
-                        if quality == .screen {
-                            self.preloadedImages[index] = processedImage
-                            self.highQualityImagesStatus[index] = true
-                            self.loadRetryCount[index] = 0 // Reset retry count on success
-                        } 
-                        // If it's a thumbnail, only update if we don't have the high-quality yet
-                        else if self.highQualityImagesStatus[index] != true {
-                            self.preloadedImages[index] = processedImage
-                        }
+                
+                let requestId = PHImageManager.default().requestImage(
+                    for: asset,
+                    targetSize: targetSize,
+                    contentMode: .aspectFill,
+                    options: options
+                ) { [weak self] image, info in
+                    guard let self = self else {
+                        safeResume(with: nil)
+                        return
                     }
+                    
+                    // Cancel the timeout
+                    if let timeoutItem = self.imageLoadingTimeouts[index] {
+                        timeoutItem.cancel()
+                        self.imageLoadingTimeouts.removeValue(forKey: index)
+                    }
+                    
+                    // Check if the request was cancelled
+                    if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+                        print("SwipeCardViewModel: Image request was cancelled for index \(index)")
+                        safeResume(with: nil)
+                        return
+                    }
+                    
+                    // Check for errors
+                    if let error = info?[PHImageErrorKey] as? Error {
+                        print("SwipeCardViewModel: Image load error for index \(index): \(error.localizedDescription)")
+                        safeResume(with: nil)
+                        return
+                    }
+                    
+                    // Check if we got a valid image
+                    guard let image = image else {
+                        print("SwipeCardViewModel: No image returned for index \(index)")
+                        safeResume(with: nil)
+                        return
+                    }
+                    
+                    // If this is a degraded image and we requested high quality, 
+                    // we might get a better version later, but still return this one
+                    if let degraded = info?[PHImageResultIsDegradedKey] as? Bool, 
+                       degraded && quality == .highQuality {
+                        print("SwipeCardViewModel: Degraded image for high quality request at index \(index)")
+                    }
+                    
+                    safeResume(with: image)
+                }
+                
+                // Store request ID for cancellation
+                if let requestId = requestId as? Int {
+                    self.requestIDs[index] = requestId
                 }
             }
-            
-            // Also prefetch metadata in background to avoid warnings
-            if !Task.isCancelled {
-                await prefetchAssetMetadata(asset: asset)
-            }
-            
-            return processedImage
         }
         
+        // Store the task for later cancellation
         imageFetchTasks[index] = task
         
         do {
-            return try await task.value
+            // Wait for the task to complete
+            let result = await task.value
+            
+            // Clear the task and update state
+            imageFetchTasks.removeValue(forKey: index)
+            
+            // If we got an image, update the preloaded images array
+            if let image = result {
+                // Ensure the preloadedImages array is large enough
+                ensurePreloadedImagesCapacity(upToIndex: index)
+                
+                // Update the image in the array
+                await MainActor.run {
+                    preloadedImages[index] = image
+                }
+            }
+            
+            // Decrement the concurrent loads count
+            concurrentLoadsCount = max(0, concurrentLoadsCount - 1)
+            
+            // Process the next pending load
+            processNextPendingLoad()
+            
+            return result
         } catch {
-            print("❌ Error loading image at index \(index): \(error)")
+            print("SwipeCardViewModel: Image load task error for index \(index): \(error.localizedDescription)")
+            
+            // Clean up resources
+            imageFetchTasks.removeValue(forKey: index)
+            concurrentLoadsCount = max(0, concurrentLoadsCount - 1)
+            
+            // Process the next pending load
+            processNextPendingLoad()
+            
             return nil
         }
     }
-    
-    private func prefetchAssetMetadata(asset: PHAsset) async {
-        let options = PHContentEditingInputRequestOptions()
-        options.isNetworkAccessAllowed = true
-        options.canHandleAdjustmentData = { _ in return false }
-        
-        _ = await withCheckedContinuation { continuation in
-            asset.requestContentEditingInput(with: options) { input, _ in
-                continuation.resume(returning: input != nil)
-            }
-        }
-    }
-    
-    private func convertToStandardColorSpaceIfNeeded(_ image: UIImage?) async -> UIImage? {
-        guard let image = image else { return nil }
-        
-        // Check if the image is using DisplayP3 color space
-        if let colorSpace = image.cgImage?.colorSpace,
-           let colorSpaceName = colorSpace.name as String?,
-           colorSpaceName.contains("P3") {
-            // Convert to sRGB to avoid the DisplayP3 headroom errors
-            return await Task.detached {
-                let format = UIGraphicsImageRendererFormat()
-                format.preferredRange = .standard
-                format.scale = image.scale
-                
-                let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
-                let convertedImage = renderer.image { context in
-                    image.draw(in: CGRect(origin: .zero, size: image.size))
-                }
-                
-                return convertedImage
-            }.value
-        }
-        
-        return image
-    }
-    
-    private func cancelAllImageTasks() {
-        for (_, task) in imageFetchTasks {
+
+    private func cancelImageTask(index: Int) {
+        // Cancel any existing task for this index
+        if let task = imageFetchTasks[index] {
             task.cancel()
+            imageFetchTasks.removeValue(forKey: index)
         }
-        imageFetchTasks.removeAll()
+        
+        // Cancel any pending PHImageManager request
+        if let requestId = requestIDs[index] {
+            PHImageManager.default().cancelImageRequest(PHImageRequestID(requestId))
+            requestIDs.removeValue(forKey: index)
+        }
+        
+        // Cancel any timeout
+        if let timeoutItem = imageLoadingTimeouts[index] {
+            timeoutItem.cancel()
+            imageLoadingTimeouts.removeValue(forKey: index)
+        }
     }
     
-    // Update the button methods to use the new animation function
-    func triggerDeleteFromButton() {
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
-        // Trigger fly-off animation for the label
-        let label = "Delete"
-        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
-        // Create direction without using DragGesture.Value
-        let simulatedDirection = CGSize(width: -150, height: 0)
-        triggerLabelFlyOff?(label, color, simulatedDirection)
-        
-        // Duration for animation - faster for smoother experience
-        let duration = 0.25
-        
-        // Animate card flying off screen IMMEDIATELY
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off to the left with a slight upward motion
-            offset = CGSize(
-                width: -UIScreen.main.bounds.width * 1.3,
-                height: -50
-            )
-        }
-        
-        // Process the action after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Reset immediately (not visible to user)
-            }
+    private func processNextPendingLoad() {
+        // Check if we can process a pending load
+        if concurrentLoadsCount < maxConcurrentLoads && !pendingIndices.isEmpty {
+            // Get the next index from the queue
+            let nextIndex = pendingIndices.removeFirst()
+            print("SwipeCardViewModel: Processing queued index \(nextIndex)")
             
-            guard let asset = self.group.asset(at: self.currentIndex) else { return }
-            let capturedIndex = self.currentIndex
-            
-            self.photoManager.markForDeletion(asset)
-            
-            // Add to deletion preview if image is available
-            if self.currentIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[self.currentIndex] {
-                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
-            }
-            
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Undo the deletion action
-                    self.photoManager.unmarkForDeletion(asset)
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                } else {
-                    // Load next image and move to it with animation
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        await self.moveToNextWithAnimation()
-                    }
-                    
-                    self.toast.show(
-                        "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                    ) {
-                        // Undo action
-                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                        self.photoManager.unmarkForDeletion(asset)
-                        withAnimation {
-                            self.currentIndex = capturedIndex
-                            self.offset = .zero
-                        }
-                    } onDismiss: { }
-                }
-            } else {
-                // Non-discover tab - normal flow continues
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    await self.moveToNextWithAnimation()
-                }
-                
-                self.toast.show(
-                    "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                ) {
-                    // Undo action
-                    self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                    self.photoManager.unmarkForDeletion(asset)
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                } onDismiss: { }
+            // Load the image in a new task
+            Task {
+                await loadImage(at: nextIndex)
             }
         }
     }
     
-    func triggerKeepFromButton() {
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
-        // Trigger fly-off animation for the label
-        let label = "Keep"
-        let color = Color.green
-        // Create direction without using DragGesture.Value
-        let simulatedDirection = CGSize(width: 150, height: 0)
-        triggerLabelFlyOff?(label, color, simulatedDirection)
-        
-        // Duration for animation - faster for smoother experience
-        let duration = 0.25
-        
-        // Animate card flying off screen IMMEDIATELY
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off to the right with a slight upward motion
-            offset = CGSize(
-                width: UIScreen.main.bounds.width * 1.3,
-                height: -50
-            )
-        }
-        
-        // Process the action after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Reset immediately (not visible to user)
+    private func ensurePreloadedImagesCapacity(upToIndex index: Int) {
+        // Ensure the preloadedImages array is large enough
+        Task { @MainActor in
+            while preloadedImages.count <= index {
+                preloadedImages.append(nil)
             }
-            
-            let capturedIndex = self.currentIndex
-            
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                } else {
-                    // Load next image and move to it with animation
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        await self.moveToNextWithAnimation()
-                    }
-                }
-            } else {
-                // Load next image and move to it with animation
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    await self.moveToNextWithAnimation()
-                }
+        }
+    }
+
+    func preloadNextImageIfNeeded() {
+        // Don't preload if we're already at the end
+        guard currentIndex < group.count - 1 else { return }
+        
+        // Preload the next image if it's not already loaded
+        let nextIndex = currentIndex + 1
+        if nextIndex >= preloadedImages.count || preloadedImages[nextIndex] == nil {
+            Task {
+                await loadImage(at: nextIndex)
             }
         }
     }
     
-    func triggerBookmarkFromButton() {
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
-        // Duration for animation - faster for smoother experience
-        let duration = 0.25
-        
-        // Animate card flying off screen IMMEDIATELY
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off upward
-            offset = CGSize(
-                width: 0,
-                height: -UIScreen.main.bounds.height * 0.9
-            )
+    func cancelAllImageTasks() {
+        // Cancel all pending image tasks
+        for (index, _) in imageFetchTasks {
+            cancelImageTask(index: index)
         }
         
-        // Process the action after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Reset immediately (not visible to user)
-            }
-            
-            guard let asset = self.group.asset(at: self.currentIndex) else { return }
-            let capturedIndex = self.currentIndex
-            
-            self.photoManager.bookmarkAsset(asset)
-            self.photoManager.markForFavourite(asset)
-            
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Undo the bookmark action
-                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                    self.photoManager.unmarkForFavourite(asset)
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                } else {
-                    // Load next image and move to it with animation
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        await self.moveToNextWithAnimation()
-                    }
-                    
-                    self.toast.show("Photo marked as Maybe?", action: "Undo") {
-                        // Undo action
-                        self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                        self.photoManager.unmarkForFavourite(asset)
-                        withAnimation {
-                            self.currentIndex = capturedIndex
-                            self.offset = .zero
-                        }
-                    } onDismiss: { }
-                }
-            } else {
-                // Load next image and move to it with animation
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    await self.moveToNextWithAnimation()
-                }
-                
-                self.toast.show("Photo marked as Maybe?", action: "Undo") {
-                    // Undo action
-                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                    self.photoManager.unmarkForFavourite(asset)
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                } onDismiss: { }
-            }
-        }
+        // Clear all pending indices
+        pendingIndices.removeAll()
+        
+        // Reset concurrent loads count
+        concurrentLoadsCount = 0
     }
     
     // MARK: - Sharing Functionality
@@ -1345,81 +931,97 @@ class SwipeCardViewModel: ObservableObject {
         // Load original quality image
         Task {
             do {
+                // Try to get the original quality image
                 let originalImage = await loadOriginalQualityImage(from: asset)
                 
                 await MainActor.run {
+                    // Check if we have an image - either the high quality one or the current displayed one
+                    let imageToShare: UIImage
                     if let originalImage = originalImage {
-                        // Create sharing sources
-                        let imageSource = PhotoSharingActivityItemSource(image: originalImage, albumTitle: group.title)
-                        let textSource = TextSharingActivityItemSource(text: "Organized with PhotoCleaner - The smart way to declutter your photo library!")
-                        
-                        // Get the rootmost presented view controller
-                        func getTopViewController() -> UIViewController? {
-                            // Get the root view controller
-                            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                                  let rootViewController = windowScene.windows.first?.rootViewController else {
-                                return nil
-                            }
-                            
-                            var topController = rootViewController
-                            
-                            // Navigate through presented controllers to find the topmost one
-                            while let presentedViewController = topController.presentedViewController {
-                                topController = presentedViewController
-                            }
-                            
-                            return topController
+                        imageToShare = originalImage
+                    } else if currentIndex < preloadedImages.count, 
+                              let currentDisplayedImage = preloadedImages[currentIndex] {
+                        // Fall back to the currently displayed image
+                        imageToShare = currentDisplayedImage
+                    } else {
+                        // If all else fails, use a placeholder
+                        if let placeholderImage = UIImage(systemName: "photo") {
+                            imageToShare = placeholderImage
+                        } else {
+                            // Even the placeholder failed, show error and exit
+                            toast?.show("Failed to prepare image for sharing", duration: 2.0)
+                            isSharing = false
+                            return
+                        }
+                    }
+                    
+                    // Create sharing sources
+                    let imageSource = PhotoSharingActivityItemSource(image: imageToShare, albumTitle: group.title)
+                    let textSource = TextSharingActivityItemSource(text: "Organized with PhotoCleaner - The smart way to declutter your photo library!")
+                    
+                    // Get the rootmost presented view controller
+                    func getTopViewController() -> UIViewController? {
+                        // Get the root view controller
+                        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                              let rootViewController = windowScene.windows.first?.rootViewController else {
+                            return nil
                         }
                         
-                        // Create and prepare the share sheet
-                        let activityViewController = UIActivityViewController(
-                            activityItems: [imageSource, textSource],
-                            applicationActivities: nil
-                        )
+                        var topController = rootViewController
                         
-                        // Add completion handler to reset sharing state
-                        activityViewController.completionWithItemsHandler = { [weak self] _, completed, _, _ in
-                            self?.isSharing = false
-                            
-                            // Show success message if the share was completed
-                            if completed {
-                                self?.toast?.show("Photo shared successfully!", duration: 1.5)
-                            }
+                        // Navigate through presented controllers to find the topmost one
+                        while let presentedViewController = topController.presentedViewController {
+                            topController = presentedViewController
                         }
                         
-                        // Exclude certain activity types that don't make sense for this content
-                        activityViewController.excludedActivityTypes = [
-                            .assignToContact,
-                            .addToReadingList,
-                            .openInIBooks
-                        ]
+                        return topController
+                    }
+                    
+                    // Create and prepare the share sheet
+                    let activityViewController = UIActivityViewController(
+                        activityItems: [imageSource, textSource],
+                        applicationActivities: nil
+                    )
+                    
+                    // Add completion handler to reset sharing state
+                    activityViewController.completionWithItemsHandler = { [weak self] _, completed, _, _ in
+                        self?.isSharing = false
                         
-                        // Present the share sheet on the topmost view controller
-                        if let topViewController = getTopViewController() {
-                            // For iPad, we need to specify where the popover should appear
-                            if let popoverController = activityViewController.popoverPresentationController {
-                                popoverController.sourceView = topViewController.view
-                                popoverController.sourceRect = CGRect(x: UIScreen.main.bounds.midX, 
-                                                                     y: UIScreen.main.bounds.midY, 
-                                                                     width: 0, height: 0)
-                                popoverController.permittedArrowDirections = []
-                            }
-                            
-                            // Ensure we're dismissing any view controller that might be presented first
-                            if topViewController.presentedViewController != nil {
-                                topViewController.dismiss(animated: true) {
-                                    topViewController.present(activityViewController, animated: true)
-                                }
-                            } else {
+                        // Show success message if the share was completed
+                        if completed {
+                            self?.toast?.show("Photo shared successfully!", duration: 1.5)
+                        }
+                    }
+                    
+                    // Exclude certain activity types that don't make sense for this content
+                    activityViewController.excludedActivityTypes = [
+                        .assignToContact,
+                        .addToReadingList,
+                        .openInIBooks
+                    ]
+                    
+                    // Present the share sheet on the topmost view controller
+                    if let topViewController = getTopViewController() {
+                        // For iPad, we need to specify where the popover should appear
+                        if let popoverController = activityViewController.popoverPresentationController {
+                            popoverController.sourceView = topViewController.view
+                            popoverController.sourceRect = CGRect(x: UIScreen.main.bounds.midX, 
+                                                                 y: UIScreen.main.bounds.midY, 
+                                                                 width: 0, height: 0)
+                            popoverController.permittedArrowDirections = []
+                        }
+                        
+                        // Ensure we're dismissing any view controller that might be presented first
+                        if topViewController.presentedViewController != nil {
+                            topViewController.dismiss(animated: true) {
                                 topViewController.present(activityViewController, animated: true)
                             }
                         } else {
-                            // Fallback in case we can't get a valid view controller
-                            toast?.show("Unable to share: no valid view controller found", duration: 2.0)
-                            isSharing = false
+                            topViewController.present(activityViewController, animated: true)
                         }
                     } else {
-                        toast?.show("Failed to prepare image for sharing", duration: 2.0)
+                        // Fallback in case we can't get a valid view controller
+                        toast?.show("Unable to share: no valid view controller found", duration: 2.0)
                         isSharing = false
                     }
                 }
@@ -1609,86 +1211,6 @@ class SwipeCardViewModel: ObservableObject {
     
     // MARK: - Image Preloading
     
-    /// Ensures the next image is preloaded, especially during dragging to prevent image mismatch
-    func preloadNextImageIfNeeded() {
-        let nextIndex = currentIndex + 1
-        
-        // Check if we need to preload the next image
-        if nextIndex < group.count {
-            // If the next image isn't loaded or is nil, prioritize loading it
-            if nextIndex >= preloadedImages.count || preloadedImages[nextIndex] == nil {
-                print("💡 Prioritizing preload of next image at index \(nextIndex)")
-                
-                // Cancel any existing task for this index to avoid conflicts
-                imageFetchTasks[nextIndex]?.cancel()
-                
-                // Create a new high-priority task for loading this specific image
-                let task = Task {
-                    // Try to get the asset for the next index
-                    guard let asset = group.asset(at: nextIndex) else {
-                        return nil as UIImage?
-                    }
-                    
-                    // Request the image at high quality to ensure it looks good
-                    let options = PHImageRequestOptions()
-                    options.deliveryMode = .highQualityFormat
-                    options.isNetworkAccessAllowed = true
-                    options.isSynchronous = false
-                    
-                    // Use a semaphore with a short timeout to prioritize this load
-                    let semaphore = DispatchSemaphore(value: 0)
-                    var resultImage: UIImage?
-                    
-                    PHImageManager.default().requestImage(
-                        for: asset,
-                        targetSize: PHImageManagerMaximumSize,
-                        contentMode: .aspectFit,
-                        options: options
-                    ) { image, info in
-                        resultImage = image
-                        semaphore.signal()
-                    }
-                    
-                    // Wait for the image with a reasonable timeout
-                    _ = semaphore.wait(timeout: .now() + 1.0)
-                    
-                    // Update the preloaded images array on the main thread
-                    if let image = resultImage, !Task.isCancelled {
-                        await MainActor.run {
-                            // Ensure the array is large enough
-                            while preloadedImages.count <= nextIndex {
-                                preloadedImages.append(nil)
-                            }
-                            
-                            // Set the image
-                            preloadedImages[nextIndex] = image
-                            print("💡 Successfully preloaded next image at index \(nextIndex)")
-                        }
-                    }
-                    
-                    return resultImage
-                }
-                
-                // Store the task
-                imageFetchTasks[nextIndex] = task
-            }
-        }
-    }
-    
-    // ADDED: preloadNextImage function to ensure proper visual syncing
-    private func preloadNextImage() {
-        let indicesToPreload = [currentIndex, currentIndex + 1]
-        for index in indicesToPreload {
-            guard index < group.count else { continue }
-            if index >= preloadedImages.count || preloadedImages[index] == nil {
-                Task {
-                    await loadImage(at: index, quality: .screen)
-                }
-            }
-        }
-    }
-
-
     /// Custom class to handle different types of sharing content
     class PhotoSharingActivityItemSource: NSObject, UIActivityItemSource {
         private let image: UIImage
@@ -1750,6 +1272,318 @@ class SwipeCardViewModel: ObservableObject {
             
             // Default sharing text
             return "Organized with Cln. - Swipe To Clean. Get it: https://cln.it.com"
+        }
+    }
+    
+    // Add a method to preload images for the given array of indices
+    private func preloadNextImage() {
+        let indicesToPreload = [currentIndex, currentIndex + 1]
+        for index in indicesToPreload {
+            guard index < group.count else { continue }
+            if index >= preloadedImages.count || preloadedImages[index] == nil {
+                Task {
+                    await loadImage(at: index, quality: .screen)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Button Actions
+    
+    func triggerDeleteFromButton() {
+        // Instead of simulating a DragGesture.Value, directly call the animation
+        // with a direction vector to indicate left (delete) swipe
+        triggerDeleteAnimationDirectly()
+    }
+    
+    func triggerKeepFromButton() {
+        // Instead of simulating a DragGesture.Value, directly call the animation
+        // with a direction vector to indicate right (keep) swipe
+        triggerKeepAnimationDirectly()
+    }
+    
+    func triggerBookmarkFromButton() {
+        // Handle bookmark operation
+        guard let asset = group.asset(at: currentIndex) else { return }
+        
+        // Capture the index before showing the toast
+        let capturedIndex = currentIndex
+        
+        // Start loading next image immediately
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
+        // Perform bookmark operations
+        photoManager.bookmarkAsset(asset)
+        photoManager.markForFavourite(asset)
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Add some randomness to the animation
+        let randomVerticalOffset = CGFloat.random(in: -30...30)
+        let randomDuration = Double.random(in: 0.2...0.3)
+        
+        // Trigger fly-off animation with yellow color for "Maybe?"
+        let label = "Maybe?"
+        let color = Color.yellow
+        let direction = CGSize(width: 100, height: randomVerticalOffset)
+        triggerLabelFlyOff?(label, color, direction)
+        
+        // Create a fly-off animation that NEVER springs back
+        withAnimation(.easeOut(duration: randomDuration)) {
+            // Fly off to the right
+            offset = CGSize(
+                width: UIScreen.main.bounds.width * 2.0,
+                height: randomVerticalOffset * 1.5
+            )
+        }
+        
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + randomDuration + 0.05) {
+            // Important: Disable all animations temporarily
+            UIView.setAnimationsEnabled(false)
+            
+            // First update the index while the old card is off screen
+            self.currentIndex = capturedIndex + 1
+            
+            // THEN reset the offset with absolutely no animation
+            self.offset = .zero
+            
+            // Re-enable animations after state is reset
+            UIView.setAnimationsEnabled(true)
+            
+            // Show the toast message
+            self.toast.show("Photo marked as Maybe?", action: "Undo") {
+                // Undo Action - Use capturedIndex
+                self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                self.photoManager.unmarkForFavourite(asset)
+                // Animate the state reset using capturedIndex
+                withAnimation {
+                    self.currentIndex = capturedIndex
+                    self.offset = .zero
+                }
+            } onDismiss: {
+                // No additional action needed
+            }
+        }
+    }
+    
+    // Direct animation triggers without relying on DragGesture.Value
+    
+    private func triggerDeleteAnimationDirectly() {
+        // Capture current state
+        guard let asset = group.asset(at: currentIndex) else { return }
+        let capturedIndex = currentIndex
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Add some randomness to the animation
+        let randomVerticalOffset = CGFloat.random(in: -30...30)
+        let randomDuration = Double.random(in: 0.2...0.3)
+        
+        // Trigger fly-off animation
+        let label = "Delete"
+        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
+        let direction = CGSize(width: -100, height: randomVerticalOffset)
+        triggerLabelFlyOff?(label, color, direction)
+        
+        // Start preloading next image silently
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
+        // Create a fly-off animation that NEVER springs back
+        withAnimation(.easeOut(duration: randomDuration)) {
+            // Fly off to the left with a bit of vertical movement
+            offset = CGSize(
+                width: -UIScreen.main.bounds.width * 2.0,
+                height: randomVerticalOffset * 1.5
+            )
+        }
+        
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + randomDuration + 0.05) {
+            // Important: Disable all animations temporarily
+            UIView.setAnimationsEnabled(false)
+            
+            // Mark for deletion in background
+            self.photoManager.markForDeletion(asset)
+            
+            // Add the current image to the deletion preview if available
+            if capturedIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[capturedIndex] {
+                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
+            }
+            
+            // First update the index while the old card is off screen - increment by exactly 1
+            self.currentIndex = capturedIndex + 1
+            
+            // THEN reset the offset with absolutely no animation 
+            self.offset = .zero
+            
+            // Re-enable animations after state is reset
+            UIView.setAnimationsEnabled(true)
+            
+            // Track swipe count for Discover tab paywall
+            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
+                // Make sure we have a reference to the tracker
+                if self.discoverSwipeTracker == nil {
+                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
+                }
+                
+                // Increment count and check if swipe should be undone
+                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
+                
+                if shouldUndo {
+                    // Show the paywall
+                    self.showRCPaywall = true
+                    
+                    // Undo the deletion action
+                    self.photoManager.unmarkForDeletion(asset)
+                    
+                    // Animate back to the original position
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                    
+                    // Show message explaining why the swipe was undone
+                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                } else {
+                    Task {
+                        // Just ensure the next image is available
+                        if capturedIndex + 1 < self.group.count {
+                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                        }
+                    }
+                    
+                    self.toast.show(
+                        "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
+                    ) {
+                        // Undo action
+                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                        self.photoManager.unmarkForDeletion(asset)
+                        withAnimation {
+                            self.currentIndex = capturedIndex
+                            self.offset = .zero
+                        }
+                    } onDismiss: { }
+                }
+            } else {
+                // Non-discover tab - normal flow continues
+                Task {
+                    // Just ensure the next image is available
+                    if capturedIndex + 1 < self.group.count {
+                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                    }
+                }
+                
+                self.toast.show(
+                    "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
+                ) {
+                    // Undo action
+                    self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                    self.photoManager.unmarkForDeletion(asset)
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                } onDismiss: { }
+            }
+        }
+    }
+    
+    private func triggerKeepAnimationDirectly() {
+        // Capture current state
+        let capturedIndex = currentIndex
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Add some randomness to the animation
+        let randomVerticalOffset = CGFloat.random(in: -30...30)
+        let randomDuration = Double.random(in: 0.2...0.3)
+        
+        // Trigger fly-off animation
+        let label = "Keep"
+        let color = Color.green
+        let direction = CGSize(width: 100, height: randomVerticalOffset)
+        triggerLabelFlyOff?(label, color, direction)
+        
+        // Start preloading next image silently
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
+        // Create a fly-off animation that NEVER springs back
+        withAnimation(.easeOut(duration: randomDuration)) {
+            // Fly off to the right
+            offset = CGSize(
+                width: UIScreen.main.bounds.width * 2.0,
+                height: randomVerticalOffset * 1.5
+            )
+        }
+        
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + randomDuration + 0.05) {
+            // Important: Disable all animations temporarily
+            UIView.setAnimationsEnabled(false)
+            
+            // First update the index while the old card is off screen
+            self.currentIndex = capturedIndex + 1
+            
+            // THEN reset the offset with absolutely no animation
+            self.offset = .zero
+            
+            // Re-enable animations after state is reset
+            UIView.setAnimationsEnabled(true)
+            
+            // Track swipe count for Discover tab paywall
+            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
+                // Make sure we have a reference to the tracker
+                if self.discoverSwipeTracker == nil {
+                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
+                }
+                
+                // Increment count and check if swipe should be undone
+                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
+                
+                if shouldUndo {
+                    // Show the paywall
+                    self.showRCPaywall = true
+                    
+                    // Animate back to the original position
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                    
+                    // Show message explaining why the swipe was undone
+                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                } else {
+                    // Just ensure the next image is available
+                    Task {
+                        if capturedIndex + 1 < self.group.count {
+                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                        }
+                    }
+                }
+            } else {
+                // Load next image
+                Task {
+                    if capturedIndex + 1 < self.group.count {
+                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                    }
+                }
+            }
         }
     }
 } 

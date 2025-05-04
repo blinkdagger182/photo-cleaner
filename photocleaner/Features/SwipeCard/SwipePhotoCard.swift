@@ -65,29 +65,34 @@ struct SwipePhotoCard: View {
                 if isTopCard && asset.isLivePhoto {
                     Color.clear
                         .contentShape(Rectangle())
-                        .onLongPressGesture(minimumDuration: 0.3, pressing: { isPressing in
-                            print("🟢 SwipePhotoCard: Long press state changed to \(isPressing)")
-                            
-                            // Only respond if we have a live photo loaded
-                            if livePhotoLoader.livePhoto != nil {
-                                isLongPressing = isPressing
-                                
-                                // Provide haptic feedback on press start
-                                if isPressing && !showLivePhoto {
-                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                    generator.impactOccurred()
+                        .simultaneousGesture(
+                            LongPressGesture(minimumDuration: 0.3)
+                                .onChanged { isPressing in
+                                    print("🟢 SwipePhotoCard: Long press state changed to \(isPressing)")
+                                    
+                                    // Only respond if we have a live photo loaded
+                                    if livePhotoLoader.livePhoto != nil {
+                                        if isPressing && !isLongPressing {
+                                            isLongPressing = true
+                                            
+                                            // Provide haptic feedback on press start
+                                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                                            generator.impactOccurred()
+                                            
+                                            withAnimation(springAnimation) {
+                                                showLivePhoto = true
+                                            }
+                                        } else if !isPressing && isLongPressing {
+                                            isLongPressing = false
+                                            withAnimation(springAnimation) {
+                                                showLivePhoto = false
+                                            }
+                                        }
+                                    } else if isPressing {
+                                        print("🟢 SwipePhotoCard: No live photo available to play")
+                                    }
                                 }
-                                
-                                withAnimation(springAnimation) {
-                                    showLivePhoto = isPressing
-                                }
-                            } else if isPressing {
-                                print("🟢 SwipePhotoCard: No live photo available to play")
-                            }
-                        }, perform: {
-                            // This is called when the long press is completed (released)
-                            // We don't need to do anything here since the pressing parameter handles both states
-                        })
+                        )
                 }
             }
             .clipped()
@@ -104,9 +109,10 @@ struct SwipePhotoCard: View {
                 print("🟢 SwipePhotoCard: onAppear for index \(index), isLivePhoto: \(asset.isLivePhoto)")
                 // Only load live photo if this asset actually is a live photo
                 if asset.isLivePhoto {
+                    // Use a more conservative target size for better performance
                     let targetSize = CGSize(
-                        width: asset.pixelWidth > 0 ? asset.pixelWidth : 1000,
-                        height: asset.pixelHeight > 0 ? asset.pixelHeight : 1000
+                        width: min(asset.pixelWidth, 1080),
+                        height: min(asset.pixelHeight, 1080)
                     )
                     print("🟢 SwipePhotoCard: Loading live photo for asset \(index) with size \(targetSize)")
                     livePhotoLoader.loadLivePhoto(for: asset, targetSize: targetSize)
