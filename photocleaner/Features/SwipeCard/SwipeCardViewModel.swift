@@ -522,10 +522,9 @@ class SwipeCardViewModel: ObservableObject {
         // Move to next immediately instead of waiting for toast dismissal
         Task { await self.moveToNext() }
         
-        toast.show("Photo saved", action: "Undo") {
+        toast.show("Photo marked as Maybe?", action: "Undo") {
             // Undo Action - Use capturedIndex
-            self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
-            // self.refreshCard(at: capturedIndex, with: asset) // Use capturedIndex - REMOVED
+            self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
             self.photoManager.unmarkForFavourite(asset)
             // Animate the state reset using capturedIndex
             withAnimation {
@@ -1260,7 +1259,7 @@ class SwipeCardViewModel: ObservableObject {
                     self.showRCPaywall = true
                     
                     // Undo the bookmark action
-                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
+                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
                     self.photoManager.unmarkForFavourite(asset)
                     
                     // Animate back to the original position
@@ -1279,9 +1278,9 @@ class SwipeCardViewModel: ObservableObject {
                         await self.moveToNextWithAnimation()
                     }
                     
-                    self.toast.show("Photo saved", action: "Undo") {
+                    self.toast.show("Photo marked as Maybe?", action: "Undo") {
                         // Undo action
-                        self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
+                        self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
                         self.photoManager.unmarkForFavourite(asset)
                         withAnimation {
                             self.currentIndex = capturedIndex
@@ -1298,9 +1297,9 @@ class SwipeCardViewModel: ObservableObject {
                     await self.moveToNextWithAnimation()
                 }
                 
-                self.toast.show("Photo saved", action: "Undo") {
+                self.toast.show("Photo marked as Maybe?", action: "Undo") {
                     // Undo action
-                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Saved")
+                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
                     self.photoManager.unmarkForFavourite(asset)
                     withAnimation {
                         self.currentIndex = capturedIndex

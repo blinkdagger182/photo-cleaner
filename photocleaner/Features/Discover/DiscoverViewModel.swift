@@ -298,9 +298,9 @@ class DiscoverViewModel: ObservableObject {
                 // Only include Screenshots in the utilities category
                 utilityAlbums.append(smartAlbum)
             } else if !group.title.starts(with: "System") && 
-                      group.title != "Deleted" && 
-                      group.title != "Saved" && 
-                      group.title != "Utilities" && 
+                      group.title != "Maybe?" && 
+                      group.title != "Deleted" &&
+                      group.title != "Utilities" &&
                       group.title != "Receipts" && 
                       group.title != "Documents" && 
                       group.title != "Whiteboards" && 

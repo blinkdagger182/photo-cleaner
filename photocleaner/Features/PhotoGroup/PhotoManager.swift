@@ -344,7 +344,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         
         // Fetch the organized collections
         async let years = fetchPhotoGroupsByYearAndMonth()
-        async let systemAlbums = fetchSystemAlbums()
+        async let systemAlbums = fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Maybe?"])
 
         let fetchedYears = await years
         let fetchedSystemAlbums = await systemAlbums
@@ -413,10 +413,6 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
 
         return yearGroups.sorted { ($0.year) > ($1.year) }
-    }
-
-    func fetchSystemAlbums() async -> [PhotoGroup] {
-        await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Saved"])
     }
 
     func fetchPhotoGroupsFromAlbums(albumNames: [String]) async -> [PhotoGroup] {
@@ -547,11 +543,11 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
 
     func bookmarkAsset(_ asset: PHAsset) {
         isPerformingInternalChange = true // Set flag before operation
-        addAsset(asset, toAlbumNamed: "Saved")
+        addAsset(asset, toAlbumNamed: "Maybe?")
     }
 
     func refreshAllPhotoGroups() async {
-        async let system = fetchSystemAlbums()
+        async let system = fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Maybe?"])
         async let yearGroups = fetchPhotoGroupsByYearAndMonth()
 
         let systemResult = await system

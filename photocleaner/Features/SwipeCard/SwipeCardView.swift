@@ -268,13 +268,34 @@ struct SwipeCardView: View {
                                     toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
                                 }
                             }
-                            CircleButton(icon: "bookmark", tint: .yellow) {
+                            Button(action: {
                                 if viewModel.isCurrentImageReadyForInteraction() {
                                     viewModel.triggerBookmarkFromButton()
                                 } else {
                                     toast.show("Please wait for the image to fully load before saving", duration: 2.0)
                                 }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Text("Maybe")
+                                        .foregroundColor(.yellow)
+                                        .font(.system(size: 16, weight: .medium))
+                                    Image(systemName: "questionmark")
+                                        .foregroundColor(.yellow)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                // .background(
+                                //     Capsule()
+                                //         .fill(Color.yellow.opacity(0.15)
+                                //         .strokesBorder(Color.black, lineWidth: 1.5)
+                                // )
+                                // )
+                                .background(
+                                    Capsule()
+                                        .strokeBorder(Color.yellow, lineWidth: 1.5)
+                                )
                             }
+
                             CircleButton(icon: "checkmark", tint: .green) {
                                 if viewModel.isCurrentImageReadyForInteraction() {
                                     viewModel.triggerKeepFromButton()

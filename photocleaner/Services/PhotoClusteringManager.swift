@@ -503,7 +503,7 @@ class PhotoClusteringManager: ObservableObject {
     
     // MARK: - Private Methods - System Albums
     
-    /// Create system albums (Deleted, Saved)
+    /// Create system albums (Deleted, Maybe?)
     /// - Returns: Array of PhotoGroup objects for system albums
     private func createSystemAlbums() async throws -> [PhotoGroup] {
         // Return an empty array since we don't want to show system albums

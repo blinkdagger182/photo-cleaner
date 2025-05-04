@@ -90,8 +90,19 @@ struct PhotoGroupView: View {
                         } else {
                             VStack(alignment: .leading, spacing: 16) {
                                 sectionHeader(title: "My Albums")
+                                
+                                // Debug view to print album names
+                                Color.clear
+                                    .frame(width: 0, height: 0)
+                                    .onAppear {
+                                        print("DEBUG: Available albums:")
+                                        for group in viewModel.photoGroups {
+                                            print("- \(group.title) (\(group.count) photos)")
+                                        }
+                                    }
+                                
                                 LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(viewModel.photoGroups.filter { $0.title == "Saved"}, id: \.id) { group in
+                                    ForEach(viewModel.photoGroups.filter { $0.title == "Maybe?" }, id: \.id) { group in
                                         Button {
                                             viewModel.updateSelectedGroup(group)
                                         } label: {
