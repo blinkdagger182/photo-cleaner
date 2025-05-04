@@ -204,7 +204,7 @@ class SwipeCardViewModel: ObservableObject {
                 self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
             }
             
-            // First update the index while the old card is off screen
+            // Update the index while the old card is off screen
             self.currentIndex = capturedIndex + 1
             
             // THEN reset the offset with absolutely no animation 
@@ -239,12 +239,22 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Load next image and AVOID moving to next again since we already did above
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        // Don't call moveToNextWithAnimation() again - we already updated the index
+                        // Just clean up and preload as needed
+                        await self.cleanupOldImages()
+                        
+                        // Proactively load high-quality images for the next few indices
+                        for offset in 0..<self.highQualityPreloadCount {
+                            let indexToLoad = self.currentIndex + offset
+                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                                await self.loadImage(at: indexToLoad, quality: .screen)
+                            }
+                        }
                     }
                     
                     self.toast.show(
@@ -261,12 +271,22 @@ class SwipeCardViewModel: ObservableObject {
                 }
             } else {
                 // Non-discover tab - normal flow continues
-                // Load next image and move to it with animation
+                // Load next image and AVOID moving to next again since we already did above
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    // Don't call moveToNextWithAnimation() again - we already updated the index
+                    // Just clean up and preload as needed
+                    await self.cleanupOldImages()
+                    
+                    // Proactively load high-quality images for the next few indices
+                    for offset in 0..<self.highQualityPreloadCount {
+                        let indexToLoad = self.currentIndex + offset
+                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                            await self.loadImage(at: indexToLoad, quality: .screen)
+                        }
+                    }
                 }
                 
                 self.toast.show(
@@ -322,7 +342,7 @@ class SwipeCardViewModel: ObservableObject {
             // Important: Disable all animations temporarily
             UIView.setAnimationsEnabled(false)
             
-            // First update the index while the old card is off screen
+            // Update the index while the old card is off screen
             self.currentIndex = capturedIndex + 1
             
             // THEN reset the offset with absolutely no animation
@@ -354,21 +374,41 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Load next image and AVOID moving to next again since we already did above
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        // Don't call moveToNextWithAnimation() again - we already updated the index
+                        // Just clean up and preload as needed
+                        await self.cleanupOldImages()
+                        
+                        // Proactively load high-quality images for the next few indices
+                        for offset in 0..<self.highQualityPreloadCount {
+                            let indexToLoad = self.currentIndex + offset
+                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                                await self.loadImage(at: indexToLoad, quality: .screen)
+                            }
+                        }
                     }
                 }
             } else {
-                // Load next image and move to it with animation
+                // Load next image and AVOID moving to next again since we already did above
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    // Don't call moveToNextWithAnimation() again - we already updated the index
+                    // Just clean up and preload as needed
+                    await self.cleanupOldImages()
+                    
+                    // Proactively load high-quality images for the next few indices
+                    for offset in 0..<self.highQualityPreloadCount {
+                        let indexToLoad = self.currentIndex + offset
+                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                            await self.loadImage(at: indexToLoad, quality: .screen)
+                        }
+                    }
                 }
             }
         }
@@ -471,9 +511,10 @@ class SwipeCardViewModel: ObservableObject {
             photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
         }
         
-        // Move to next immediately instead of waiting for toast dismissal
-        Task { await self.moveToNext() }
-        
+        // Update the current index directly
+        currentIndex = capturedIndex + 1
+        offset = .zero
+                
         toast.show(
             "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
         ) {
@@ -501,7 +542,9 @@ class SwipeCardViewModel: ObservableObject {
             }
         }
         
-        Task { await moveToNext() }
+        // Update the current index directly
+        currentIndex = capturedIndex + 1
+        offset = .zero
     }
     
     func handleBookmark() {
@@ -519,8 +562,9 @@ class SwipeCardViewModel: ObservableObject {
         photoManager.bookmarkAsset(asset)
         photoManager.markForFavourite(asset)
         
-        // Move to next immediately instead of waiting for toast dismissal
-        Task { await self.moveToNext() }
+        // Update the current index directly
+        currentIndex = capturedIndex + 1
+        offset = .zero
         
         toast.show("Photo marked as Maybe?", action: "Undo") {
             // Undo Action - Use capturedIndex
@@ -1058,6 +1102,7 @@ class SwipeCardViewModel: ObservableObject {
         
         // Process the action after animation completes
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            // Temporarily disable animations for smooth reset
             withAnimation(.none) {
                 self.offset = .zero // Reset immediately (not visible to user)
             }
@@ -1065,10 +1110,11 @@ class SwipeCardViewModel: ObservableObject {
             guard let asset = self.group.asset(at: self.currentIndex) else { return }
             let capturedIndex = self.currentIndex
             
+            // Mark for deletion
             self.photoManager.markForDeletion(asset)
             
-            // Add to deletion preview if image is available
-            if self.currentIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[self.currentIndex] {
+            // Add the current image to the deletion preview if available
+            if capturedIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[capturedIndex] {
                 self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
             }
             
@@ -1098,12 +1144,25 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Directly update the current index
+                    self.currentIndex = capturedIndex + 1
+                    
+                    // Load next image and perform cleanup
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        
+                        // Cleanup and preload images
+                        await self.cleanupOldImages()
+                        
+                        // Proactively load high-quality images for the next few indices
+                        for offset in 0..<self.highQualityPreloadCount {
+                            let indexToLoad = self.currentIndex + offset
+                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                                await self.loadImage(at: indexToLoad, quality: .screen)
+                            }
+                        }
                     }
                     
                     self.toast.show(
@@ -1120,11 +1179,24 @@ class SwipeCardViewModel: ObservableObject {
                 }
             } else {
                 // Non-discover tab - normal flow continues
+                // Directly update the current index
+                self.currentIndex = capturedIndex + 1
+                
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    
+                    // Cleanup and preload images
+                    await self.cleanupOldImages()
+                    
+                    // Proactively load high-quality images for the next few indices
+                    for offset in 0..<self.highQualityPreloadCount {
+                        let indexToLoad = self.currentIndex + offset
+                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                            await self.loadImage(at: indexToLoad, quality: .screen)
+                        }
+                    }
                 }
                 
                 self.toast.show(
@@ -1196,21 +1268,47 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Directly update the current index
+                    self.currentIndex = capturedIndex + 1
+                    
+                    // Load next image and perform cleanup
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        
+                        // Cleanup and preload images
+                        await self.cleanupOldImages()
+                        
+                        // Proactively load high-quality images for the next few indices
+                        for offset in 0..<self.highQualityPreloadCount {
+                            let indexToLoad = self.currentIndex + offset
+                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                                await self.loadImage(at: indexToLoad, quality: .screen)
+                            }
+                        }
                     }
                 }
             } else {
-                // Load next image and move to it with animation
+                // Directly update the current index
+                self.currentIndex = capturedIndex + 1
+                
+                // Load next image and perform cleanup
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    
+                    // Cleanup and preload images
+                    await self.cleanupOldImages()
+                    
+                    // Proactively load high-quality images for the next few indices
+                    for offset in 0..<self.highQualityPreloadCount {
+                        let indexToLoad = self.currentIndex + offset
+                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                            await self.loadImage(at: indexToLoad, quality: .screen)
+                        }
+                    }
                 }
             }
         }
@@ -1270,12 +1368,25 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Directly update the current index
+                    self.currentIndex = capturedIndex + 1
+                    
+                    // Load next image and perform cleanup
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        
+                        // Cleanup and preload images
+                        await self.cleanupOldImages()
+                        
+                        // Proactively load high-quality images for the next few indices
+                        for offset in 0..<self.highQualityPreloadCount {
+                            let indexToLoad = self.currentIndex + offset
+                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                                await self.loadImage(at: indexToLoad, quality: .screen)
+                            }
+                        }
                     }
                     
                     self.toast.show("Photo marked as Maybe?", action: "Undo") {
@@ -1289,12 +1400,25 @@ class SwipeCardViewModel: ObservableObject {
                     } onDismiss: { }
                 }
             } else {
-                // Load next image and move to it with animation
+                // Directly update the current index
+                self.currentIndex = capturedIndex + 1
+                
+                // Load next image and perform cleanup
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    
+                    // Cleanup and preload images
+                    await self.cleanupOldImages()
+                    
+                    // Proactively load high-quality images for the next few indices
+                    for offset in 0..<self.highQualityPreloadCount {
+                        let indexToLoad = self.currentIndex + offset
+                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
+                            await self.loadImage(at: indexToLoad, quality: .screen)
+                        }
+                    }
                 }
                 
                 self.toast.show("Photo marked as Maybe?", action: "Undo") {
