@@ -87,6 +87,36 @@ class SwipeCardViewModel: ObservableObject {
         
         viewHasAppeared = true
         startPreloading()
+        
+        // Force high quality for the current image using our adaptive approach
+        print("SwipeCardViewModel: onAppear - Forcing highest quality for current image")
+        
+        // Set up a sequence of attempts to load high quality images
+        // First try after a short delay to let the UI settle
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self else { return }
+            Task {
+                print("SwipeCardViewModel: First high quality load attempt")
+                await self.loadImageWithFallbacks(at: self.currentIndex)
+                
+                // Set up a second attempt with a different size after a delay
+                // This helps in case the first attempt had issues with certain sizes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    guard let self = self else { return }
+                    
+                    // Check if we already have high quality
+                    if self.currentIndex < self.preloadedImages.count,
+                       let image = self.preloadedImages[self.currentIndex],
+                       !self.isImageHighQuality(at: self.currentIndex) {
+                        
+                        print("SwipeCardViewModel: Second high quality load attempt")
+                        Task {
+                            await self.loadImage(at: self.currentIndex, quality: .highQuality)
+                        }
+                    }
+                }
+            }
+        }
     }
     
     func onDisappear() {
@@ -241,6 +271,9 @@ class SwipeCardViewModel: ObservableObject {
                 }
             }
             
+            // Force high quality for current image
+            forceCurrentImageToHighQuality()
+            
             // Reset preloading flag after all loading is complete
             photoManager.setPreloadingState(false)
         }
@@ -361,7 +394,7 @@ class SwipeCardViewModel: ObservableObject {
         // Check if the current image is loaded in high quality or at least exists
         // This ensures we don't get stuck on a loading spinner if the image is visible
         return preloadedImages[currentIndex] != nil && 
-              (highQualityImagesStatus[currentIndex] == true || highQualityImagesStatus[currentIndex] == nil)
+              (isImageHighQuality(at: currentIndex) || highQualityImagesStatus[currentIndex] == nil)
     }
     
     // MARK: - Private Methods
@@ -378,24 +411,30 @@ class SwipeCardViewModel: ObservableObject {
         Task {
             resetViewState()
             
-            // First, load thumbnails for the first few images
+            // First, load thumbnails for the first few images to get something on screen quickly
             await loadImagesInRange(
                 from: currentIndex,
                 count: min(maxBufferSize, group.count - currentIndex),
                 quality: .thumbnail
             )
             
-            // Then load higher quality for current card and next few cards
+            // Set loading to false as soon as we have thumbnails
+            await MainActor.run {
+                isLoading = false
+            }
+            
+            // Then immediately start loading the current image in high quality
+            if currentIndex < group.count {
+                await loadImage(at: currentIndex, quality: .highQuality)
+            }
+            
+            // Then load higher quality for next few cards
             let preloadCount = min(highQualityPreloadCount, group.count - currentIndex)
-            for i in 0..<preloadCount {
+            for i in 1..<preloadCount { // Start from 1 to skip the current image we just loaded
                 let index = currentIndex + i
                 if index < group.count {
                     await loadImage(at: index, quality: .screen)
                 }
-            }
-            
-            await MainActor.run {
-                isLoading = false
             }
             
             // Reset preloading flag
@@ -489,6 +528,9 @@ class SwipeCardViewModel: ObservableObject {
                 }
             }
             
+            // Force high quality for current image
+            forceCurrentImageToHighQuality()
+            
             // Reset preloading flag after all loading is complete
             photoManager.setPreloadingState(false)
         }
@@ -565,8 +607,25 @@ class SwipeCardViewModel: ObservableObject {
             
             // Proactively start loading images in the forward part of the window
             Task {
-                // Prioritize loading the current and next few images
-                for i in currentIndex..<min(currentIndex + 5, group.count) {
+                // First, prioritize the current image to ensure it's highest quality
+                if currentIndex < preloadedImages.count {
+                    if preloadedImages[currentIndex] == nil || highQualityImagesStatus[currentIndex] != true {
+                        print("SwipeCardViewModel: Prioritizing current image loading at index \(currentIndex)")
+                        
+                        // First load at screen quality
+                        if preloadedImages[currentIndex] == nil {
+                            await loadImage(at: currentIndex, quality: .screen)
+                        }
+                        
+                        // Then at highest quality
+                        if highQualityImagesStatus[currentIndex] != true {
+                            await loadImage(at: currentIndex, quality: .highQuality)
+                        }
+                    }
+                }
+                
+                // Then load next few images
+                for i in (currentIndex + 1)..<min(currentIndex + 5, group.count) {
                     if i < preloadedImages.count && (preloadedImages[i] == nil || highQualityImagesStatus[i] != true) {
                         // First try to get a thumbnail quickly
                         if preloadedImages[i] == nil {
@@ -642,10 +701,13 @@ class SwipeCardViewModel: ObservableObject {
     
     @MainActor
     func loadImage(at index: Int, quality: ImageQuality = .screen) async -> UIImage? {
-        print("SwipeCardViewModel: Loading image at index \(index), concurrent loads: \(concurrentLoadsCount)")
+        print("SwipeCardViewModel: Loading image at index \(index), concurrent loads: \(concurrentLoadsCount), quality: \(quality)")
         
-        // Return existing image if we already have it
-        if index < preloadedImages.count, let existingImage = preloadedImages[index] {
+        // If the image is loaded and we already have a high quality version, just return it
+        if index < preloadedImages.count, 
+           let existingImage = preloadedImages[index], 
+           quality != .highQuality && highQualityImagesStatus[index] == true {
+            print("SwipeCardViewModel: Using existing high quality image for index \(index)")
             return existingImage
         }
         
@@ -682,8 +744,8 @@ class SwipeCardViewModel: ObservableObject {
         let screenSize = UIScreen.main.bounds.size
         let screenScale = UIScreen.main.scale
         var targetSize = CGSize(
-            width: screenSize.width * screenScale * 1.2,
-            height: screenSize.height * screenScale * 1.2
+            width: screenSize.width * screenScale * 1.5, // Increased from 1.2 to 1.5 for higher quality
+            height: screenSize.height * screenScale * 1.5
         )
         
         if quality == .thumbnail {
@@ -692,17 +754,35 @@ class SwipeCardViewModel: ObservableObject {
                 width: targetSize.width * 0.5,
                 height: targetSize.height * 0.5
             )
+        } else if quality == .highQuality || quality == .screen {
+            // Use maximum size for both high quality and screen quality to ensure best display
+            targetSize = PHImageManagerMaximumSize
         }
         
         // Create PHImageRequestOptions with appropriate settings
         let options = PHImageRequestOptions()
-        options.deliveryMode = quality == .highQuality ? .highQualityFormat : .opportunistic
-        options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
+        
+        // Adjust delivery mode based on quality
+        if quality == .highQuality {
+            options.deliveryMode = .highQualityFormat
+            options.resizeMode = .exact
+            options.isNetworkAccessAllowed = true
+            options.version = .original  // Use original photo
+        } else if quality == .screen {
+            options.deliveryMode = .highQualityFormat 
+            options.resizeMode = .exact  // Changed from fast to exact
+            options.isNetworkAccessAllowed = true
+            options.version = .current   // Use current (edited) version
+        } else {
+            options.deliveryMode = .opportunistic
+            options.resizeMode = .fast
+            options.isNetworkAccessAllowed = true
+        }
+        
         options.isSynchronous = false
         
-        // Set a timeout for image loading
-        let timeoutDuration: TimeInterval = quality == .highQuality ? 5.0 : 3.0
+        // Set a timeout for image loading - longer for high quality
+        let timeoutDuration: TimeInterval = quality == .highQuality ? 8.0 : 5.0
         let timeoutItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             print("SwipeCardViewModel: Image load timeout for index \(index)")
@@ -776,11 +856,32 @@ class SwipeCardViewModel: ObservableObject {
                         return
                     }
                     
-                    // If this is a degraded image and we requested high quality, 
-                    // we might get a better version later, but still return this one
-                    if let degraded = info?[PHImageResultIsDegradedKey] as? Bool, 
-                       degraded && quality == .highQuality {
-                        print("SwipeCardViewModel: Degraded image for high quality request at index \(index)")
+                    // Check if this is a degraded image
+                    if let degraded = info?[PHImageResultIsDegradedKey] as? Bool, degraded {
+                        print("SwipeCardViewModel: Received degraded image for index \(index), quality: \(quality)")
+                        
+                        // For screen/high quality requests, if we get a degraded image and
+                        // already have a cached image, prefer to keep using the cached one
+                        if (quality == .screen || quality == .highQuality),
+                           index < self.preloadedImages.count,
+                           let existingImage = self.preloadedImages[index] {
+                            print("SwipeCardViewModel: Using existing cached image instead of degraded")
+                            safeResume(with: existingImage)
+                        } else {
+                            // If no better cached image, still use this one
+                            safeResume(with: image)
+                        }
+                        return
+                    }
+                    
+                    // This is a high-quality, non-degraded image
+                    if quality == .screen || quality == .highQuality {
+                        print("SwipeCardViewModel: Received FINAL high quality image for index \(index)")
+                        
+                        // Set the high quality flag immediately before returning
+                        Task { @MainActor in
+                            self.highQualityImagesStatus[index] = true
+                        }
                     }
                     
                     safeResume(with: image)
@@ -810,7 +911,15 @@ class SwipeCardViewModel: ObservableObject {
                 
                 // Update the image in the array
                 await MainActor.run {
+                    // Store the image
                     preloadedImages[index] = image
+                    
+                    // Set the high quality flag if this was a high quality or screen quality request
+                    // This is crucial for the UI to know an image is fully loaded
+                    if quality == .highQuality || quality == .screen {
+                        highQualityImagesStatus[index] = true
+                        print("SwipeCardViewModel: Set high quality status for index \(index)")
+                    }
                 }
             }
             
@@ -886,7 +995,19 @@ class SwipeCardViewModel: ObservableObject {
         let nextIndex = currentIndex + 1
         if nextIndex >= preloadedImages.count || preloadedImages[nextIndex] == nil {
             Task {
-                await loadImage(at: nextIndex)
+                await loadImage(at: nextIndex, quality: .screen)
+            }
+        } else if highQualityImagesStatus[nextIndex] != true {
+            // If image exists but isn't high quality, load high quality version
+            Task {
+                await loadImage(at: nextIndex, quality: .screen)
+            }
+        }
+        
+        // Also preload the current image in high quality if needed
+        if currentIndex < preloadedImages.count && highQualityImagesStatus[currentIndex] != true {
+            Task {
+                await loadImage(at: currentIndex, quality: .screen)
             }
         }
     }
@@ -1585,5 +1706,173 @@ class SwipeCardViewModel: ObservableObject {
                 }
             }
         }
+    }
+    
+    // New method to force current image to high quality
+    func forceCurrentImageToHighQuality() {
+        // Make sure current index is valid
+        guard currentIndex < group.count else { return }
+        
+        // Print debug info about the current state
+        if currentIndex < preloadedImages.count {
+            let hasImage = preloadedImages[currentIndex] != nil
+            let isHighQuality = isImageHighQuality(at: currentIndex)
+            
+            if let image = preloadedImages[currentIndex] {
+                let resolution = "\(image.size.width)x\(image.size.height)"
+                print("SwipeCardViewModel: Current image status - hasImage: \(hasImage), isHighQuality: \(isHighQuality), resolution: \(resolution)")
+            } else {
+                print("SwipeCardViewModel: Current image status - hasImage: \(hasImage), isHighQuality: \(isHighQuality)")
+            }
+        }
+        
+        // Always try to load a higher quality image when this method is called,
+        // even if we think we already have high quality
+        forceHighestQualityForCurrentImage()
+    }
+
+    // New method to make sure the current image is the highest possible quality
+    func forceHighestQualityForCurrentImage() {
+        guard currentIndex < group.count else { return }
+        
+        print("SwipeCardViewModel: Forcing HIGHEST quality for current image at index \(currentIndex)")
+        
+        Task {
+            // Use an adaptive approach that tries different quality levels
+            await loadImageWithFallbacks(at: currentIndex)
+        }
+    }
+    
+    // New method that tries different quality levels with fallbacks
+    private func loadImageWithFallbacks(at index: Int) async {
+        // Try to load with screen-appropriate quality first (not maximum)
+        let screenSize = UIScreen.main.bounds.size
+        let screenScale = UIScreen.main.scale
+        
+        // Calculate a series of target sizes to try
+        let sizes: [(CGSize, String)] = [
+            // 1. Try a size that's 1.5x screen size first - reasonable quality but should decode
+            (CGSize(width: screenSize.width * screenScale * 1.5, height: screenSize.height * screenScale * 1.5), "1.5x screen size"),
+            
+            // 2. Try the exact screen size if the larger size fails
+            (CGSize(width: screenSize.width * screenScale, height: screenSize.height * screenScale), "exact screen size"),
+            
+            // 3. Fallback to a smaller size if even that fails
+            (CGSize(width: screenSize.width * screenScale * 0.8, height: screenSize.height * screenScale * 0.8), "0.8x screen size")
+        ]
+        
+        // Start with a nil result
+        var loadedImage: UIImage? = nil
+        var succeeded = false
+        
+        // First check if we already have the asset
+        guard let asset = group.asset(at: index) else {
+            print("SwipeCardViewModel: No asset at index \(index) for loadImageWithFallbacks")
+            return
+        }
+        
+        // Try each size until we get a successful load
+        for (size, sizeDesc) in sizes {
+            if succeeded { break }
+            
+            print("SwipeCardViewModel: Trying to load image at index \(index) with \(sizeDesc)")
+            
+            // Create the options for this attempt - optimize for best quality
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.resizeMode = .exact
+            options.isNetworkAccessAllowed = true
+            options.version = .current
+            options.isSynchronous = false
+            
+            // Try to load the image
+            loadedImage = await withCheckedContinuation { continuation in
+                var hasResumed = false
+                
+                func safeResume(with image: UIImage?) {
+                    if !hasResumed {
+                        hasResumed = true
+                        continuation.resume(returning: image)
+                    }
+                }
+                
+                let requestId = PHImageManager.default().requestImage(
+                    for: asset,
+                    targetSize: size,
+                    contentMode: .aspectFill,
+                    options: options
+                ) { image, info in
+                    // Check if we got a usable image
+                    if let image = image, image.size.width > 10, image.size.height > 10 {
+                        print("SwipeCardViewModel: Successfully loaded image with \(sizeDesc): \(image.size.width)x\(image.size.height)")
+                        
+                        // Check if this is a degraded image
+                        if let degraded = info?[PHImageResultIsDegradedKey] as? Bool, degraded {
+                            print("SwipeCardViewModel: Received degraded image, continuing to try better quality")
+                            safeResume(with: image) // Still return it as we might use it temporarily
+                        } else {
+                            // This is a high-quality, non-degraded image
+                            // Store the image
+                            Task { @MainActor in
+                                // Make sure we have space in the array
+                                self.ensurePreloadedImagesCapacity(upToIndex: index)
+                                
+                                // Update the image - only if it's better than what we have
+                                let currentImage = self.preloadedImages[index]
+                                
+                                // Replace if we don't have an image or if new one is higher resolution
+                                if currentImage == nil || 
+                                   (currentImage!.size.width * currentImage!.size.height) < 
+                                   (image.size.width * image.size.height) {
+                                    
+                                    print("SwipeCardViewModel: Storing higher quality image: \(image.size.width)x\(image.size.height)")
+                                    self.preloadedImages[index] = image
+                                    
+                                    // Mark it as high quality
+                                    self.highQualityImagesStatus[index] = true
+                                    
+                                    // Update the UI
+                                    self.forceRefreshCallback?()
+                                }
+                            }
+                            
+                            succeeded = true
+                            safeResume(with: image)
+                        }
+                    } else {
+                        // Failed to get a usable image
+                        print("SwipeCardViewModel: Failed to load image with \(sizeDesc)")
+                        if let error = info?[PHImageErrorKey] as? Error {
+                            print("SwipeCardViewModel: Error: \(error.localizedDescription)")
+                        }
+                        safeResume(with: nil)
+                    }
+                }
+                
+                // Store request ID for cancellation if needed
+                if let requestId = requestId as? Int {
+                    DispatchQueue.main.async {
+                        self.requestIDs[index] = requestId
+                    }
+                }
+            }
+            
+            // If we got a valid non-degraded image, we're done
+            if succeeded {
+                print("SwipeCardViewModel: Successfully loaded high quality image at index \(index) with \(sizeDesc)")
+                break
+            }
+        }
+        
+        // If we still don't have an image, log the error
+        if loadedImage == nil {
+            print("SwipeCardViewModel: Failed to load high quality image for index \(index) after trying all fallbacks")
+        }
+    }
+    
+    // Public method to check if an image is high quality
+    func isImageHighQuality(at index: Int) -> Bool {
+        guard index < preloadedImages.count else { return false }
+        return highQualityImagesStatus[index] == true
     }
 } 

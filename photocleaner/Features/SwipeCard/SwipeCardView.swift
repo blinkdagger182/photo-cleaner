@@ -40,6 +40,9 @@ struct SwipeCardView: View {
     @State private var flyOffLabelOffset: CGSize = .zero
     @State private var flyOffLabelRotation: Angle = .zero
     @State private var flyOffLabelOpacity: Double = 0.0
+    
+    // Timer for high quality loading checks
+    @State private var highQualityCheckTimer: Timer? = nil
 
     init(group: PhotoGroup, forceRefresh: Binding<Bool>, isDiscoverTab: Bool = false) {
         self.group = group
@@ -202,7 +205,11 @@ struct SwipeCardView: View {
 
                                 if isPremium {
                                     Image(systemName: "square.and.arrow.up")
-                                        .foregroundColor(.blue)
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Color.blue)
+                                        .clipShape(Circle())
                                 } else {
                                     Image("share_locked")
                                         .resizable()
@@ -295,11 +302,47 @@ struct SwipeCardView: View {
                 // Also clear the PHAsset size cache
                 PHAsset.clearSizeCache()
             }
+            
+            // Set up a timer to periodically check and enforce high quality image loading
+            // This helps ensure we eventually get high quality even if earlier attempts fail
+            highQualityCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak viewModel] timer in
+                guard let viewModel = viewModel else { 
+                    timer.invalidate()
+                    return 
+                }
+                
+                // Check if current image is high quality
+                if viewModel.currentIndex < viewModel.preloadedImages.count,
+                   viewModel.preloadedImages[viewModel.currentIndex] != nil,
+                   !viewModel.isImageHighQuality(at: viewModel.currentIndex) {
+                    
+                    // If we don't have a high quality image yet, force loading it
+                    viewModel.forceHighestQualityForCurrentImage()
+                    
+                    // Gradually increase interval to reduce impact on performance
+                    // After 3 attempts, slow down to every 5 seconds to avoid constant retries
+                    if timer.timeInterval < 5.0 {
+                        timer.invalidate()
+                        highQualityCheckTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak viewModel] timer in
+                            guard let viewModel = viewModel else {
+                                timer.invalidate()
+                                return
+                            }
+                            viewModel.forceHighestQualityForCurrentImage()
+                        }
+                    }
+                }
+            }
         }
         .id(forceRefresh)
         .onDisappear {
             viewModel.onDisappear()
             clearMemory()
+            
+            // Invalidate the timer
+            highQualityCheckTimer?.invalidate()
+            highQualityCheckTimer = nil
+            
             // Remove observer
             NotificationCenter.default.removeObserver(
                 self,
@@ -556,7 +599,11 @@ struct SwipeCardView: View {
                 image: image,
                 index: actualIndex,
                 isTopCard: true,
-                offset: viewModel.offset
+                offset: viewModel.offset,
+                onTap: {
+                    // Force high quality image loading on tap
+                    viewModel.forceCurrentImageToHighQuality()
+                }
             )
             .frame(maxWidth: .infinity)
             .simultaneousGesture(dragGesture)

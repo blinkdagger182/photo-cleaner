@@ -9,6 +9,7 @@ struct SwipePhotoCard: View {
     let index: Int
     let isTopCard: Bool
     let offset: CGSize
+    var onTap: (() -> Void)? = nil
     
     // Live Photo support
     @StateObject private var livePhotoLoader = LivePhotoLoader()
@@ -26,6 +27,8 @@ struct SwipePhotoCard: View {
                 if let image = image {
                     Image(uiImage: image)
                         .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
                         .scaledToFit()
                         .opacity(showLivePhoto ? 0 : 1)
                 } else {
@@ -61,39 +64,41 @@ struct SwipePhotoCard: View {
                     }
                 }
                 
-                // Add a separate transparent layer for direct long press handling (on Live Photos only)
-                if isTopCard && asset.isLivePhoto {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .simultaneousGesture(
-                            LongPressGesture(minimumDuration: 0.3)
-                                .onChanged { isPressing in
-                                    print("🟢 SwipePhotoCard: Long press state changed to \(isPressing)")
-                                    
-                                    // Only respond if we have a live photo loaded
-                                    if livePhotoLoader.livePhoto != nil {
-                                        if isPressing && !isLongPressing {
-                                            isLongPressing = true
-                                            
-                                            // Provide haptic feedback on press start
-                                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                                            generator.impactOccurred()
-                                            
-                                            withAnimation(springAnimation) {
-                                                showLivePhoto = true
-                                            }
-                                        } else if !isPressing && isLongPressing {
-                                            isLongPressing = false
-                                            withAnimation(springAnimation) {
-                                                showLivePhoto = false
-                                            }
+                // Add a separate transparent layer for gesture handling
+                Color.clear
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.3)
+                            .onChanged { isPressing in
+                                print("🟢 SwipePhotoCard: Long press state changed to \(isPressing)")
+                                
+                                // Only respond if we have a live photo loaded
+                                if livePhotoLoader.livePhoto != nil {
+                                    if isPressing && !isLongPressing {
+                                        isLongPressing = true
+                                        
+                                        // Provide haptic feedback on press start
+                                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                                        generator.impactOccurred()
+                                        
+                                        withAnimation(springAnimation) {
+                                            showLivePhoto = true
                                         }
-                                    } else if isPressing {
-                                        print("🟢 SwipePhotoCard: No live photo available to play")
+                                    } else if !isPressing && isLongPressing {
+                                        isLongPressing = false
+                                        withAnimation(springAnimation) {
+                                            showLivePhoto = false
+                                        }
                                     }
+                                } else if isPressing {
+                                    print("🟢 SwipePhotoCard: No live photo available to play")
                                 }
-                        )
-                }
+                            }
+                    )
+                    .onTapGesture {
+                        // Call the tap action if provided
+                        onTap?()
+                    }
             }
             .clipped()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -107,6 +112,18 @@ struct SwipePhotoCard: View {
             )
             .onAppear {
                 print("🟢 SwipePhotoCard: onAppear for index \(index), isLivePhoto: \(asset.isLivePhoto)")
+                
+                // Print debug info about image quality
+                if let image = image {
+                    let quality = "\(image.size.width)x\(image.size.height)"
+                    print("🟢 SwipePhotoCard: Image quality at index \(index): \(quality)")
+                    
+                    // Check for unexpectedly small image sizes
+                    if image.size.width < 500 || image.size.height < 500 {
+                        print("⚠️ SwipePhotoCard: Low quality image detected at index \(index): \(quality)")
+                    }
+                }
+                
                 // Only load live photo if this asset actually is a live photo
                 if asset.isLivePhoto {
                     // Use a more conservative target size for better performance
