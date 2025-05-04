@@ -92,71 +92,19 @@ struct SwipeCardView: View {
                             ) { index in
                                 let actualIndex = viewModel.currentIndex + index
 
-                                ZStack {
-                                    if actualIndex < viewModel.preloadedImages.count,
-                                        let image = viewModel.preloadedImages[actualIndex]
-                                    {
-                                        // We have the image, display it
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .scaleEffect(finalScale * currentScale)
-                                            .gesture(index == 0 ? magnification : nil)
-                                            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
-                                    } else if actualIndex < group.count {
-                                        // If no image is available yet but we have a previous image, show it with overlay
-                                        if index == 0, let prevImage = viewModel.previousImage {
-                                            Image(uiImage: prevImage)
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: geometry.size.width * 0.85)
-                                                .padding()
-                                                .background(Color.white)
-                                                .clipShape(
-                                                    RoundedRectangle(
-                                                        cornerRadius: 30, style: .continuous)
-                                                )
-                                                .shadow(radius: 8)
-                                                .overlay(
-                                                    ZStack {
-                                                        Color.black.opacity(0.2)
-                                                        ProgressView()
-                                                            .scaleEffect(1.5)
-                                                            .tint(.white)
-                                                    }
-                                                )
-                                        }
-                                    }
-
-                                    // Remove the overlay label from here
-                                }
-                                .frame(maxWidth: .infinity)
-                                .background(Color.black)
-                                .clipShape(
-                                    RoundedRectangle(
-                                        cornerRadius: 30, style: .continuous)
-                                )
-                                .shadow(radius: 8)
-                                .offset(
-                                    x: index == 0 ? viewModel.offset.width : 0,
-                                    y: index == 0 ? viewModel.offset.height : 0
-                                )
-                                .rotationEffect(
-                                    index == 0 ? .degrees(Double(viewModel.offset.width / 12)) : .zero,
-                                    anchor: .center
-                                )
-                                .opacity(index == 1 ? 0.4 : 1.0)
-                                .animation(
-                                    hasAppeared && index == 0
-                                        ? .interactiveSpring(response: 0.3, dampingFraction: 0.7)
-                                        : (index == 0 ? .easeInOut(duration: 0.3) : .none), 
-                                    value: viewModel.offset
-                                )
-                                .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
-                                .zIndex(Double(-index))
-                                .highPriorityGesture(
-                                    index == 0
-                                        ? DragGesture()
+                                if index == 0 && actualIndex < viewModel.preloadedImages.count,
+                                   let image = viewModel.preloadedImages[actualIndex] {
+                                    // Use our new SwipePhotoCard component for the top card with live photo support
+                                    SwipePhotoCard(
+                                        asset: group.asset(at: actualIndex) ?? PHAsset(),
+                                        image: image,
+                                        index: actualIndex,
+                                        isTopCard: true,
+                                        offset: viewModel.offset
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                    .gesture(
+                                        DragGesture()
                                             .onChanged { value in
                                                 // Only process drag if not currently zooming
                                                 if currentScale <= 1.0 {
@@ -169,9 +117,48 @@ struct SwipeCardView: View {
                                                     viewModel.handleDragGestureEnd(value: value)
                                                 }
                                             }
-                                        : nil
-                                )
-                                .id("\(viewModel.currentIndex)-\(index)") // Key for animation
+                                    )
+                                    .simultaneousGesture(magnification)
+                                    .id("\(viewModel.currentIndex)-\(index)") // Key for animation
+                                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
+                                } else if index == 1 && actualIndex < viewModel.preloadedImages.count,
+                                          let image = viewModel.preloadedImages[actualIndex] {
+                                    // Use our SwipePhotoCard for background card too, but without gesture support
+                                    SwipePhotoCard(
+                                        asset: group.asset(at: actualIndex) ?? PHAsset(),
+                                        image: image,
+                                        index: actualIndex,
+                                        isTopCard: false,
+                                        offset: .zero // Background card doesn't move
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                    .opacity(0.4) // Background card is dimmed
+                                    .id("\(viewModel.currentIndex)-\(index)") // Key for animation
+                                    .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
+                                } else if actualIndex < group.count {
+                                    // If no image is available yet but we have a previous image, show it with overlay
+                                    if index == 0, let prevImage = viewModel.previousImage {
+                                        Image(uiImage: prevImage)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: geometry.size.width * 0.85)
+                                            .padding()
+                                            .background(Color.white)
+                                            .clipShape(
+                                                RoundedRectangle(
+                                                    cornerRadius: 30, style: .continuous)
+                                            )
+                                            .shadow(radius: 8)
+                                            .overlay(
+                                                ZStack {
+                                                    Color.black.opacity(0.2)
+                                                    ProgressView()
+                                                        .scaleEffect(1.5)
+                                                        .tint(.white)
+                                                }
+                                            )
+                                    }
+                                }
                             }
                             
                             // Add Static drag label with same style as before, but above cards
@@ -258,6 +245,16 @@ struct SwipeCardView: View {
                         .background(Color.black.opacity(0.6))
                         .foregroundColor(.white)
                         .cornerRadius(8)
+                        
+                    #if DEBUG
+                    // Debug button for Live Photo testing
+                    if let currentAsset = group.asset(at: viewModel.currentIndex),
+                       currentAsset.isLivePhoto,
+                       let currentImage = viewModel.currentIndex < viewModel.preloadedImages.count ? viewModel.preloadedImages[viewModel.currentIndex] : nil {
+                        LivePhotoDebugButton(asset: currentAsset, image: currentImage)
+                            .padding(.top, 8)
+                    }
+                    #endif
 
                     VStack(spacing: 20) {
                         HStack(spacing: 40) {
