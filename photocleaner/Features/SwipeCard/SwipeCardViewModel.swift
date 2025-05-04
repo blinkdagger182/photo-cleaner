@@ -175,7 +175,7 @@ class SwipeCardViewModel: ObservableObject {
         let color = Color(red: 0.55, green: 0.35, blue: 0.98)
         triggerLabelFlyOff?(label, color, value.translation)
         
-        // Start preloading next image silently
+        // Start preloading next image silently - use exactly +1 to ensure we load the next one
         Task {
             if capturedIndex + 1 < group.count {
                 await loadImage(at: capturedIndex + 1, quality: .screen)
@@ -204,7 +204,7 @@ class SwipeCardViewModel: ObservableObject {
                 self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
             }
             
-            // First update the index while the old card is off screen
+            // First update the index while the old card is off screen - increment by exactly 1
             self.currentIndex = capturedIndex + 1
             
             // THEN reset the offset with absolutely no animation 
@@ -239,12 +239,14 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Make sure we only use moveToNext (not moveToNextWithAnimation)
+                    // to avoid double incrementation of the index
                     Task {
+                        // Just ensure the next image is available
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        // Do NOT use moveToNextWithAnimation here, as we've already moved the index
                     }
                     
                     self.toast.show(
@@ -261,12 +263,13 @@ class SwipeCardViewModel: ObservableObject {
                 }
             } else {
                 // Non-discover tab - normal flow continues
-                // Load next image and move to it with animation
+                // Just make sure the image is loaded - don't move to next again
                 Task {
+                    // Just ensure the next image is available
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    // Do NOT use moveToNextWithAnimation here, as we've already moved the index
                 }
                 
                 self.toast.show(
@@ -301,7 +304,7 @@ class SwipeCardViewModel: ObservableObject {
         let color = Color.green
         triggerLabelFlyOff?(label, color, value.translation)
         
-        // Start preloading next image silently
+        // Start preloading next image silently - use exactly +1 to ensure we load the next one
         Task {
             if capturedIndex + 1 < group.count {
                 await loadImage(at: capturedIndex + 1, quality: .screen)
@@ -322,7 +325,7 @@ class SwipeCardViewModel: ObservableObject {
             // Important: Disable all animations temporarily
             UIView.setAnimationsEnabled(false)
             
-            // First update the index while the old card is off screen
+            // First update the index while the old card is off screen - increment by exactly 1
             self.currentIndex = capturedIndex + 1
             
             // THEN reset the offset with absolutely no animation
@@ -354,21 +357,21 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Load next image and move to it with animation
+                    // Just ensure the next image is available - don't move to next again
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        await self.moveToNextWithAnimation()
+                        // Do NOT use moveToNextWithAnimation here, as we've already moved the index
                     }
                 }
             } else {
-                // Load next image and move to it with animation
+                // Load next image - don't move to next again
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    await self.moveToNextWithAnimation()
+                    // Do NOT use moveToNextWithAnimation here, as we've already moved the index
                 }
             }
         }
@@ -380,6 +383,8 @@ class SwipeCardViewModel: ObservableObject {
         let nextIndex = currentIndex + 1
         
         await MainActor.run {
+            preloadNextImage()
+
             // Track image view count for general subscription threshold
             imageViewTracker?.incrementViewCount()
             
@@ -392,6 +397,7 @@ class SwipeCardViewModel: ObservableObject {
                 }
                 showRCPaywall = discoverSwipeTracker?.showRCPaywall ?? false
             }
+
         }
         
         if nextIndex < group.count {
@@ -405,15 +411,17 @@ class SwipeCardViewModel: ObservableObject {
             // Update the index with nice animation for the next card
             await MainActor.run {
                 // Reset offset first (not visible since we'll animate in the card)
-                withAnimation(.none) {
-                    offset = .zero
-                }
+                // withAnimation(.none) {
+                //     offset = .zero
+                // }
                 
-                // Now update the index to show the next card
-                currentIndex = nextIndex
+                // // Now update the index to show the next card
+                // currentIndex = nextIndex
                 
                 // Animate the opacity of the next card for a nice transition
                 // This is handled in the view
+                currentIndex = nextIndex
+                offset = .zero
             }
             
             // Set preloading flag to prevent unnecessary reloads
@@ -1598,6 +1606,88 @@ class SwipeCardViewModel: ObservableObject {
             }
         }
     }
+    
+    // MARK: - Image Preloading
+    
+    /// Ensures the next image is preloaded, especially during dragging to prevent image mismatch
+    func preloadNextImageIfNeeded() {
+        let nextIndex = currentIndex + 1
+        
+        // Check if we need to preload the next image
+        if nextIndex < group.count {
+            // If the next image isn't loaded or is nil, prioritize loading it
+            if nextIndex >= preloadedImages.count || preloadedImages[nextIndex] == nil {
+                print("💡 Prioritizing preload of next image at index \(nextIndex)")
+                
+                // Cancel any existing task for this index to avoid conflicts
+                imageFetchTasks[nextIndex]?.cancel()
+                
+                // Create a new high-priority task for loading this specific image
+                let task = Task {
+                    // Try to get the asset for the next index
+                    guard let asset = group.asset(at: nextIndex) else {
+                        return nil as UIImage?
+                    }
+                    
+                    // Request the image at high quality to ensure it looks good
+                    let options = PHImageRequestOptions()
+                    options.deliveryMode = .highQualityFormat
+                    options.isNetworkAccessAllowed = true
+                    options.isSynchronous = false
+                    
+                    // Use a semaphore with a short timeout to prioritize this load
+                    let semaphore = DispatchSemaphore(value: 0)
+                    var resultImage: UIImage?
+                    
+                    PHImageManager.default().requestImage(
+                        for: asset,
+                        targetSize: PHImageManagerMaximumSize,
+                        contentMode: .aspectFit,
+                        options: options
+                    ) { image, info in
+                        resultImage = image
+                        semaphore.signal()
+                    }
+                    
+                    // Wait for the image with a reasonable timeout
+                    _ = semaphore.wait(timeout: .now() + 1.0)
+                    
+                    // Update the preloaded images array on the main thread
+                    if let image = resultImage, !Task.isCancelled {
+                        await MainActor.run {
+                            // Ensure the array is large enough
+                            while preloadedImages.count <= nextIndex {
+                                preloadedImages.append(nil)
+                            }
+                            
+                            // Set the image
+                            preloadedImages[nextIndex] = image
+                            print("💡 Successfully preloaded next image at index \(nextIndex)")
+                        }
+                    }
+                    
+                    return resultImage
+                }
+                
+                // Store the task
+                imageFetchTasks[nextIndex] = task
+            }
+        }
+    }
+    
+    // ADDED: preloadNextImage function to ensure proper visual syncing
+    private func preloadNextImage() {
+        let indicesToPreload = [currentIndex, currentIndex + 1]
+        for index in indicesToPreload {
+            guard index < group.count else { continue }
+            if index >= preloadedImages.count || preloadedImages[index] == nil {
+                Task {
+                    await loadImage(at: index, quality: .screen)
+                }
+            }
+        }
+    }
+
 
     /// Custom class to handle different types of sharing content
     class PhotoSharingActivityItemSource: NSObject, UIActivityItemSource {

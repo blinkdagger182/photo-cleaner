@@ -109,6 +109,11 @@ struct SwipeCardView: View {
                                                 // Only process drag if not currently zooming
                                                 if currentScale <= 1.0 {
                                                     viewModel.handleDragGesture(value: value)
+                                                    
+                                                    // Preload next image when drag starts to ensure it's ready
+                                                    if value.translation.width < -20 || value.translation.width > 20 {
+                                                        viewModel.preloadNextImageIfNeeded()
+                                                    }
                                                 }
                                             }
                                             .onEnded { value in
@@ -136,28 +141,14 @@ struct SwipeCardView: View {
                                     .id("\(viewModel.currentIndex)-\(index)") // Key for animation
                                     .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
                                 } else if actualIndex < group.count {
-                                    // If no image is available yet but we have a previous image, show it with overlay
-                                    if index == 0, let prevImage = viewModel.previousImage {
-                                        Image(uiImage: prevImage)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: geometry.size.width * 0.85)
-                                            .padding()
-                                            .background(Color.white)
-                                            .clipShape(
-                                                RoundedRectangle(
-                                                    cornerRadius: 30, style: .continuous)
-                                            )
-                                            .shadow(radius: 8)
-                                            .overlay(
-                                                ZStack {
-                                                    Color.black.opacity(0.2)
-                                                    ProgressView()
-                                                        .scaleEffect(1.5)
-                                                        .tint(.white)
-                                                }
-                                            )
-                                    }
+                                    // We don't have an image for the background card yet
+                                    // Just show an empty placeholder to avoid wrong images
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.1))
+                                        .frame(maxWidth: .infinity)
+                                        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                                        .padding(.top, 20)
+                                        .opacity(0.4)
                                 }
                             }
                             
