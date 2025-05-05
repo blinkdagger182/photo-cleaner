@@ -1,11 +1,13 @@
 import SwiftUI
 import Photos
 import UIKit
+import RevenueCat
 
 struct DiscoverView: View {
     @StateObject private var viewModel: DiscoverViewModel
     @EnvironmentObject var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     // Add loading state
     @State private var isInitializing = true
@@ -63,6 +65,11 @@ struct DiscoverView: View {
                 .environmentObject(toast)
                 .environmentObject(SubscriptionManager.shared)
         }
+        .sheet(isPresented: $viewModel.showRCPaywall) {
+            // Show RevenueCat Paywall
+            PaywallView()
+                .environmentObject(SubscriptionManager.shared)
+        }
     }
     
     // Main content view
@@ -70,6 +77,16 @@ struct DiscoverView: View {
         VStack(spacing: 8) {
             // Header
             headerView
+            
+            // Premium banner for non-premium users
+            if !viewModel.showEmptyState && !SubscriptionManager.shared.isPremium {
+                DiscoverPromoBanner {
+                    // Show paywall when banner is tapped
+                    viewModel.showRCPaywall = true
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+            }
             
             if !viewModel.showEmptyState {
                 // Featured albums

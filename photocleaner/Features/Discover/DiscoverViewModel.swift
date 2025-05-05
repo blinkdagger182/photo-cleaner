@@ -49,6 +49,9 @@ class DiscoverViewModel: ObservableObject {
     @Published var eventsSortOption: EventSortOption = .newestFirst
     @Published var isSortingEvents: Bool = false
     
+    // Paywall display
+    @Published var showRCPaywall: Bool = false
+    
     // Sort order for featured albums
     @Published var featuredSortByMostPhotos: Bool = true
     @Published var isSortingFeatured: Bool = false

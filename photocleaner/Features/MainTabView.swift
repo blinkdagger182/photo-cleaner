@@ -123,6 +123,7 @@ struct MainTabView: View {
                     DiscoverView(photoManager: photoManager)
                         .environmentObject(photoManager)
                         .environmentObject(toast)
+                        .environmentObject(subscriptionManager)
                         .offset(x: currentTab == 0 ? screenWidth + dragOffset : dragOffset)
                         .onAppear {
                             // Mark Discover tab as initialized when it appears
