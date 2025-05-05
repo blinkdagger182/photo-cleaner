@@ -84,6 +84,30 @@ struct SwipeCardView: View {
                                 .multilineTextAlignment(.center)
                             }
                             .padding(.top, 60)
+                        } else if viewModel.currentIndex >= group.count {
+                            // Show success message when user has swiped through all images
+                            VStack(spacing: 24) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 70))
+                                    .foregroundColor(.green)
+                                
+                                Text("You have swiped through this album")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                                    .multilineTextAlignment(.center)
+                                
+                                Text("Tap 'Next' to review deletions")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                            }
+                            .padding(32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(Color(.systemBackground))
+                                    .shadow(radius: 10)
+                            )
+                            .padding(24)
                         } else {
                             // Show images with proper fallbacks
                             ForEach(
@@ -211,41 +235,28 @@ struct SwipeCardView: View {
                                     .offset(flyOffLabelOffset)
                                     .zIndex(101) // Above everything
                             }
-
-                            // Show a loading indicator when actively loading more images
-                            // if viewModel.isLoading {
-                            //     HStack {
-                            //         Spacer()
-                            //         VStack {
-                            //             Spacer()
-                            //             ProgressView()
-                            //                 .scaleEffect(1.5)
-                            //             Text("Loading more...")
-                            //                 .font(.caption)
-                            //                 .foregroundColor(.gray)
-                            //                 .padding(.top, 8)
-                            //             Spacer()
-                            //         }
-                            //         Spacer()
-                            //     }
-                            //     .frame(width: 150, height: 100)
-                            //     .background(Color.white.opacity(0.9))
-                            //     .cornerRadius(12)
-                            //     .shadow(radius: 8)
-                            //     .padding(.bottom, 50)
-                            // }
                         }
                     }
 
                     Spacer()
 
-                    Text("\(viewModel.currentIndex + 1)/\(group.count)")
-                        .font(.caption)
-                        .padding(8)
-                        .background(Color.black.opacity(0.6))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        
+                    if viewModel.currentIndex >= group.count {
+                        Text("All done!")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                            .padding(8)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(8)
+                    } else {
+                        Text("\(viewModel.currentIndex + 1)/\(group.count)")
+                            .font(.caption)
+                            .padding(8)
+                            .background(Color.black.opacity(0.6))
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
+                    
                     #if DEBUG
                     // Debug button for Live Photo testing
                     if let currentAsset = group.asset(at: viewModel.currentIndex),
@@ -257,47 +268,68 @@ struct SwipeCardView: View {
                     #endif
 
                     VStack(spacing: 20) {
-                        HStack(spacing: 40) {
-                            CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
-                                if viewModel.isCurrentImageReadyForInteraction() {
-                                    viewModel.triggerDeleteFromButton()
-                                } else {
-                                    toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
-                                }
-                            }
+                        if viewModel.currentIndex >= group.count {
+                            // Show a prominent review button when all images have been swiped
                             Button(action: {
-                                if viewModel.isCurrentImageReadyForInteraction() {
-                                    viewModel.triggerBookmarkFromButton()
-                                } else {
-                                    toast.show("Please wait for the image to fully load before saving", duration: 2.0)
-                                }
+                                viewModel.prepareDeletePreview()
                             }) {
-                                HStack(spacing: 6) {
-                                    Text("Maybe")
-                                        .foregroundColor(.yellow)
-                                        .font(.system(size: 16, weight: .medium))
-                                    Image(systemName: "questionmark")
-                                        .foregroundColor(.yellow)
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.white)
+                                    Text("Review Deletions")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                // .background(
-                                //     Capsule()
-                                //         .fill(Color.yellow.opacity(0.15)
-                                //         .strokesBorder(Color.black, lineWidth: 1.5)
-                                // )
-                                // )
-                                .background(
-                                    Capsule()
-                                        .strokeBorder(Color.yellow, lineWidth: 1.5)
-                                )
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .cornerRadius(16)
+                                .padding(.horizontal, 32)
                             }
+                        } else {
+                            // Show the normal action buttons when there are still images to swipe
+                            HStack(spacing: 40) {
+                                CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
+                                    if viewModel.isCurrentImageReadyForInteraction() {
+                                        viewModel.triggerDeleteFromButton()
+                                    } else {
+                                        toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
+                                    }
+                                }
+                                Button(action: {
+                                    if viewModel.isCurrentImageReadyForInteraction() {
+                                        viewModel.triggerBookmarkFromButton()
+                                    } else {
+                                        toast.show("Please wait for the image to fully load before saving", duration: 2.0)
+                                    }
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Text("Maybe")
+                                            .foregroundColor(.yellow)
+                                            .font(.system(size: 16, weight: .medium))
+                                        Image(systemName: "questionmark")
+                                            .foregroundColor(.yellow)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    // .background(
+                                    //     Capsule()
+                                    //         .fill(Color.yellow.opacity(0.15)
+                                    //         .strokesBorder(Color.black, lineWidth: 1.5)
+                                    // )
+                                    // )
+                                    .background(
+                                        Capsule()
+                                            .strokeBorder(Color.yellow, lineWidth: 1.5)
+                                    )
+                                }
 
-                            CircleButton(icon: "checkmark", tint: .green) {
-                                if viewModel.isCurrentImageReadyForInteraction() {
-                                    viewModel.triggerKeepFromButton()
-                                } else {
-                                    toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
+                                CircleButton(icon: "checkmark", tint: .green) {
+                                    if viewModel.isCurrentImageReadyForInteraction() {
+                                        viewModel.triggerKeepFromButton()
+                                    } else {
+                                        toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
+                                    }
                                 }
                             }
                         }

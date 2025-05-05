@@ -167,6 +167,9 @@ class SwipeCardViewModel: ObservableObject {
         guard let asset = group.asset(at: currentIndex) else { return }
         let capturedIndex = currentIndex
         
+        // Check if this is the last image
+        let isLastImage = capturedIndex == group.count - 1
+        
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
@@ -213,6 +216,15 @@ class SwipeCardViewModel: ObservableObject {
             // Re-enable animations after state is reset
             UIView.setAnimationsEnabled(true)
             
+            // If this is the last image, show delete preview instead of incrementing swipe tracker
+            if isLastImage {
+                // Small delay to ensure smooth transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.prepareDeletePreview()
+                }
+                return
+            }
+            
             // Track swipe count for Discover tab paywall
             if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
                 // Make sure we have a reference to the tracker
@@ -247,31 +259,10 @@ class SwipeCardViewModel: ObservableObject {
                         // Don't call moveToNextWithAnimation() again - we already updated the index
                         // Just clean up and preload as needed
                         await self.cleanupOldImages()
-                        
-                        // Proactively load high-quality images for the next few indices
-                        for offset in 0..<self.highQualityPreloadCount {
-                            let indexToLoad = self.currentIndex + offset
-                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                                await self.loadImage(at: indexToLoad, quality: .screen)
-                            }
-                        }
                     }
-                    
-                    self.toast.show(
-                        "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                    ) {
-                        // Undo action
-                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                        self.photoManager.unmarkForDeletion(asset)
-                        withAnimation {
-                            self.currentIndex = capturedIndex
-                            self.offset = .zero
-                        }
-                    } onDismiss: { }
                 }
             } else {
-                // Non-discover tab - normal flow continues
-                // Load next image and AVOID moving to next again since we already did above
+                // Non-discover tab or premium user case - just load the next image
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
@@ -279,27 +270,7 @@ class SwipeCardViewModel: ObservableObject {
                     // Don't call moveToNextWithAnimation() again - we already updated the index
                     // Just clean up and preload as needed
                     await self.cleanupOldImages()
-                    
-                    // Proactively load high-quality images for the next few indices
-                    for offset in 0..<self.highQualityPreloadCount {
-                        let indexToLoad = self.currentIndex + offset
-                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                            await self.loadImage(at: indexToLoad, quality: .screen)
-                        }
-                    }
                 }
-                
-                self.toast.show(
-                    "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                ) {
-                    // Undo action
-                    self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                    self.photoManager.unmarkForDeletion(asset)
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                } onDismiss: { }
             }
         }
     }
@@ -308,25 +279,21 @@ class SwipeCardViewModel: ObservableObject {
         // Calculate velocity for more natural feeling
         let velocity = value.predictedEndLocation.x - value.location.x
         let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
-        let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit
+        let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit for more satisfied feel
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
         
         // Capture current state before any animations
         let capturedIndex = currentIndex
         
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
+        // Check if this is the last image
+        let isLastImage = capturedIndex == group.count - 1
         
         // Trigger fly-off animation
         let label = "Keep"
         let color = Color.green
         triggerLabelFlyOff?(label, color, value.translation)
-        
-        // Start preloading next image silently
-        Task {
-            if capturedIndex + 1 < group.count {
-                await loadImage(at: capturedIndex + 1, quality: .screen)
-            }
-        }
         
         // Create a fly-off animation that NEVER springs back
         withAnimation(.easeOut(duration: duration)) {
@@ -345,19 +312,23 @@ class SwipeCardViewModel: ObservableObject {
             // Update the index while the old card is off screen
             self.currentIndex = capturedIndex + 1
             
-            // THEN reset the offset with absolutely no animation
+            // THEN reset the offset with absolutely no animation 
             self.offset = .zero
             
             // Re-enable animations after state is reset
             UIView.setAnimationsEnabled(true)
             
+            // If this is the last image, show delete preview
+            if isLastImage {
+                // Small delay to ensure smooth transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.prepareDeletePreview()
+                }
+                return
+            }
+            
             // Track swipe count for Discover tab paywall
             if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
                 // Increment count and check if swipe should be undone
                 let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
                 
@@ -382,33 +353,17 @@ class SwipeCardViewModel: ObservableObject {
                         // Don't call moveToNextWithAnimation() again - we already updated the index
                         // Just clean up and preload as needed
                         await self.cleanupOldImages()
-                        
-                        // Proactively load high-quality images for the next few indices
-                        for offset in 0..<self.highQualityPreloadCount {
-                            let indexToLoad = self.currentIndex + offset
-                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                                await self.loadImage(at: indexToLoad, quality: .screen)
-                            }
-                        }
                     }
                 }
             } else {
-                // Load next image and AVOID moving to next again since we already did above
+                // Non-discover tab or premium user case - just load the next image
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
                     // Don't call moveToNextWithAnimation() again - we already updated the index
                     // Just clean up and preload as needed
-                    await self.cleanupOldImages()
-                    
-                    // Proactively load high-quality images for the next few indices
-                    for offset in 0..<self.highQualityPreloadCount {
-                        let indexToLoad = self.currentIndex + offset
-                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                            await self.loadImage(at: indexToLoad, quality: .screen)
-                        }
-                    }
+                    await self.cleanupOldImages() 
                 }
             }
         }
@@ -1078,53 +1033,54 @@ class SwipeCardViewModel: ObservableObject {
     
     // Update the button methods to use the new animation function
     func triggerDeleteFromButton() {
+        // Check if this is the last image
+        let isLastImage = currentIndex == group.count - 1
+        
+        // Capture current state before any animations
+        guard let asset = group.asset(at: currentIndex) else { return }
+        let capturedIndex = currentIndex
+        
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
-        // Trigger fly-off animation for the label
-        let label = "Delete"
-        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
-        // Create direction without using DragGesture.Value
-        let simulatedDirection = CGSize(width: -150, height: 0)
-        triggerLabelFlyOff?(label, color, simulatedDirection)
-        
-        // Duration for animation - faster for smoother experience
-        let duration = 0.25
-        
-        // Animate card flying off screen IMMEDIATELY
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off to the left with a slight upward motion
-            offset = CGSize(
-                width: -UIScreen.main.bounds.width * 1.3,
-                height: -50
-            )
+        // Add the current image to the deletion preview if available
+        if capturedIndex < preloadedImages.count, let currentImage = preloadedImages[capturedIndex] {
+            photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
         }
         
-        // Process the action after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            // Temporarily disable animations for smooth reset
-            withAnimation(.none) {
-                self.offset = .zero // Reset immediately (not visible to user)
-            }
+        // Mark for deletion
+        photoManager.markForDeletion(asset)
+        
+        // Trigger fly-off animation with default values (no gesture)
+        let label = "Delete"
+        let color = Color(red: 0.55, green: 0.35, blue: 0.98)
+        triggerLabelFlyOff?(label, color, CGSize(width: -100, height: 0))
+        
+        // Create a fly-off animation
+        withAnimation(.easeOut(duration: 0.25)) {
+            // Fly off to the left
+            offset = CGSize(width: -UIScreen.main.bounds.width * 2.0, height: 0)
+        }
+        
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 + 0.05) {
+            // Reset index and offset
+            UIView.setAnimationsEnabled(false)
+            self.currentIndex = capturedIndex + 1
+            self.offset = .zero
+            UIView.setAnimationsEnabled(true)
             
-            guard let asset = self.group.asset(at: self.currentIndex) else { return }
-            let capturedIndex = self.currentIndex
-            
-            // Mark for deletion
-            self.photoManager.markForDeletion(asset)
-            
-            // Add the current image to the deletion preview if available
-            if capturedIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[capturedIndex] {
-                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
+            // If this is the last image, show delete preview
+            if isLastImage {
+                // Small delay to ensure smooth transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.prepareDeletePreview()
+                }
+                return
             }
             
             // Track swipe count for Discover tab paywall
             if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
                 // Increment count and check if swipe should be undone
                 let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
                 
@@ -1141,117 +1097,69 @@ class SwipeCardViewModel: ObservableObject {
                         self.offset = .zero
                     }
                     
-                    // Show message explaining why the swipe was undone
+                    // Show message explaining why
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Directly update the current index
-                    self.currentIndex = capturedIndex + 1
-                    
-                    // Load next image and perform cleanup
+                    // Load next image
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        
-                        // Cleanup and preload images
                         await self.cleanupOldImages()
-                        
-                        // Proactively load high-quality images for the next few indices
-                        for offset in 0..<self.highQualityPreloadCount {
-                            let indexToLoad = self.currentIndex + offset
-                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                                await self.loadImage(at: indexToLoad, quality: .screen)
-                            }
-                        }
                     }
-                    
-                    self.toast.show(
-                        "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                    ) {
-                        // Undo action
-                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                        self.photoManager.unmarkForDeletion(asset)
-                        withAnimation {
-                            self.currentIndex = capturedIndex
-                            self.offset = .zero
-                        }
-                    } onDismiss: { }
                 }
             } else {
-                // Non-discover tab - normal flow continues
-                // Directly update the current index
-                self.currentIndex = capturedIndex + 1
-                
+                // Non-discover tab or premium user case - just load the next image
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    
-                    // Cleanup and preload images
                     await self.cleanupOldImages()
-                    
-                    // Proactively load high-quality images for the next few indices
-                    for offset in 0..<self.highQualityPreloadCount {
-                        let indexToLoad = self.currentIndex + offset
-                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                            await self.loadImage(at: indexToLoad, quality: .screen)
-                        }
-                    }
                 }
-                
-                self.toast.show(
-                    "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-                ) {
-                    // Undo action
-                    self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-                    self.photoManager.unmarkForDeletion(asset)
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                } onDismiss: { }
             }
         }
     }
     
     func triggerKeepFromButton() {
+        // Check if this is the last image
+        let isLastImage = currentIndex == group.count - 1
+        
+        // Capture current state
+        let capturedIndex = currentIndex
+        
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
-        // Trigger fly-off animation for the label
+        // Trigger fly-off animation with default values (no gesture)
         let label = "Keep"
         let color = Color.green
-        // Create direction without using DragGesture.Value
-        let simulatedDirection = CGSize(width: 150, height: 0)
-        triggerLabelFlyOff?(label, color, simulatedDirection)
+        triggerLabelFlyOff?(label, color, CGSize(width: 100, height: 0))
         
-        // Duration for animation - faster for smoother experience
-        let duration = 0.25
-        
-        // Animate card flying off screen IMMEDIATELY
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off to the right with a slight upward motion
-            offset = CGSize(
-                width: UIScreen.main.bounds.width * 1.3,
-                height: -50
-            )
+        // Create a fly-off animation
+        withAnimation(.easeOut(duration: 0.25)) {
+            // Fly off to the right
+            offset = CGSize(width: UIScreen.main.bounds.width * 2.0, height: 0)
         }
         
-        // Process the action after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Reset immediately (not visible to user)
-            }
+        // Wait until card is completely off-screen before doing state changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 + 0.05) {
+            // Reset index and offset
+            UIView.setAnimationsEnabled(false)
+            self.currentIndex = capturedIndex + 1
+            self.offset = .zero
+            UIView.setAnimationsEnabled(true)
             
-            let capturedIndex = self.currentIndex
+            // If this is the last image, show delete preview
+            if isLastImage {
+                // Small delay to ensure smooth transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.prepareDeletePreview()
+                }
+                return
+            }
             
             // Track swipe count for Discover tab paywall
             if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
                 // Increment count and check if swipe should be undone
                 let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
                 
@@ -1268,47 +1176,21 @@ class SwipeCardViewModel: ObservableObject {
                     // Show message explaining why the swipe was undone
                     self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
                 } else {
-                    // Directly update the current index
-                    self.currentIndex = capturedIndex + 1
-                    
-                    // Load next image and perform cleanup
+                    // Load next image
                     Task {
                         if capturedIndex + 1 < self.group.count {
                             await self.loadImage(at: capturedIndex + 1, quality: .screen)
                         }
-                        
-                        // Cleanup and preload images
                         await self.cleanupOldImages()
-                        
-                        // Proactively load high-quality images for the next few indices
-                        for offset in 0..<self.highQualityPreloadCount {
-                            let indexToLoad = self.currentIndex + offset
-                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                                await self.loadImage(at: indexToLoad, quality: .screen)
-                            }
-                        }
                     }
                 }
             } else {
-                // Directly update the current index
-                self.currentIndex = capturedIndex + 1
-                
-                // Load next image and perform cleanup
+                // Non-discover tab or premium user case - just load the next image
                 Task {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    
-                    // Cleanup and preload images
                     await self.cleanupOldImages()
-                    
-                    // Proactively load high-quality images for the next few indices
-                    for offset in 0..<self.highQualityPreloadCount {
-                        let indexToLoad = self.currentIndex + offset
-                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                            await self.loadImage(at: indexToLoad, quality: .screen)
-                        }
-                    }
                 }
             }
         }
