@@ -3,6 +3,46 @@ import Photos
 import UIKit
 import PhotosUI
 
+// Custom view that mimics ContentUnavailableView but works on iOS 16
+struct FallbackContentUnavailableView: View {
+    let title: String
+    let systemImage: String
+    let description: Text?
+    
+    init(_ title: String, systemImage: String, description: Text? = nil) {
+        self.title = title
+        self.systemImage = systemImage
+        self.description = description
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            Image(systemName: systemImage)
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            Text(title)
+                .font(.title2)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.center)
+            
+            if let description = description {
+                description
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 32)
+            }
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject private var photoManager: PhotoManager
     @EnvironmentObject var toast: ToastService
@@ -25,7 +65,7 @@ struct ContentView: View {
                         let _ = print("✅ LimitedAccessView is active") // ✅ trick to inline-print
                         LimitedAccessView()
                     } else {
-                        ContentUnavailableView("No Photos",
+                        FallbackContentUnavailableView("No Photos",
                                                systemImage: "photo.on.rectangle",
                                                description: Text("Your photo library is empty")).overlay(
                         Button("Open Settings") {
@@ -52,7 +92,7 @@ struct ContentView: View {
                 }
 
             case .denied, .restricted:
-                ContentUnavailableView("No Access to Photos",
+                FallbackContentUnavailableView("No Access to Photos",
                                        systemImage: "lock.fill",
                                        description: Text("Please enable photo access in Settings"))
                 .overlay(
@@ -78,8 +118,6 @@ struct ContentView: View {
         }
     }
 }
-
-
 
 struct RequestAccessView: View {
     let onRequest: () -> Void
