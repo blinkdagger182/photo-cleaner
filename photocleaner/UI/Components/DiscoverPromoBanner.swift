@@ -4,7 +4,7 @@ struct DiscoverPromoBanner: View {
     var onTap: () -> Void
     
     // Current discount percentage
-    private let discountPercentage = 36
+    private let discountPercentage = 44
     
     var body: some View {
         Button(action: onTap) {
@@ -16,7 +16,7 @@ struct DiscoverPromoBanner: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
                         
-                        Text("You've tried it, now love it! Remove daily limits forever.")
+                        Text("Love cln.? Go unlimited. Clean smarter, faster—forever.")
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.8))
                     }
@@ -39,7 +39,7 @@ struct DiscoverPromoBanner: View {
                 HStack {
                     Spacer()
                     
-                    Text("Upgrade to Premium")
+                    Text("Upgrade to Plus")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.black)
                         .padding(.vertical, 12)

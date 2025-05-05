@@ -6,7 +6,7 @@ struct SwipeLimitView: View {
     
     private var progress: Double {
         guard dailyLimit > 0 else { return 0 }
-        return Double(swipesUsed) / Double(dailyLimit)
+        return min(1.0, Double(swipesUsed) / Double(dailyLimit))
     }
     
     var body: some View {
@@ -36,20 +36,23 @@ struct SwipeLimitView: View {
                 }
             }
             
-            // Progress bar
-            ZStack(alignment: .leading) {
-                // Background track
-                Rectangle()
-                    .fill(Color(.systemGray5))
-                    .frame(height: 6)
-                    .cornerRadius(3)
-                
-                // Progress
-                Rectangle()
-                    .fill(progressColor)
-                    .frame(width: max(4, CGFloat(progress) * UIScreen.main.bounds.width * 0.8), height: 6)
-                    .cornerRadius(3)
+            // Progress bar with GeometryReader for accurate width
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background track
+                    Rectangle()
+                        .fill(Color(.systemGray5))
+                        .frame(height: 6)
+                        .cornerRadius(3)
+                    
+                    // Progress
+                    Rectangle()
+                        .fill(progressColor)
+                        .frame(width: progress * geometry.size.width, height: 6)
+                        .cornerRadius(3)
+                }
             }
+            .frame(height: 6)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
