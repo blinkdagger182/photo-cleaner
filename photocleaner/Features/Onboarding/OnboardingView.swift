@@ -441,6 +441,9 @@ struct OnboardingView: View {
     @State private var showPermissionDeniedAlert = false
     @State private var currentPage = 0
     @State private var isCompletingOnboarding = false
+    
+    // Add a flag to track if permission check is already running
+    @State private var isCheckingPermission = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -452,22 +455,62 @@ struct OnboardingView: View {
                     // It prevents the TabView from resetting to the first page
                     Color(.systemBackground).ignoresSafeArea()
                 } else {
-                    TabView(selection: $currentPage) {
-                        IntroPageView(goToNextPage: goToNextPage)
-                            .tag(0)
+                    // Use a ZStack with page opacity to simulate TabView but with better performance
+                    ZStack {
+                        // Only render the current page and adjacent pages to improve performance
+                        if currentPage == 0 || currentPage == 1 {
+                            LazyView(IntroPageView(goToNextPage: goToNextPage))
+                                .frame(width: geometry.size.width)
+                                .opacity(currentPage == 0 ? 1 : 0)
+                        }
                         
-                        PermissionPageView(goToNextPage: requestPhotoPermission)
-                            .tag(1)
+                        if currentPage == 0 || currentPage == 1 || currentPage == 2 {
+                            LazyView(PermissionPageView(goToNextPage: requestPhotoPermission))
+                                .frame(width: geometry.size.width)
+                                .opacity(currentPage == 1 ? 1 : 0)
+                        }
                         
-                        SwipeTutorialPageView(photoCount: photoCount, onGetStarted: handleGetStarted)
-                            .tag(2)
+                        if currentPage == 1 || currentPage == 2 {
+                            LazyView(SwipeTutorialPageView(photoCount: photoCount, onGetStarted: handleGetStarted))
+                                .frame(width: geometry.size.width)
+                                .opacity(currentPage == 2 ? 1 : 0)
+                        }
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never)) // Hide page indicators
+                    .gesture(
+                        DragGesture()
+                            .onEnded { value in
+                                // Only handle horizontal swipes that are significant (>50 points)
+                                if abs(value.translation.width) > 50 {
+                                    if value.translation.width > 0 {
+                                        // Swipe right (previous page)
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentPage = max(0, currentPage - 1)
+                                        }
+                                    } else {
+                                        // Swipe left (next page)
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            currentPage = min(2, currentPage + 1)
+                                        }
+                                    }
+                                }
+                            }
+                    )
                 }
             }
         }
-        .task {
-            await photoManager.checkCurrentStatus()
+        // Move initial permission check to an onAppear instead of a task modifier
+        .onAppear {
+            // Simple status check without heavy permissions handling
+            // This is just to set up the state, not to request permissions
+            if photoManager.authorizationStatus != .notDetermined {
+                DispatchQueue.main.async {
+                    isCheckingPermission = true
+                    Task {
+                        await photoManager.checkCurrentStatus()
+                        isCheckingPermission = false
+                    }
+                }
+            }
         }
         .alert("Photo Access Required", isPresented: $showPermissionDeniedAlert) {
             Button("Open Settings") {
@@ -488,6 +531,11 @@ struct OnboardingView: View {
     }
     
     private func requestPhotoPermission() {
+        // Prevent multiple simultaneous permission requests
+        guard !isCheckingPermission else { return }
+        
+        isCheckingPermission = true
+        
         Task {
             if photoManager.authorizationStatus == .notDetermined {
                 await photoManager.requestAuthorization()
@@ -496,7 +544,7 @@ struct OnboardingView: View {
                 case .authorized, .limited:
                     await fetchPhotoCount()
                     withAnimation {
-                        currentPage = 2 // Skip directly to the last page instead of calling goToNextPage()
+                        currentPage = 2 // Skip directly to the last page
                     }
                 case .denied, .restricted:
                     showPermissionDeniedAlert = true
@@ -507,11 +555,13 @@ struct OnboardingView: View {
                       photoManager.authorizationStatus == .limited {
                 await fetchPhotoCount()
                 withAnimation {
-                    currentPage = 2 // Skip directly to the last page instead of calling goToNextPage()
+                    currentPage = 2 // Skip directly to the last page
                 }
             } else {
                 showPermissionDeniedAlert = true
             }
+            
+            isCheckingPermission = false
         }
     }
     
@@ -709,6 +759,19 @@ struct SwipeTutorialPageView: View {
             }
             .frame(width: geometry.size.width)
         }
+    }
+}
+
+// Helper struct for lazy loading views
+struct LazyView<Content: View>: View {
+    let content: () -> Content
+    
+    init(_ content: @autoclosure @escaping () -> Content) {
+        self.content = content
+    }
+    
+    var body: some View {
+        content()
     }
 }
 

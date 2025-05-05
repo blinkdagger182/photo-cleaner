@@ -161,17 +161,61 @@ struct PremiumAlertBanner: View {
     private let velocityThreshold: CGFloat = 1000
 
     var body: some View {
-        VStack(spacing: 12) {
-            Button(action: {
-                onDismiss()
-                onTap()
-                }) {
-                    Image("premium_alert_banner")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: .infinity)
+        ZStack {
+            // Full-screen transparent background to capture taps outside the banner
+            Color.black.opacity(0.001) // Nearly transparent
+                .edgesIgnoringSafeArea(.all)
+                .onTapGesture {
+                    onDismiss()
                 }
-                .buttonStyle(.plain)
+            
+            // Banner content
+            bannerContent
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(24)
+                .padding()
+                .shadow(radius: 8)
+                .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
+                .gesture(
+                    DragGesture()
+                        .updating($dragOffset) { value, state, _ in
+                            state = value.translation
+                        }
+                        .onEnded { value in
+                            let totalOffset = CGSize(
+                                width: offset.width + value.translation.width,
+                                height: offset.height + value.translation.height
+                            )
+
+                            let velocity = sqrt(pow(value.predictedEndTranslation.width, 2) + pow(value.predictedEndTranslation.height, 2))
+
+                            if abs(totalOffset.width) > dismissThreshold || abs(totalOffset.height) > dismissThreshold || velocity > velocityThreshold {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    offset = CGSize(
+                                        width: value.translation.width > 0 ? 1000 : -1000,
+                                        height: value.translation.height > 0 ? 1000 : -1000
+                                    )
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    onDismiss()
+                                }
+                            } else {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                                    offset = .zero
+                                }
+                            }
+                        }
+                )
+                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: dragOffset)
+        }
+    }
+    
+    private var bannerContent: some View {
+        VStack(spacing: 12) {
+            Image("plus_feature_banner")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: .infinity)
 
             Button(action: {
                 onDismiss()
@@ -193,41 +237,5 @@ struct PremiumAlertBanner: View {
                     .padding(.bottom, 4)
             }
         }
-        .background(Color.white.opacity(0.9))
-        .cornerRadius(24)
-        .padding()
-        .shadow(radius: 8)
-        .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
-        .gesture(
-            DragGesture()
-                .updating($dragOffset) { value, state, _ in
-                    state = value.translation
-                }
-                .onEnded { value in
-                    let totalOffset = CGSize(
-                        width: offset.width + value.translation.width,
-                        height: offset.height + value.translation.height
-                    )
-
-                    let velocity = sqrt(pow(value.predictedEndTranslation.width, 2) + pow(value.predictedEndTranslation.height, 2))
-
-                    if abs(totalOffset.width) > dismissThreshold || abs(totalOffset.height) > dismissThreshold || velocity > velocityThreshold {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            offset = CGSize(
-                                width: value.translation.width > 0 ? 1000 : -1000,
-                                height: value.translation.height > 0 ? 1000 : -1000
-                            )
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            onDismiss()
-                        }
-                    } else {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                            offset = .zero
-                        }
-                    }
-                }
-        )
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: dragOffset)
     }
 }
