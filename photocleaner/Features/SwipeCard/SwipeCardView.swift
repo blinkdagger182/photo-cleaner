@@ -293,14 +293,14 @@ struct SwipeCardView: View {
                                     if viewModel.isCurrentImageReadyForInteraction() {
                                         viewModel.triggerDeleteFromButton()
                                     } else {
-                                        toast.show("Please wait for the image to fully load before deleting", duration: 2.0)
+                                        toast.showWarning("Please wait for the image to fully load before deleting", duration: 2.0)
                                     }
                                 }
                                 Button(action: {
                                     if viewModel.isCurrentImageReadyForInteraction() {
                                         viewModel.triggerBookmarkFromButton()
                                     } else {
-                                        toast.show("Please wait for the image to fully load before saving", duration: 2.0)
+                                        toast.showWarning("Please wait for the image to fully load before saving", duration: 2.0)
                                     }
                                 }) {
                                     HStack(spacing: 6) {
@@ -328,7 +328,7 @@ struct SwipeCardView: View {
                                     if viewModel.isCurrentImageReadyForInteraction() {
                                         viewModel.triggerKeepFromButton()
                                     } else {
-                                        toast.show("Please wait for the image to fully load before keeping", duration: 2.0)
+                                        toast.showWarning("Please wait for the image to fully load before keeping", duration: 2.0)
                                     }
                                 }
                             }
@@ -362,7 +362,7 @@ struct SwipeCardView: View {
                         if viewModel.isCurrentImageReadyForInteraction() {
                             viewModel.shareCurrentImage()
                         } else {
-                            toast.show("Please wait for the image to load before sharing", duration: 2.0)
+                            toast.showWarning("Please wait for the image to load before sharing", duration: 2.0)
                         }
                     }) {
                         HStack(spacing: 4) {
@@ -609,7 +609,7 @@ struct SwipeCardView: View {
         }
         #else
         // We're running in the simulator, show a message via toast
-        toast.show("App review requested. This only works on physical devices.", duration: 2.0)
+        toast.showInfo("App review requested. This only works on physical devices.", duration: 2.0)
         #endif
     }
 }

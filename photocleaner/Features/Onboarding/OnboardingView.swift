@@ -550,7 +550,7 @@ struct OnboardingView: View {
             
             if photoCount > 0 {
                 let formattedCount = NumberFormatter.localizedString(from: NSNumber(value: photoCount), number: .decimal)
-                toastService.show("You've got \(formattedCount) photos. Let's get started.")
+                toastService.showInfo("You've got \(formattedCount) photos. Let's get started.")
             }
         }
     }

@@ -142,7 +142,7 @@ class DiscoverViewModel: ObservableObject {
             .sink(receiveCompletion: { [weak self] completion in
                 Task { @MainActor in
                     if case .failure(let error) = completion {
-                        self?.toast?.show("Error: \(error.localizedDescription)", duration: 3.0)
+                        self?.toast?.showError("Error: \(error.localizedDescription)", duration: 3.0)
                     }
                     self?.isBatchProcessing = false
                 }
@@ -150,7 +150,7 @@ class DiscoverViewModel: ObservableObject {
                 Task { @MainActor in
                     self?.isBatchProcessing = false
                     self?.loadAlbums()
-                    self?.toast?.show("Album generation complete!", duration: 2.0)
+                    self?.toast?.showSuccess("Album generation complete!", duration: 2.0)
                 }
             })
             .store(in: &cancellables)
@@ -161,7 +161,7 @@ class DiscoverViewModel: ObservableObject {
     
     // Main actor isolation
     @MainActor private func showToast(_ message: String, duration: TimeInterval = 1.5) {
-        toast?.show(message, duration: duration)
+        toast?.showInfo(message, duration: duration)
     }
     
     // Check if we have clustering results - Now only uses clustering results
@@ -200,7 +200,7 @@ class DiscoverViewModel: ObservableObject {
         
         // Show loading toast on main thread
         Task { @MainActor [weak self] in
-            self?.toast?.show("Loading albums...", duration: 1.5)
+            self?.toast?.showInfo("Loading albums...", duration: 1.5)
         }
         
         // Check if we need to process the library
@@ -219,7 +219,7 @@ class DiscoverViewModel: ObservableObject {
     @MainActor
     func processEntireLibrary() async {
         guard !isClusteringInProgress else {
-            toast?.show("Already processing photo library", duration: 1.5)
+            toast?.showWarning("Already processing photo library", duration: 1.5)
             return
         }
         
@@ -228,7 +228,7 @@ class DiscoverViewModel: ObservableObject {
         processedAlbumCount = 0 // Reset processed album count
         
         // Show toast notification
-        toast?.show("Processing photo library by time and location...", duration: 2.0)
+        toast?.showInfo("Processing photo library by time and location...", duration: 2.0)
         
         // Set up a timer to update the UI with progress
         let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -261,7 +261,7 @@ class DiscoverViewModel: ObservableObject {
             self.hasClusteringResults = true
             
             // Show completion toast
-            self.toast?.show("Processed \(photoGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)
+            self.toast?.showSuccess("Processed \(photoGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)
             
             // Update the UI with the new photo groups
             self.updateUIWithPhotoGroups(photoGroups)
@@ -273,7 +273,7 @@ class DiscoverViewModel: ObservableObject {
             self.processedAlbumCount = 0
             
             // Show error message
-            self.toast?.show("Error processing photo library: \(error.localizedDescription)", duration: 3.0)
+            self.toast?.showError("Error processing photo library: \(error.localizedDescription)", duration: 3.0)
             print("Error processing photo library: \(error)")
         }
     }
@@ -442,7 +442,7 @@ class DiscoverViewModel: ObservableObject {
         let albumsInCategories = categorizedAlbums.values.flatMap { $0 }.count
         
         Task { @MainActor [weak self] in
-            self?.toast?.show("Loaded \(albumsInCategories) albums from \(totalAssets) photos", duration: 2.0)
+            self?.toast?.showSuccess("Loaded \(albumsInCategories) albums from \(totalAssets) photos", duration: 2.0)
         }
     }
     
@@ -458,7 +458,7 @@ class DiscoverViewModel: ObservableObject {
         
         // Show toast notification
         Task { @MainActor in
-            toast?.show("Processing large photo library in batches...", duration: 3.0)
+            toast?.showInfo("Processing large photo library in batches...", duration: 3.0)
         }
         
         // Start batch processing
@@ -484,7 +484,7 @@ class DiscoverViewModel: ObservableObject {
             isBatchProcessing = false
             isLoading = false
             Task { @MainActor in
-                toast?.show("Processing cancelled", duration: 1.5)
+                toast?.showInfo("Processing cancelled", duration: 1.5)
             }
         }
     }

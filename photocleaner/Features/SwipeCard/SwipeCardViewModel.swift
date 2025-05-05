@@ -111,7 +111,9 @@ class SwipeCardViewModel: ObservableObject {
             if abs(value.translation.width) > 20 && !toast.isVisible {
                 // Reset offset to zero to prevent any card movement
                 offset = .zero
-                toast.show("Please wait for the image to fully load before swiping", duration: 2.0)
+                Task { @MainActor in
+                    toast.showWarning("Please wait for the image to fully load before swiping", duration: 2.0)
+                }
             }
         }
     }
@@ -249,7 +251,9 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     
                     // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    Task { @MainActor in
+                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    }
                 } else {
                     // Load next image and AVOID moving to next again since we already did above
                     Task {
@@ -267,10 +271,28 @@ class SwipeCardViewModel: ObservableObject {
                     if capturedIndex + 1 < self.group.count {
                         await self.loadImage(at: capturedIndex + 1, quality: .screen)
                     }
-                    // Don't call moveToNextWithAnimation() again - we already updated the index
-                    // Just clean up and preload as needed
                     await self.cleanupOldImages()
                 }
+            }
+            
+            // Show the deletion toast message
+            Task { @MainActor in
+                self.toast.show(
+                    "Marked for deletion. Press Next to permanently delete from storage.", 
+                    action: "Undo",
+                    duration: 3.0,
+                    onAction: {
+                        // Undo Action - Use capturedIndex
+                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                        self.photoManager.unmarkForDeletion(asset)
+                        // Animate the state reset using capturedIndex
+                        withAnimation {
+                            self.currentIndex = capturedIndex
+                            self.offset = .zero
+                        }
+                    },
+                    type: .info
+                )
             }
         }
     }
@@ -343,7 +365,9 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     
                     // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    Task { @MainActor in
+                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    }
                 } else {
                     // Load next image and AVOID moving to next again since we already did above
                     Task {
@@ -363,7 +387,7 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     // Don't call moveToNextWithAnimation() again - we already updated the index
                     // Just clean up and preload as needed
-                    await self.cleanupOldImages() 
+                    await self.cleanupOldImages()
                 }
             }
         }
@@ -469,20 +493,25 @@ class SwipeCardViewModel: ObservableObject {
         // Update the current index directly
         currentIndex = capturedIndex + 1
         offset = .zero
-                
-        toast.show(
-            "Marked for deletion. Press Next to permanently delete from storage.", action: "Undo"
-        ) {
-            // Undo Action - Use capturedIndex
-            self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
-            self.photoManager.unmarkForDeletion(asset)
-            // Animate the state reset using capturedIndex
-            withAnimation {
-                self.currentIndex = capturedIndex
-                self.offset = .zero
-            }
-        } onDismiss: {
-            // No need to move to next as it already happened
+        
+        // Make sure we're on the main actor for toast display
+        Task { @MainActor in
+            toast.show(
+                "Marked for deletion. Press Next to permanently delete from storage.", 
+                action: "Undo",
+                duration: 3.0,
+                onAction: {
+                    // Undo Action - Use capturedIndex
+                    self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                    self.photoManager.unmarkForDeletion(asset)
+                    // Animate the state reset using capturedIndex
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                },
+                type: .info
+            )
         }
     }
     
@@ -521,17 +550,22 @@ class SwipeCardViewModel: ObservableObject {
         currentIndex = capturedIndex + 1
         offset = .zero
         
-        toast.show("Photo marked as Maybe?", action: "Undo") {
-            // Undo Action - Use capturedIndex
-            self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-            self.photoManager.unmarkForFavourite(asset)
-            // Animate the state reset using capturedIndex
-            withAnimation {
-                self.currentIndex = capturedIndex // Use capturedIndex
-                self.offset = .zero
-            }
-        } onDismiss: {
-            // No need to move to next as it already happened
+        // Make sure we're on the main actor for toast display
+        Task { @MainActor in
+            toast.show(
+                "Photo marked as Maybe?", 
+                action: "Undo",
+                duration: 3.0,
+                onAction: {
+                    // Undo Action - Use capturedIndex
+                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                    self.photoManager.unmarkForFavourite(asset)
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                }
+            )
         }
     }
     
@@ -915,7 +949,7 @@ class SwipeCardViewModel: ObservableObject {
                                 }
                                 
                                 // Show toast notification
-                                self.toast?.show("Image couldn't be loaded fully. You can still proceed.", duration: 2.5)
+                                self.toast?.showWarning("Image couldn't be loaded fully. You can still proceed.", duration: 2.5)
                             }
                         }
                     }
@@ -1098,7 +1132,9 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     
                     // Show message explaining why
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    Task { @MainActor in
+                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    }
                 } else {
                     // Load next image
                     Task {
@@ -1116,6 +1152,26 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     await self.cleanupOldImages()
                 }
+            }
+            
+            // Show the deletion toast message
+            Task { @MainActor in
+                self.toast.show(
+                    "Marked for deletion. Press Next to permanently delete from storage.", 
+                    action: "Undo",
+                    duration: 3.0,
+                    onAction: {
+                        // Undo Action - Use capturedIndex
+                        self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
+                        self.photoManager.unmarkForDeletion(asset)
+                        // Animate the state reset using capturedIndex
+                        withAnimation {
+                            self.currentIndex = capturedIndex
+                            self.offset = .zero
+                        }
+                    },
+                    type: .info
+                )
             }
         }
     }
@@ -1174,7 +1230,9 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     
                     // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    Task { @MainActor in
+                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    }
                 } else {
                     // Load next image
                     Task {
@@ -1248,7 +1306,9 @@ class SwipeCardViewModel: ObservableObject {
                     }
                     
                     // Show message explaining why the swipe was undone
-                    self.toast.show("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    Task { @MainActor in
+                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
+                    }
                 } else {
                     // Directly update the current index
                     self.currentIndex = capturedIndex + 1
@@ -1271,15 +1331,22 @@ class SwipeCardViewModel: ObservableObject {
                         }
                     }
                     
-                    self.toast.show("Photo marked as Maybe?", action: "Undo") {
-                        // Undo action
-                        self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                        self.photoManager.unmarkForFavourite(asset)
-                        withAnimation {
-                            self.currentIndex = capturedIndex
-                            self.offset = .zero
-                        }
-                    } onDismiss: { }
+                    Task { @MainActor in
+                        self.toast.show(
+                            "Photo marked as Maybe?", 
+                            action: "Undo",
+                            duration: 3.0,
+                            onAction: {
+                                // Undo action
+                                self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                                self.photoManager.unmarkForFavourite(asset)
+                                withAnimation {
+                                    self.currentIndex = capturedIndex
+                                    self.offset = .zero
+                                }
+                            }
+                        )
+                    }
                 }
             } else {
                 // Directly update the current index
@@ -1303,15 +1370,22 @@ class SwipeCardViewModel: ObservableObject {
                     }
                 }
                 
-                self.toast.show("Photo marked as Maybe?", action: "Undo") {
-                    // Undo action
-                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                    self.photoManager.unmarkForFavourite(asset)
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                } onDismiss: { }
+                Task { @MainActor in
+                    self.toast.show(
+                        "Photo marked as Maybe?", 
+                        action: "Undo",
+                        duration: 3.0,
+                        onAction: {
+                            // Undo action
+                            self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                            self.photoManager.unmarkForFavourite(asset)
+                            withAnimation {
+                                self.currentIndex = capturedIndex
+                                self.offset = .zero
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -1330,15 +1404,19 @@ class SwipeCardViewModel: ObservableObject {
         }
         
         guard let asset = group.asset(at: currentIndex) else {
-            toast?.show("Unable to share this image", duration: 2.0)
+            Task { @MainActor in
+                toast?.showWarning("Unable to share this image", duration: 2.0)
+            }
             return
         }
-        
+
         // Set sharing state to true
         isSharing = true
-        
+
         // Show loading indicator
-        toast?.show("Preparing high-quality image...", duration: 1.5)
+        Task { @MainActor in
+            toast?.showInfo("Preparing high-quality image...", duration: 1.5)
+        }
         
         // Load original quality image
         Task {
@@ -1381,7 +1459,9 @@ class SwipeCardViewModel: ObservableObject {
                             
                             // Show success message if the share was completed
                             if completed {
-                                self?.toast?.show("Photo shared successfully!", duration: 1.5)
+                                Task { @MainActor [weak self] in
+                                    self?.toast?.showSuccess("Photo shared successfully!", duration: 1.5)
+                                }
                             }
                         }
                         
@@ -1413,17 +1493,21 @@ class SwipeCardViewModel: ObservableObject {
                             }
                         } else {
                             // Fallback in case we can't get a valid view controller
-                            toast?.show("Unable to share: no valid view controller found", duration: 2.0)
+                            Task { @MainActor in
+                                toast?.showWarning("Unable to share: no valid view controller found", duration: 2.0)
+                            }
                             isSharing = false
                         }
                     } else {
-                        toast?.show("Failed to prepare image for sharing", duration: 2.0)
+                        Task { @MainActor in
+                            toast?.showWarning("Failed to prepare image for sharing", duration: 2.0)
+                        }
                         isSharing = false
                     }
                 }
             } catch {
                 await MainActor.run {
-                    toast?.show("Error preparing image: \(error.localizedDescription)", duration: 2.0)
+                    toast?.showError("Error preparing image: \(error.localizedDescription)", duration: 2.0)
                     isSharing = false
                 }
             }

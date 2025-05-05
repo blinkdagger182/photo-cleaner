@@ -414,7 +414,7 @@ struct DeletePreviewView: View {
                     isDeleting = false
                     
                     // Show toast message about deletion failure/cancellation
-                    toast.show("Deletion was canceled or failed. Your photos were not deleted.", duration: 2.0)
+                    toast.showError("Deletion was canceled or failed. Your photos were not deleted.", duration: 2.0)
                 }
             }
         }
@@ -459,7 +459,7 @@ struct DeletePreviewView: View {
             photoManager.unmarkForDeletion(entry.asset)
             
             // Show toast notification
-            toast.show("Photo removed from deletion list", duration: 1.5)
+            toast.showSuccess("Photo removed from deletion list", duration: 1.5)
         }
     }
 
@@ -481,7 +481,7 @@ struct DeletePreviewView: View {
         }
         #else
         // We're running in the simulator, show a message via toast
-        toast.show("App review requested. This only works on physical devices.", duration: 2.0)
+        toast.showInfo("App review requested. This only works on physical devices.", duration: 2.0)
         #endif
     }
 }
