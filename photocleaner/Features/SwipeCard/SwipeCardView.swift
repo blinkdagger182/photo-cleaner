@@ -130,14 +130,14 @@ struct SwipeCardView: View {
                                     .gesture(
                                         DragGesture()
                                             .onChanged { value in
-                                                // Only process drag if not currently zooming
-                                                if currentScale <= 1.0 {
+                                                // Only process drag if not currently zooming and memory saved modal is not shown
+                                                if currentScale <= 1.0 && !showMemorySavedModal {
                                                     viewModel.handleDragGesture(value: value)
                                                 }
                                             }
                                             .onEnded { value in
-                                                // Only process drag end if not currently zooming
-                                                if currentScale <= 1.0 {
+                                                // Only process drag end if not currently zooming and memory saved modal is not shown
+                                                if currentScale <= 1.0 && !showMemorySavedModal {
                                                     viewModel.handleDragGestureEnd(value: value)
                                                 }
                                             }
@@ -290,6 +290,11 @@ struct SwipeCardView: View {
                             // Show the normal action buttons when there are still images to swipe
                             HStack(spacing: 40) {
                                 CircleButton(icon: "trash", tint: Color(red: 0.55, green: 0.35, blue: 0.98)) {
+                                    // Don't process if memory saved modal is shown
+                                    if showMemorySavedModal {
+                                        return
+                                    }
+                                    
                                     if viewModel.isCurrentImageReadyForInteraction() {
                                         viewModel.triggerDeleteFromButton()
                                     } else {
@@ -297,6 +302,11 @@ struct SwipeCardView: View {
                                     }
                                 }
                                 Button(action: {
+                                    // Don't process if memory saved modal is shown
+                                    if showMemorySavedModal {
+                                        return
+                                    }
+                                    
                                     if viewModel.isCurrentImageReadyForInteraction() {
                                         viewModel.triggerBookmarkFromButton()
                                     } else {
@@ -312,12 +322,6 @@ struct SwipeCardView: View {
                                     }
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    // .background(
-                                    //     Capsule()
-                                    //         .fill(Color.yellow.opacity(0.15)
-                                    //         .strokesBorder(Color.black, lineWidth: 1.5)
-                                    // )
-                                    // )
                                     .background(
                                         Capsule()
                                             .strokeBorder(Color.yellow, lineWidth: 1.5)
@@ -325,6 +329,11 @@ struct SwipeCardView: View {
                                 }
 
                                 CircleButton(icon: "checkmark", tint: .green) {
+                                    // Don't process if memory saved modal is shown
+                                    if showMemorySavedModal {
+                                        return
+                                    }
+                                    
                                     if viewModel.isCurrentImageReadyForInteraction() {
                                         viewModel.triggerKeepFromButton()
                                     } else {
@@ -393,6 +402,15 @@ struct SwipeCardView: View {
                 }
             }
         }
+        // Add an overlay that prevents dismiss gestures when memory saved modal is shown
+        .overlay(
+            Color.clear
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .allowsHitTesting(showMemorySavedModal)
+                .onTapGesture {} // Empty tap handler to capture taps
+        )
+        .interactiveDismissDisabled(showMemorySavedModal)
         .onAppear {
             hasAppeared = true
             
@@ -543,8 +561,8 @@ struct SwipeCardView: View {
     var magnification: some Gesture {
         MagnificationGesture(minimumScaleDelta: 0.01)
             .onChanged { value in
-                // Only allow zooming with two fingers
-                if value != 1.0 {  // This helps identify a true pinch gesture
+                // Only allow zooming with two fingers if memory saved modal is not shown
+                if value != 1.0 && !showMemorySavedModal {  // This helps identify a true pinch gesture
                     // Allow zooming to a larger scale (Instagram-like)
                     self.finalScale = max(value, 1.0)
                     

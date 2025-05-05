@@ -112,6 +112,9 @@ struct MemorySavedModal: View {
                     .allowsHitTesting(false)
             )
             .onAppear {
+                // Play the air-whoosh sound when the modal appears
+                SoundManager.shared.playSound(named: "air-whoosh")
+                
                 showConfetti = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     withAnimation(.easeInOut(duration: 1.0)) {

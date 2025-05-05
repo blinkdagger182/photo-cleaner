@@ -390,8 +390,8 @@ struct DeletePreviewView: View {
                     isDeleting = false
                     deletionComplete = true
                     
-                    // Play success sound when deletion completes and we show the green tick
-                    SoundManager.shared.playSound(named: "air-whoosh")
+                    // We'll play the sound in MemorySavedModal instead
+                    // SoundManager.shared.playSound(named: "air-whoosh")
                     
                     // Delay to allow completion animation to be visible
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
