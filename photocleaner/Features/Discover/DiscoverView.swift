@@ -3,6 +3,11 @@ import Photos
 import UIKit
 import RevenueCat
 
+// Scroll direction enum for more reliable tracking
+private enum ScrollDirection {
+    case up, down, none
+}
+
 struct DiscoverView: View {
     @StateObject private var viewModel: DiscoverViewModel
     @EnvironmentObject var photoManager: PhotoManager
@@ -12,8 +17,19 @@ struct DiscoverView: View {
     // Add loading state
     @State private var isInitializing = true
     
-    init(photoManager: PhotoManager) {
+    // Track scroll position and direction
+    @State private var scrollPosition: CGFloat = 0
+    @State private var previousScrollPosition: CGFloat = 0
+    @State private var scrollDirection: ScrollDirection = .none
+    @State private var consecutiveScrollsInSameDirection = 0
+    @State private var lastDirectionChangeTime = Date()
+    
+    // Callback for scroll events
+    var onScroll: ((CGFloat) -> Void)? = nil
+    
+    init(photoManager: PhotoManager, onScroll: ((CGFloat) -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: DiscoverViewModel(photoManager: photoManager))
+        self.onScroll = onScroll
     }
     
     // Connect toast service when view appears
@@ -25,8 +41,25 @@ struct DiscoverView: View {
         NavigationStack {
             ZStack {
                 ScrollView {
+                    // Add ScrollDetector to track scroll position
+                    ScrollDetector(
+                        yOffset: $scrollPosition,
+                        onScrollDirectionChanged: { isScrollingDown in
+                            // When scrolling direction changes, notify parent
+                            if isScrollingDown {
+                                print("Scrolling DOWN")
+                                onScroll?(-20)
+                            } else {
+                                print("Scrolling UP")
+                                onScroll?(20)
+                            }
+                        }
+                    )
+                    
                     contentView
                 }
+                .scrollIndicators(.hidden)
+                .coordinateSpace(name: "scrollView")
                 .overlay(processingOverlay)
                 
                 // Show initializing overlay until first data load is complete
@@ -592,4 +625,110 @@ struct DiscoverView: View {
     OnboardingView()
         .environmentObject(PhotoManager.preview)
         .environmentObject(ToastService.preview)
+}
+
+// Helper view to detect scroll position changes with enhanced stability
+struct ScrollDetector: View {
+    @Binding var yOffset: CGFloat
+    var onScrollDirectionChanged: ((Bool) -> Void)?
+    
+    // To track previous offset for direction detection
+    @State private var previousOffset: CGFloat = 0
+    @State private var scrollCount = 0
+    @State private var consecutiveScrollsInSameDirection = 0
+    @State private var lastDirectionChangeTime = Date()
+    
+    // Buffer for scroll direction changes
+    @State private var scrollDownDistance: CGFloat = 0
+    @State private var scrollUpDistance: CGFloat = 0
+    @State private var lastReportedDirection: Bool? = nil
+    
+    // Constants
+    private let hideHeaderThreshold: CGFloat = 30
+    private let showHeaderThreshold: CGFloat = 15
+    
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .preference(
+                    key: ScrollViewOffsetPreferenceKey.self,
+                    value: geo.frame(in: .named("scrollView")).minY
+                )
+                .onPreferenceChange(ScrollViewOffsetPreferenceKey.self) { value in
+                    let threshold: CGFloat = 5 // Minimum change to register as scrolling
+                    let now = Date()
+                    
+                    // Near the top of the scroll view - always show header
+                    if value > -20 {
+                        // Reset accumulated distances
+                        scrollDownDistance = 0
+                        scrollUpDistance = 0
+                        // Always show header when near top
+                        if lastReportedDirection != false {
+                            lastReportedDirection = false
+                            onScrollDirectionChanged?(false) // Scrolling up = show header
+                        }
+                        yOffset = value
+                        return
+                    }
+                    
+                    // Only look at significant changes to filter out noise
+                    if abs(value - previousOffset) > threshold {
+                        let isScrollingDown = value < previousOffset
+                        let distanceMoved = abs(value - previousOffset)
+                        
+                        // Add stability check - need consistent direction for several updates
+                        let timeSinceLastDirection = now.timeIntervalSince(lastDirectionChangeTime)
+                        
+                        // Check if direction matches previous direction
+                        if scrollCount > 0 && isScrollingDown == (previousOffset > value) {
+                            consecutiveScrollsInSameDirection += 1
+                        } else {
+                            // Direction changed - reset appropriate distance counter
+                            if isScrollingDown {
+                                scrollUpDistance = 0
+                            } else {
+                                scrollDownDistance = 0
+                            }
+                            consecutiveScrollsInSameDirection = 0
+                            lastDirectionChangeTime = now
+                        }
+                        
+                        // Accumulate distance in current direction
+                        if isScrollingDown {
+                            scrollDownDistance += distanceMoved
+                        } else {
+                            scrollUpDistance += distanceMoved
+                        }
+                        
+                        // Only notify when we have accumulated enough distance in one direction
+                        // For scrolling down (hiding header): need more distance
+                        // For scrolling up (showing header): need less distance
+                        if (isScrollingDown && scrollDownDistance > hideHeaderThreshold && lastReportedDirection != true) {
+                            lastReportedDirection = true
+                            onScrollDirectionChanged?(true)
+                            scrollDownDistance = 0
+                        } else if (!isScrollingDown && scrollUpDistance > showHeaderThreshold && lastReportedDirection != false) {
+                            lastReportedDirection = false
+                            onScrollDirectionChanged?(false)
+                            scrollUpDistance = 0
+                        }
+                        
+                        // Update for next comparison
+                        previousOffset = value
+                        scrollCount += 1
+                    }
+                    
+                    yOffset = value
+                }
+        }
+        .frame(height: 0)
+    }
+}
+
+struct ScrollViewOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
 }

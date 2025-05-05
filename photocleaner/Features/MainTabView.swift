@@ -36,9 +36,16 @@ struct MainTabView: View {
     @State private var headerVisible = true
     @State private var scrollOffset: CGFloat = 0
     @State private var lastScrollOffset: CGFloat = 0
+    @State private var lastHeaderToggleTime = Date()
+    @State private var scrollDirection: ScrollDirection = .none
 
     // For matched geometry effect
     @Namespace private var namespace
+
+    // Scroll direction enum
+    private enum ScrollDirection {
+        case up, down, none
+    }
 
     var body: some View {
         // Check if user has previously dismissed the banner
@@ -94,6 +101,8 @@ struct MainTabView: View {
                 }
             }
             .padding(.horizontal)
+            .offset(y: headerVisible ? 0 : -60) // Move up when header is hidden
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: headerVisible)
             
             // Indicator line with matched geometry effect
             ZStack(alignment: .leading) {
@@ -107,6 +116,8 @@ struct MainTabView: View {
                     .offset(x: currentTab == 0 ? 0 : UIScreen.main.bounds.width / 2)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentTab)
             }
+            .offset(y: headerVisible ? 0 : -60) // Move up when header is hidden
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: headerVisible)
             
             // Main content with swipe gesture
             let screenWidth = UIScreen.main.bounds.width
@@ -114,12 +125,8 @@ struct MainTabView: View {
             ZStack {
                 // Library view (at index 0)
                 PhotoGroupView(photoManager: photoManager, onScroll: { delta in
-                    // Debug scroll detection
-                    print("Scroll detected, delta: \(delta)")
-                    
                     // When scrolling down (delta < 0), hide the marketing banner
                     if delta < -10 && showMarketingBanner && !subscriptionManager.isPremium && !hasHiddenBanner { 
-                        print("Dismissing marketing banner due to scroll")
                         // Hide banner with animation
                         withAnimation(.easeOut(duration: 0.3)) {
                             showMarketingBanner = false
@@ -127,18 +134,84 @@ struct MainTabView: View {
                         // Save preference
                         UserDefaults.standard.set(true, forKey: marketingBannerKey)
                     }
+                    
+                    // Track scroll direction with debounce
+                    let now = Date()
+                    let timeSinceLastToggle = now.timeIntervalSince(lastHeaderToggleTime)
+                    
+                    // Only update scroll direction if we've moved significantly
+                    if abs(delta) > 15 {
+                        // Set scroll direction
+                        let newDirection: ScrollDirection = delta < 0 ? .down : .up
+                        
+                        // Check if direction changed and apply debounce
+                        if newDirection != scrollDirection && timeSinceLastToggle > 0.3 {
+                            scrollDirection = newDirection
+                            
+                            // Update header visibility based on sustained direction
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                // Only hide header when scrolling down, show when scrolling up
+                                if scrollDirection == .down && headerVisible {
+                                    headerVisible = false
+                                    lastHeaderToggleTime = now
+                                } else if scrollDirection == .up && !headerVisible {
+                                    headerVisible = true
+                                    lastHeaderToggleTime = now
+                                }
+                            }
+                        }
+                    }
                 })
                     .environmentObject(photoManager)
                     .environmentObject(toast)
                     .offset(x: currentTab == 0 ? dragOffset : -screenWidth + dragOffset)
+                    .padding(.top, headerVisible ? 0 : -60) // Expand content when header is hidden
                 
                 // Discover view (at index 1) - only initialize when selected
                 if currentTab == 1 || discoverTabInitialized {
-                    DiscoverView(photoManager: photoManager)
+                    DiscoverView(photoManager: photoManager, onScroll: { delta in
+                        // When scrolling down (delta < 0), hide the marketing banner
+                        if delta < -10 && showMarketingBanner && !subscriptionManager.isPremium && !hasHiddenBanner { 
+                            // Hide banner with animation
+                            withAnimation(.easeOut(duration: 0.3)) {
+                                showMarketingBanner = false
+                            }
+                            // Save preference
+                            UserDefaults.standard.set(true, forKey: marketingBannerKey)
+                        }
+                        
+                        // Track scroll direction with debounce
+                        let now = Date()
+                        let timeSinceLastToggle = now.timeIntervalSince(lastHeaderToggleTime)
+                        
+                        // Only update scroll direction if we've moved significantly
+                        if abs(delta) > 15 {
+                            // Set scroll direction
+                            let newDirection: ScrollDirection = delta < 0 ? .down : .up
+                            
+                            // Check if direction changed and apply debounce
+                            if newDirection != scrollDirection && timeSinceLastToggle > 0.3 {
+                                scrollDirection = newDirection
+                                
+                                // Update header visibility based on sustained direction
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    // Only hide header when scrolling down, show when scrolling up
+                                    if scrollDirection == .down && headerVisible {
+                                        headerVisible = false
+                                        lastHeaderToggleTime = now
+                                    } else if scrollDirection == .up && !headerVisible {
+                                        headerVisible = true
+                                        lastHeaderToggleTime = now
+                                    }
+                                }
+                            }
+                        }
+                    })
                         .environmentObject(photoManager)
                         .environmentObject(toast)
                         .environmentObject(subscriptionManager)
                         .offset(x: currentTab == 0 ? screenWidth + dragOffset : dragOffset)
+                        .padding(.top, headerVisible ? 0 : -60) // Expand content when header is hidden
                         .onAppear {
                             // Mark Discover tab as initialized when it appears
                             if !discoverTabInitialized {
