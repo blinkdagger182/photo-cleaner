@@ -11,14 +11,39 @@ class DiscoverSwipeTracker: ObservableObject {
     @Published var swipeCount: Int = 0
     @Published var showRCPaywall: Bool = false
     
+    // Computed property to check if limit is reached
+    var isLimitReached: Bool {
+        return swipeCount >= threshold
+    }
+    
     // MARK: - Constants
-    private let swipeThreshold = 5
+    private let initialDaysCount = 3
+    private let initialDailyLimit = 100
+    private let standardDailyLimit = 30
+    
+    // UserDefaults keys
     private let swipeCountKey = "discoverSwipeCount"
     private let lastResetDateKey = "lastSwipeCountResetDate"
+    private let firstUseDateKey = "DiscoverSwipeTracker.firstUseDate"
     
     // Publicly expose the threshold
     var threshold: Int {
-        return swipeThreshold
+        // Check if we're within the initial period
+        if let firstUseDate = UserDefaults.standard.object(forKey: firstUseDateKey) as? Date {
+            let daysSinceFirstUse = Calendar.current.dateComponents([.day], from: firstUseDate, to: Date()).day ?? 0
+            
+            // Higher limit for initial days
+            if daysSinceFirstUse < initialDaysCount {
+                return initialDailyLimit
+            }
+        } else {
+            // First time use - set the first use date
+            UserDefaults.standard.set(Date(), forKey: firstUseDateKey)
+            return initialDailyLimit
+        }
+        
+        // Standard limit after initial period
+        return standardDailyLimit
     }
     
     // MARK: - Initialization
@@ -33,7 +58,7 @@ class DiscoverSwipeTracker: ObservableObject {
         checkAndResetForNewDay()
         
         // Check if we're about to exceed the threshold
-        if swipeCount >= swipeThreshold && !SubscriptionManager.shared.isPremium {
+        if swipeCount >= threshold && !SubscriptionManager.shared.isPremium {
             // We should show the paywall and undo the swipe
             showRCPaywall = true
             return true
@@ -55,8 +80,9 @@ class DiscoverSwipeTracker: ObservableObject {
     // MARK: - Private Methods
     private func loadSavedData() {
         swipeCount = UserDefaults.standard.integer(forKey: swipeCountKey)
+        
         // Check if we've already reached the threshold
-        showRCPaywall = swipeCount >= swipeThreshold
+        showRCPaywall = swipeCount >= threshold
     }
     
     private func saveState() {
@@ -65,23 +91,24 @@ class DiscoverSwipeTracker: ObservableObject {
     }
     
     private func checkAndResetForNewDay() {
-        // Get the last reset date
-        if let lastResetDate = UserDefaults.standard.object(forKey: lastResetDateKey) as? Date {
-            // Check if it's a new day
-            if !Calendar.current.isDate(lastResetDate, inSameDayAs: Date()) {
-                // Reset counter for the new day
-                resetCounter()
-            }
-        } else {
-            // No last reset date, save the current one
-            UserDefaults.standard.set(Date(), forKey: lastResetDateKey)
+        guard let lastResetDate = UserDefaults.standard.object(forKey: lastResetDateKey) as? Date else {
+            // No previous reset, no need to check
+            return
+        }
+        
+        let calendar = Calendar.current
+        if !calendar.isDate(lastResetDate, inSameDayAs: Date()) {
+            // It's a new day, reset the counter
+            swipeCount = 0
+            saveState()
+            showRCPaywall = false
         }
     }
     
     // MARK: - Testing Helpers
     #if DEBUG
     func simulateThresholdReached() {
-        swipeCount = swipeThreshold
+        swipeCount = threshold
         saveState()
         showRCPaywall = true
     }

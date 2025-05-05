@@ -647,6 +647,14 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     func isMarkedForFavourite(_ asset: PHAsset) -> Bool {
         markedForBookmark.contains(asset.localIdentifier)
     }
+    
+    /// Marks an asset as "keep" - this simply indicates the user wants to keep the asset
+    /// without any further actions required
+    func keepAsset(_ asset: PHAsset) {
+        // No specific action needed for keeping an asset
+        // This method exists to provide a consistent API alongside markForDeletion and bookmarkAsset
+    }
+
     func fetchAlbumCoverImage(for group: PhotoGroup, completion: @escaping (UIImage?) -> Void) {
         guard group.count > 0 else {
             completion(nil)

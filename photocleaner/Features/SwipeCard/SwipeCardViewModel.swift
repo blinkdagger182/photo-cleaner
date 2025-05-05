@@ -198,10 +198,10 @@ class SwipeCardViewModel: ObservableObject {
         
         // Wait until card is completely off-screen before doing state changes
         DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
-            // Important: Disable all animations temporarily
-            UIView.setAnimationsEnabled(false)
+            // Get the asset again in case things changed
+            guard let asset = self.group.asset(at: capturedIndex) else { return }
             
-            // Mark for deletion in background
+            // Mark the asset for deletion
             self.photoManager.markForDeletion(asset)
             
             // Add the current image to the deletion preview if available
@@ -209,35 +209,18 @@ class SwipeCardViewModel: ObservableObject {
                 self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
             }
             
-            // Update the index while the old card is off screen
-            self.currentIndex = capturedIndex + 1
+            // Track swipe count
+            self.incrementSwipeCount()
             
-            // THEN reset the offset with absolutely no animation 
-            self.offset = .zero
-            
-            // Re-enable animations after state is reset
-            UIView.setAnimationsEnabled(true)
-            
-            // If this is the last image, show delete preview instead of incrementing swipe tracker
-            if isLastImage {
-                // Small delay to ensure smooth transition
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.prepareDeletePreview()
-                }
-                return
-            }
-            
-            // Track swipe count for Discover tab paywall
+            // Check if we've reached the swipe limit
             if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
                 // Make sure we have a reference to the tracker
                 if self.discoverSwipeTracker == nil {
                     self.discoverSwipeTracker = DiscoverSwipeTracker.shared
                 }
                 
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
+                // Check if we need to show the discover tab paywall
+                if self.discoverSwipeTracker?.showRCPaywall == true {
                     // Show the paywall
                     self.showRCPaywall = true
                     
@@ -250,29 +233,37 @@ class SwipeCardViewModel: ObservableObject {
                         self.offset = .zero
                     }
                     
-                    // Show message explaining why the swipe was undone
-                    Task { @MainActor in
-                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                    }
-                } else {
-                    // Load next image and AVOID moving to next again since we already did above
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        // Don't call moveToNextWithAnimation() again - we already updated the index
-                        // Just clean up and preload as needed
-                        await self.cleanupOldImages()
-                    }
+                    return
                 }
-            } else {
-                // Non-discover tab or premium user case - just load the next image
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    await self.cleanupOldImages()
+            }
+            
+            // Important: Disable all animations temporarily
+            UIView.setAnimationsEnabled(false)
+            
+            // Update the index while the old card is off screen
+            self.currentIndex = capturedIndex + 1
+            
+            // THEN reset the offset with absolutely no animation 
+            self.offset = .zero
+            
+            // Re-enable animations after state is reset
+            UIView.setAnimationsEnabled(true)
+            
+            // If this is the last image, show delete preview
+            if isLastImage {
+                // Small delay to ensure smooth transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.prepareDeletePreview()
                 }
+                return
+            }
+            
+            // Load next image and perform cleanup
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                await self.cleanupOldImages()
             }
             
             // Show the deletion toast message
@@ -303,21 +294,29 @@ class SwipeCardViewModel: ObservableObject {
         let velocityFactor = min(abs(velocity) / CGFloat(500.0), CGFloat(1.0))
         let duration = 0.25 - (0.1 * Double(velocityFactor)) // Faster exit for more satisfied feel
         
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
         // Capture current state before any animations
+        guard let asset = group.asset(at: currentIndex) else { return }
         let capturedIndex = currentIndex
         
         // Check if this is the last image
         let isLastImage = capturedIndex == group.count - 1
+        
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
         
         // Trigger fly-off animation
         let label = "Keep"
         let color = Color.green
         triggerLabelFlyOff?(label, color, value.translation)
         
-        // Create a fly-off animation that NEVER springs back
+        // Start preloading next image silently
+        Task {
+            if capturedIndex + 1 < group.count {
+                await loadImage(at: capturedIndex + 1, quality: .screen)
+            }
+        }
+        
+        // Create a fly-off animation
         withAnimation(.easeOut(duration: duration)) {
             // Fly off to the right with a bit of vertical movement based on gesture
             offset = CGSize(
@@ -327,7 +326,38 @@ class SwipeCardViewModel: ObservableObject {
         }
         
         // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Reset immediately (not visible to user)
+            }
+            
+            // Keep the photo
+            self.photoManager.keepAsset(asset)
+            
+            // Track swipe count
+            self.incrementSwipeCount()
+            
+            // Check if we've reached the swipe limit
+            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
+                // Make sure we have a reference to the tracker
+                if self.discoverSwipeTracker == nil {
+                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
+                }
+                
+                // Check if we need to show the discover tab paywall
+                if self.discoverSwipeTracker?.showRCPaywall == true {
+                    // Show the paywall
+                    self.showRCPaywall = true
+                    
+                    // Animate back to the original position
+                    withAnimation {
+                        self.offset = .zero
+                    }
+                    
+                    return
+                }
+            }
+            
             // Important: Disable all animations temporarily
             UIView.setAnimationsEnabled(false)
             
@@ -349,46 +379,12 @@ class SwipeCardViewModel: ObservableObject {
                 return
             }
             
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    Task { @MainActor in
-                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                    }
-                } else {
-                    // Load next image and AVOID moving to next again since we already did above
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        // Don't call moveToNextWithAnimation() again - we already updated the index
-                        // Just clean up and preload as needed
-                        await self.cleanupOldImages()
-                    }
+            // Load next image and clean up old ones
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
                 }
-            } else {
-                // Non-discover tab or premium user case - just load the next image
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    // Don't call moveToNextWithAnimation() again - we already updated the index
-                    // Just clean up and preload as needed
-                    await self.cleanupOldImages()
-                }
+                await self.cleanupOldImages()
             }
         }
     }
@@ -1114,44 +1110,14 @@ class SwipeCardViewModel: ObservableObject {
             }
             
             // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Undo the deletion action
-                    self.photoManager.unmarkForDeletion(asset)
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why
-                    Task { @MainActor in
-                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                    }
-                } else {
-                    // Load next image
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        await self.cleanupOldImages()
-                    }
+            self.incrementSwipeCount()
+            
+            // Load next image
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
                 }
-            } else {
-                // Non-discover tab or premium user case - just load the next image
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    await self.cleanupOldImages()
-                }
+                await self.cleanupOldImages()
             }
             
             // Show the deletion toast message
@@ -1177,28 +1143,65 @@ class SwipeCardViewModel: ObservableObject {
     }
     
     func triggerKeepFromButton() {
-        // Check if this is the last image
-        let isLastImage = currentIndex == group.count - 1
-        
-        // Capture current state
-        let capturedIndex = currentIndex
-        
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
-        // Trigger fly-off animation with default values (no gesture)
-        let label = "Keep"
-        let color = Color.green
-        triggerLabelFlyOff?(label, color, CGSize(width: 100, height: 0))
+        // Duration for animation - faster for smoother experience
+        let duration = 0.25
         
-        // Create a fly-off animation
-        withAnimation(.easeOut(duration: 0.25)) {
-            // Fly off to the right
-            offset = CGSize(width: UIScreen.main.bounds.width * 2.0, height: 0)
+        // Get the current asset
+        guard let asset = group.asset(at: currentIndex) else { return }
+        let capturedIndex = currentIndex
+        
+        // Check if this is the last image
+        let isLastImage = capturedIndex == group.count - 1
+        
+        // Trigger fly-off animation with green color
+        triggerLabelFlyOff?("Keep", .green, CGSize(width: 100, height: 0))
+        
+        // Animate card flying off screen IMMEDIATELY  
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off to the right with a bit of vertical movement based on gesture
+            offset = CGSize(
+                width: UIScreen.main.bounds.width,
+                height: 0
+            )
         }
         
-        // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 + 0.05) {
+        // Process after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Reset immediately (not visible to user)
+            }
+            
+            // Mark the asset as kept
+            self.photoManager.keepAsset(asset)
+            
+            // Track swipe count
+            self.incrementSwipeCount()
+            
+            // Check if we've reached the swipe limit
+            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
+                // Make sure we have a reference to the tracker
+                if self.discoverSwipeTracker == nil {
+                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
+                }
+                
+                // Check if we need to show the discover tab paywall
+                if self.discoverSwipeTracker?.showRCPaywall == true {
+                    // Show the paywall
+                    self.showRCPaywall = true
+                    
+                    // Animate back to the original position
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                    
+                    return
+                }
+            }
+            
             // Reset index and offset
             UIView.setAnimationsEnabled(false)
             self.currentIndex = capturedIndex + 1
@@ -1214,178 +1217,12 @@ class SwipeCardViewModel: ObservableObject {
                 return
             }
             
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.currentIndex = capturedIndex
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    Task { @MainActor in
-                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                    }
-                } else {
-                    // Load next image
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        await self.cleanupOldImages()
-                    }
+            // Load next image
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
                 }
-            } else {
-                // Non-discover tab or premium user case - just load the next image
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    await self.cleanupOldImages()
-                }
-            }
-        }
-    }
-    
-    func triggerBookmarkFromButton() {
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
-        
-        // Duration for animation - faster for smoother experience
-        let duration = 0.25
-        
-        // Animate card flying off screen IMMEDIATELY
-        withAnimation(.easeOut(duration: duration)) {
-            // Fly off upward
-            offset = CGSize(
-                width: 0,
-                height: -UIScreen.main.bounds.height * 0.9
-            )
-        }
-        
-        // Process the action after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            withAnimation(.none) {
-                self.offset = .zero // Reset immediately (not visible to user)
-            }
-            
-            guard let asset = self.group.asset(at: self.currentIndex) else { return }
-            let capturedIndex = self.currentIndex
-            
-            self.photoManager.bookmarkAsset(asset)
-            self.photoManager.markForFavourite(asset)
-            
-            // Track swipe count for Discover tab paywall
-            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
-                // Make sure we have a reference to the tracker
-                if self.discoverSwipeTracker == nil {
-                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
-                }
-                
-                // Increment count and check if swipe should be undone
-                let shouldUndo = self.discoverSwipeTracker?.incrementSwipeCount() ?? false
-                
-                if shouldUndo {
-                    // Show the paywall
-                    self.showRCPaywall = true
-                    
-                    // Undo the bookmark action
-                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                    self.photoManager.unmarkForFavourite(asset)
-                    
-                    // Animate back to the original position
-                    withAnimation {
-                        self.offset = .zero
-                    }
-                    
-                    // Show message explaining why the swipe was undone
-                    Task { @MainActor in
-                        self.toast.showWarning("You've reached your daily swipe limit. Subscribe to continue.", duration: 2.5)
-                    }
-                } else {
-                    // Directly update the current index
-                    self.currentIndex = capturedIndex + 1
-                    
-                    // Load next image and perform cleanup
-                    Task {
-                        if capturedIndex + 1 < self.group.count {
-                            await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                        }
-                        
-                        // Cleanup and preload images
-                        await self.cleanupOldImages()
-                        
-                        // Proactively load high-quality images for the next few indices
-                        for offset in 0..<self.highQualityPreloadCount {
-                            let indexToLoad = self.currentIndex + offset
-                            if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                                await self.loadImage(at: indexToLoad, quality: .screen)
-                            }
-                        }
-                    }
-                    
-                    Task { @MainActor in
-                        self.toast.show(
-                            "Photo marked as Maybe?", 
-                            action: "Undo",
-                            duration: 3.0,
-                            onAction: {
-                                // Undo action
-                                self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                                self.photoManager.unmarkForFavourite(asset)
-                                withAnimation {
-                                    self.currentIndex = capturedIndex
-                                    self.offset = .zero
-                                }
-                            }
-                        )
-                    }
-                }
-            } else {
-                // Directly update the current index
-                self.currentIndex = capturedIndex + 1
-                
-                // Load next image and perform cleanup
-                Task {
-                    if capturedIndex + 1 < self.group.count {
-                        await self.loadImage(at: capturedIndex + 1, quality: .screen)
-                    }
-                    
-                    // Cleanup and preload images
-                    await self.cleanupOldImages()
-                    
-                    // Proactively load high-quality images for the next few indices
-                    for offset in 0..<self.highQualityPreloadCount {
-                        let indexToLoad = self.currentIndex + offset
-                        if indexToLoad < self.group.count && self.highQualityImagesStatus[indexToLoad] != true {
-                            await self.loadImage(at: indexToLoad, quality: .screen)
-                        }
-                    }
-                }
-                
-                Task { @MainActor in
-                    self.toast.show(
-                        "Photo marked as Maybe?", 
-                        action: "Undo",
-                        duration: 3.0,
-                        onAction: {
-                            // Undo action
-                            self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
-                            self.photoManager.unmarkForFavourite(asset)
-                            withAnimation {
-                                self.currentIndex = capturedIndex
-                                self.offset = .zero
-                            }
-                        }
-                    )
-                }
+                await self.cleanupOldImages()
             }
         }
     }
@@ -1750,6 +1587,159 @@ class SwipeCardViewModel: ObservableObject {
             
             // Default sharing text
             return "Organized with Cln. - Swipe To Clean. Get it: https://cln.it.com"
+        }
+    }
+    
+    private func incrementSwipeCount() {
+        // Check if user is premium
+        if SubscriptionManager.shared.isPremium {
+            return // Premium users don't have swipe limits
+        }
+        
+        // For discover tab, also update the discover-specific tracker
+        if isDiscoverTab && !SubscriptionManager.shared.isPremium {
+            // Make sure we have a reference to the tracker
+            if discoverSwipeTracker == nil {
+                discoverSwipeTracker = DiscoverSwipeTracker.shared
+            }
+            
+            // Increment count and check if swipe should be undone
+            let shouldShowPaywall = discoverSwipeTracker?.incrementSwipeCount() ?? false
+            
+            // Only set showRCPaywall if we've actually hit the limit
+            if shouldShowPaywall {
+                showRCPaywall = true
+                
+                // Show message explaining why the swipe was undone
+                Task { @MainActor in
+                    self.toast.showWarning("You've reached your daily limit of \(discoverSwipeTracker?.threshold ?? 30) swipes. Subscribe to continue.", duration: 2.5)
+                }
+            }
+        }
+    }
+    
+    func triggerBookmarkFromButton() {
+        // Trigger haptic feedback
+        feedbackGenerator.impactOccurred()
+        
+        // Duration for animation - faster for smoother experience
+        let duration = 0.25
+        
+        // Get the current asset
+        guard let asset = group.asset(at: currentIndex) else { return }
+        let capturedIndex = currentIndex
+        
+        // Check if this is the last image
+        let isLastImage = capturedIndex == group.count - 1
+        
+        // Trigger fly-off animation with yellow color
+        triggerLabelFlyOff?("Maybe", .yellow, CGSize(width: 0, height: -100))
+        
+        // Animate card flying off screen IMMEDIATELY
+        withAnimation(.easeOut(duration: duration)) {
+            // Fly off upward
+            offset = CGSize(
+                width: 0,
+                height: -UIScreen.main.bounds.height
+            )
+        }
+        
+        // Process after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            withAnimation(.none) {
+                self.offset = .zero // Reset immediately (not visible to user)
+            }
+            
+            // Create an album or add to existing album
+            self.photoManager.bookmarkAsset(asset)
+            self.photoManager.markForFavourite(asset)
+            
+            // Track swipe count
+            self.incrementSwipeCount()
+            
+            // Check if we've reached the swipe limit
+            if !SubscriptionManager.shared.isPremium, 
+               let tracker = self.discoverSwipeTracker, 
+               tracker.isLimitReached {
+                // Undo the bookmark action
+                self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                self.photoManager.unmarkForFavourite(asset)
+                
+                // Animate back to the original position
+                withAnimation {
+                    self.currentIndex = capturedIndex
+                    self.offset = .zero
+                }
+                
+                return
+            }
+            
+            // Check the discover tab swipe limit
+            if self.isDiscoverTab && !SubscriptionManager.shared.isPremium {
+                // Make sure we have a reference to the tracker
+                if self.discoverSwipeTracker == nil {
+                    self.discoverSwipeTracker = DiscoverSwipeTracker.shared
+                }
+                
+                // Check if we need to show the discover tab paywall
+                if self.discoverSwipeTracker?.showRCPaywall == true {
+                    // Show the paywall
+                    self.showRCPaywall = true
+                    
+                    // Undo the bookmark action
+                    self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                    self.photoManager.unmarkForFavourite(asset)
+                    
+                    // Animate back to the original position
+                    withAnimation {
+                        self.currentIndex = capturedIndex
+                        self.offset = .zero
+                    }
+                    
+                    return
+                }
+            }
+            
+            // Reset index and offset
+            UIView.setAnimationsEnabled(false)
+            self.currentIndex = capturedIndex + 1
+            self.offset = .zero
+            UIView.setAnimationsEnabled(true)
+            
+            // If this is the last image, show delete preview
+            if isLastImage {
+                // Small delay to ensure smooth transition
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.prepareDeletePreview()
+                }
+                return
+            }
+            
+            // Load next image and perform cleanup
+            Task {
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
+                }
+                await self.cleanupOldImages()
+            }
+            
+            // Show toast message for "Maybe" action
+            Task { @MainActor in
+                self.toast.show(
+                    "Photo marked as Maybe?", 
+                    action: "Undo",
+                    duration: 3.0,
+                    onAction: {
+                        // Undo action
+                        self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
+                        self.photoManager.unmarkForFavourite(asset)
+                        withAnimation {
+                            self.currentIndex = capturedIndex
+                            self.offset = .zero
+                        }
+                    }
+                )
+            }
         }
     }
 } 

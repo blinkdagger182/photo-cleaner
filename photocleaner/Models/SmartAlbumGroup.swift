@@ -40,12 +40,25 @@ class SmartAlbumGroup: NSManagedObject, Identifiable {
     
     // Helper method to get PHAssets for this album
     func fetchAssets() -> [PHAsset] {
-        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: self.assetIds, options: nil)
+        // Create fetch options with chronological sort
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: self.assetIds, options: fetchOptions)
         var assets: [PHAsset] = []
         fetchResult.enumerateObjects { (asset, _, _) in
             assets.append(asset)
         }
-        return assets
+        
+        // If fetchResult doesn't respect our sort order (which can happen with fetchAssets(withLocalIdentifiers:)),
+        // sort the assets array manually by creation date
+        return assets.sorted { first, second in
+            guard let date1 = first.creationDate, let date2 = second.creationDate else {
+                // If either has no date, put the one with a date first
+                return first.creationDate != nil
+            }
+            return date1 < date2  // Ascending order (oldest first)
+        }
     }
     
     // Helper to get thumbnail asset

@@ -424,6 +424,11 @@ struct SwipeCardView: View {
                 self.forceRefresh.toggle()
             }
             
+            // Make sure discoverSwipeTracker is initialized for all views
+            if viewModel.discoverSwipeTracker == nil {
+                viewModel.discoverSwipeTracker = DiscoverSwipeTracker.shared
+            }
+            
             // Set up the fly-off animation callback
             viewModel.triggerLabelFlyOff = { text, color, direction in
                 // Start with the label visible at the card's position
@@ -538,6 +543,13 @@ struct SwipeCardView: View {
             }
         }
         .animation(.spring(), value: showMemorySavedModal)
+        // Add swipe limit progress bar for non-premium users on discover tab
+        .overlay(alignment: .top) {
+            if isDiscoverTab && !subscriptionManager.isPremium, let tracker = viewModel.discoverSwipeTracker {
+                SwipeLimitView(swipesUsed: tracker.swipeCount, dailyLimit: tracker.threshold)
+                    .padding(.top, 60) // Increased padding to avoid overlapping with navigation elements
+            }
+        }
         #if DEBUG
         // Add debug overlay for swipe count in Discover tab
         .overlay(alignment: .topTrailing) {
