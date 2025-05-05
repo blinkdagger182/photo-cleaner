@@ -7,6 +7,7 @@ struct FrostedCardStackView: View {
     let images = ["onboard-1", "onboard-2", "onboard-3"]
     @State private var topIndex: Int = 0
     @State private var removedIndices: Set<Int> = []
+    var onCardsCompleted: (() -> Void)? = nil
     
     // Configuration for card stacking effect
     private let cardOffset: CGFloat = -30
@@ -15,6 +16,11 @@ struct FrostedCardStackView: View {
     var body: some View {
         GeometryReader { geometry in
             containerView(geometry: geometry)
+        }
+        .onChange(of: topIndex) { newValue in
+            if newValue >= images.count {
+                onCardsCompleted?()
+            }
         }
     }
     
@@ -386,7 +392,8 @@ struct CyclingTaglineView: View {
     private static let taglines = [
         "Swipe left to delete.",
         "Swipe right to keep.",
-        "Clean your gallery in minutes."
+        "Clean your gallery in minutes.",
+        "Declutter, one swipe at a time."
     ]
     
     // Computed property for current tagline
@@ -409,12 +416,16 @@ struct CyclingTaglineView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .padding(.horizontal)
+            .id(currentIndex) // Force view refresh when index changes
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.5), value: currentIndex)
     }
     
     // Timer start function
     private func startTaglineTimer() {
-        Timer.scheduledTimer(withTimeInterval: 1.8, repeats: true) { _ in
-            withAnimation(.easeInOut(duration: 0.3)) {
+        // Increase the interval from 1.8 to 3.5 seconds to slow down cycling
+        Timer.scheduledTimer(withTimeInterval: 3.5, repeats: true) { _ in
+            withAnimation {
                 currentIndex = (currentIndex + 1) % Self.taglines.count
             }
         }
@@ -451,8 +462,7 @@ struct OnboardingView: View {
                         SwipeTutorialPageView(photoCount: photoCount, onGetStarted: handleGetStarted)
                             .tag(2)
                     }
-                    .tabViewStyle(.page)
-                    .indexViewStyle(.page(backgroundDisplayMode: .always))
+                    .tabViewStyle(.page(indexDisplayMode: .never)) // Hide page indicators
                 }
             }
         }
@@ -485,7 +495,9 @@ struct OnboardingView: View {
                 switch photoManager.authorizationStatus {
                 case .authorized, .limited:
                     await fetchPhotoCount()
-                    goToNextPage()
+                    withAnimation {
+                        currentPage = 2 // Skip directly to the last page instead of calling goToNextPage()
+                    }
                 case .denied, .restricted:
                     showPermissionDeniedAlert = true
                 default:
@@ -494,7 +506,9 @@ struct OnboardingView: View {
             } else if photoManager.authorizationStatus == .authorized ||
                       photoManager.authorizationStatus == .limited {
                 await fetchPhotoCount()
-                goToNextPage()
+                withAnimation {
+                    currentPage = 2 // Skip directly to the last page instead of calling goToNextPage()
+                }
             } else {
                 showPermissionDeniedAlert = true
             }
@@ -576,7 +590,7 @@ struct IntroPageView: View {
                     .font(.system(size: 32, weight: .bold))
                     .multilineTextAlignment(.center)
                 
-                Text("The average person has over 10,000 photos on their phone.")
+                Text("The average phone holds 10,000+ photos. cln. helps you clean faster.")
                     .font(.title3)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -613,11 +627,11 @@ struct PermissionPageView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 150, height: 150)
                 
-                Text("Photo Access")
+                Text("Let cln. clean up for you.")
                     .font(.system(size: 32, weight: .bold))
                     .multilineTextAlignment(.center)
                 
-                Text("We need access to your photo library to help you clean it. You'll stay in full control.")
+                Text("We need access to help you review and clean your gallery. You stay in full control.")
                     .font(.title3)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -644,17 +658,23 @@ struct PermissionPageView: View {
 struct SwipeTutorialPageView: View {
     var photoCount: Int
     var onGetStarted: () -> Void
+    @State private var areCardsVisible = true
     
     var body: some View {
         GeometryReader { geometry in
             VStack {
-                Text("This is just a demo. No photos will be deleted yet.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 20)
+                // Show demo notice only when cards are visible
+                if areCardsVisible {
+                    Text("Try the swipe—your photos are safe.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 20)
+                }
                 
                 // Card stack with adaptive height
-                FrostedCardStackView()
+                FrostedCardStackView(onCardsCompleted: {
+                    areCardsVisible = false
+                })
                     .frame(height: geometry.size.height * 0.6)
                 
                 // Centered tagline with proper spacing

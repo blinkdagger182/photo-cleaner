@@ -59,24 +59,6 @@ struct MarketingBanner: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 16))
             .buttonStyle(ScaleButtonStyle())
-            
-            // Close button
-            Button(action: {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    offset = 200 // Move offscreen
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    onDismiss()
-                }
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(.white.opacity(0.8))
-                    .padding(8)
-                    .background(Color.black.opacity(0.01))
-            }
-            .offset(x: -8, y: 8)
-            .zIndex(1)
         }
         .padding(.horizontal, 16)
         .offset(y: offset + dragOffset)
@@ -180,10 +162,16 @@ struct PremiumAlertBanner: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image("premium_alert_banner")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 280) // Smaller width
+            Button(action: {
+                onDismiss()
+                onTap()
+                }) {
+                    Image("premium_alert_banner")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: .infinity)
+                }
+                .buttonStyle(.plain)
 
             Button(action: {
                 onDismiss()
