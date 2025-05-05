@@ -4,6 +4,13 @@ struct MarketingBanner: View {
     var onTap: () -> Void
     var onDismiss: () -> Void
     
+    @State private var offset: CGFloat = 0
+    @GestureState private var dragOffset: CGFloat = 0
+    
+    // Threshold for dismissal
+    private let dismissThreshold: CGFloat = 80
+    private let velocityThreshold: CGFloat = 500
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Main banner content
@@ -52,8 +59,55 @@ struct MarketingBanner: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 16))
             .buttonStyle(ScaleButtonStyle())
+            
+            // Close button
+            Button(action: {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    offset = 200 // Move offscreen
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    onDismiss()
+                }
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundColor(.white.opacity(0.8))
+                    .padding(8)
+                    .background(Color.black.opacity(0.01))
+            }
+            .offset(x: -8, y: 8)
+            .zIndex(1)
         }
         .padding(.horizontal, 16)
+        .offset(y: offset + dragOffset)
+        .gesture(
+            DragGesture()
+                .updating($dragOffset) { value, state, _ in
+                    // Only register downward movement
+                    state = max(0, value.translation.height)
+                }
+                .onEnded { value in
+                    // Check velocity for quick flicks - using predictedEndTranslation and translation
+                    let verticalDistance = value.predictedEndTranslation.height - value.translation.height
+                    let velocity = abs(verticalDistance)
+                    
+                    // Only dismiss if dragged downward significantly or flicked down
+                    if value.translation.height > dismissThreshold ||
+                       (value.translation.height > 20 && velocity > velocityThreshold) {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            offset = 200 // Move offscreen
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            onDismiss()
+                        }
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            offset = 0 // Return to original position
+                        }
+                    }
+                }
+        )
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragOffset)
     }
 }
 

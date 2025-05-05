@@ -113,7 +113,21 @@ struct MainTabView: View {
             
             ZStack {
                 // Library view (at index 0)
-                PhotoGroupView(photoManager: photoManager)
+                PhotoGroupView(photoManager: photoManager, onScroll: { delta in
+                    // Debug scroll detection
+                    print("Scroll detected, delta: \(delta)")
+                    
+                    // When scrolling down (delta < 0), hide the marketing banner
+                    if delta < -10 && showMarketingBanner && !subscriptionManager.isPremium && !hasHiddenBanner { 
+                        print("Dismissing marketing banner due to scroll")
+                        // Hide banner with animation
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showMarketingBanner = false
+                        }
+                        // Save preference
+                        UserDefaults.standard.set(true, forKey: marketingBannerKey)
+                    }
+                })
                     .environmentObject(photoManager)
                     .environmentObject(toast)
                     .offset(x: currentTab == 0 ? dragOffset : -screenWidth + dragOffset)

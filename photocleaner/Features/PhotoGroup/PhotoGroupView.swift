@@ -8,8 +8,15 @@ struct PhotoGroupView: View {
     @EnvironmentObject var photoManager: PhotoManager
     @State private var showPermissionDeniedAlert = false
     
-    init(photoManager: PhotoManager) {
+    // Track scroll offset for banner dismissal
+    @State private var scrollPosition: CGFloat = 0
+    @State private var previousScrollPosition: CGFloat = 0
+    @State private var scrollDirectionDown = false
+    var onScroll: ((CGFloat) -> Void)? = nil
+    
+    init(photoManager: PhotoManager, onScroll: ((CGFloat) -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: PhotoGroupViewModel(photoManager: photoManager))
+        self.onScroll = onScroll
     }
 
     let columns = [
@@ -21,6 +28,19 @@ struct PhotoGroupView: View {
         NavigationStack {
             ZStack {
                 ScrollView {
+                    ScrollDetector(
+                        yOffset: $scrollPosition,
+                        onScrollDirectionChanged: { isScrollingDown in
+                            // When scrolling down, notify parent
+                            if isScrollingDown {
+                                print("Scrolling DOWN")
+                                onScroll?(-20)
+                            } else {
+                                print("Scrolling UP")
+                            }
+                        }
+                    )
+                    
                     VStack(spacing: 0) {
                         HStack(alignment: .center) {
                             // 🟨 Left: Banner text + buttons
@@ -121,6 +141,7 @@ struct PhotoGroupView: View {
                         }
                     }
                 }
+                .coordinateSpace(name: "scrollView")
                 .blur(radius: isPhotoAccessDenied ? 8 : 0)
                 .overlay {
                     if isPhotoAccessDenied {
@@ -306,5 +327,47 @@ struct AlbumCell: View {
                 continuation.resume(returning: image)
             }
         }
+    }
+}
+
+// Helper view to detect scroll position changes
+struct ScrollDetector: View {
+    @Binding var yOffset: CGFloat
+    var onScrollDirectionChanged: ((Bool) -> Void)?
+    
+    // To track previous offset for direction detection
+    @State private var previousOffset: CGFloat = 0
+    @State private var scrollCount = 0
+    
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .preference(
+                    key: ScrollViewOffsetPreferenceKey.self,
+                    value: geo.frame(in: .named("scrollView")).minY
+                )
+                .onPreferenceChange(ScrollViewOffsetPreferenceKey.self) { value in
+                    let threshold: CGFloat = 5 // Minimum change to register as scrolling
+                    
+                    // Only look at significant changes to filter out noise
+                    if abs(value - previousOffset) > threshold {
+                        let isScrollingDown = value < previousOffset
+                        onScrollDirectionChanged?(isScrollingDown)
+                        
+                        // Update for next comparison
+                        previousOffset = value
+                    }
+                    
+                    yOffset = value
+                }
+        }
+        .frame(height: 0)
+    }
+}
+
+struct ScrollViewOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
