@@ -6,6 +6,7 @@ struct PhotoGroupView: View {
     @StateObject private var viewModel: PhotoGroupViewModel
     @EnvironmentObject var toast: ToastService
     @EnvironmentObject var photoManager: PhotoManager
+    @State private var showPermissionDeniedAlert = false
     
     init(photoManager: PhotoManager) {
         _viewModel = StateObject(wrappedValue: PhotoGroupViewModel(photoManager: photoManager))
@@ -18,64 +19,92 @@ struct PhotoGroupView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    HStack(alignment: .center) {
-                        // 🟨 Left: Banner text + buttons
-                        if viewModel.authorizationStatus == .limited {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("You're viewing only selected photos.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.primary)
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        HStack(alignment: .center) {
+                            // 🟨 Left: Banner text + buttons
+                            if viewModel.authorizationStatus == .limited {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("You're viewing only selected photos.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.primary)
 
-                                Button("Add More Photos") {
-                                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                                       let root = scene.windows.first?.rootViewController {
-                                        viewModel.openPhotoLibraryPicker(from: root)
+                                    Button("Add More Photos") {
+                                        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                           let root = scene.windows.first?.rootViewController {
+                                            viewModel.openPhotoLibraryPicker(from: root)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+
+                                    Button("Go to Settings to Allow Full Access") {
+                                        viewModel.openSettings()
+                                    }
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                                }
+                                .padding()
+                                .background(Color.yellow.opacity(0.1))
+                                .cornerRadius(12)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+
+                        // 🔄 Top Row: Picker and cln. logo
+                        HStack(alignment: .bottom) {
+                            Picker("View Mode", selection: $viewModel.viewByYear) {
+                                Text("By Year").tag(true)
+                                Text("My Albums").tag(false)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: .infinity)
+
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+
+                        // 📅 Main content
+                        VStack(alignment: .leading, spacing: 20) {
+                            if viewModel.viewByYear {
+                                ForEach(viewModel.yearGroups) { yearGroup in
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("\(yearGroup.year)")
+                                            .font(.title)
+                                            .bold()
+                                            .padding(.horizontal)
+
+                                        LazyVGrid(columns: columns, spacing: 16) {
+                                            ForEach(yearGroup.months, id: \.id) { group in
+                                                Button {
+                                                    viewModel.updateSelectedGroup(group)
+                                                } label: {
+                                                    AlbumCell(group: group)
+                                                }
+                                                .buttonStyle(ScaleButtonStyle())
+                                            }
+                                        }
+                                        .padding(.horizontal)
                                     }
                                 }
-                                .buttonStyle(.bordered)
-
-                                Button("Go to Settings to Allow Full Access") {
-                                    viewModel.openSettings()
-                                }
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                            }
-                            .padding()
-                            .background(Color.yellow.opacity(0.1))
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-
-                    // 🔄 Top Row: Picker and cln. logo
-                    HStack(alignment: .bottom) {
-                        Picker("View Mode", selection: $viewModel.viewByYear) {
-                            Text("By Year").tag(true)
-                            Text("My Albums").tag(false)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: .infinity)
-
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                    // 📅 Main content
-                    VStack(alignment: .leading, spacing: 20) {
-                        if viewModel.viewByYear {
-                            ForEach(viewModel.yearGroups) { yearGroup in
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("\(yearGroup.year)")
-                                        .font(.title)
-                                        .bold()
-                                        .padding(.horizontal)
-
-                                    LazyVGrid(columns: columns, spacing: 16) {
-                                        ForEach(yearGroup.months, id: \.id) { group in
+                            } else {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    sectionHeader(title: "My Albums")
+                                    
+                                    // Debug view to print album names
+                                    Color.clear
+                                        .frame(width: 0, height: 0)
+                                        .onAppear {
+                                            print("DEBUG: Available albums:")
+                                            for group in viewModel.photoGroups {
+                                                print("- \(group.title) (\(group.count) photos)")
+                                            }
+                                        }
+                                    
+                                    LazyVGrid(columns: columns, spacing: 20) {
+                                        ForEach(viewModel.photoGroups.filter { $0.title == "Maybe?" }, id: \.id) { group in
                                             Button {
                                                 viewModel.updateSelectedGroup(group)
                                             } label: {
@@ -85,37 +114,17 @@ struct PhotoGroupView: View {
                                         }
                                     }
                                     .padding(.horizontal)
-                                }
-                            }
-                        } else {
-                            VStack(alignment: .leading, spacing: 16) {
-                                sectionHeader(title: "My Albums")
-                                
-                                // Debug view to print album names
-                                Color.clear
-                                    .frame(width: 0, height: 0)
-                                    .onAppear {
-                                        print("DEBUG: Available albums:")
-                                        for group in viewModel.photoGroups {
-                                            print("- \(group.title) (\(group.count) photos)")
-                                        }
-                                    }
-                                
-                                LazyVGrid(columns: columns, spacing: 20) {
-                                    ForEach(viewModel.photoGroups.filter { $0.title == "Maybe?" }, id: \.id) { group in
-                                        Button {
-                                            viewModel.updateSelectedGroup(group)
-                                        } label: {
-                                            AlbumCell(group: group)
-                                        }
-                                        .buttonStyle(ScaleButtonStyle())
-                                    }
-                                }
-                                .padding(.horizontal)
 
-                                Spacer(minLength: 40)
+                                    Spacer(minLength: 40)
+                                }
                             }
                         }
+                    }
+                }
+                .blur(radius: isPhotoAccessDenied ? 8 : 0)
+                .overlay {
+                    if isPhotoAccessDenied {
+                        photoAccessDeniedView
                     }
                 }
             }
@@ -127,6 +136,77 @@ struct PhotoGroupView: View {
                 }
                 .environmentObject(photoManager)
                 .environmentObject(toast)
+        }
+        .alert("Photo Access Required", isPresented: $showPermissionDeniedAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This app needs access to your photos to help you organize and clean your library. Please enable access in Settings.")
+        }
+    }
+
+    private var isPhotoAccessDenied: Bool {
+        photoManager.authorizationStatus == .denied ||
+        photoManager.authorizationStatus == .restricted ||
+        photoManager.authorizationStatus == .notDetermined
+    }
+    
+    private var photoAccessDeniedView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            Text("Photo Library Access Required")
+                .font(.title2)
+                .bold()
+                .multilineTextAlignment(.center)
+            
+            Text("To help you organize and clean your photo library, we need permission to access your photos.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 32)
+            
+            Button(action: requestPhotoAccess) {
+                Text("Allow Access")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(UIColor.systemBackground))
+                    .foregroundColor(.primary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.primary, lineWidth: 1)
+                    )
+                    .cornerRadius(16)
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 16)
+        }
+        .padding(32)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(24)
+        .padding(24)
+    }
+    
+    private func requestPhotoAccess() {
+        Task {
+            if photoManager.authorizationStatus == .notDetermined {
+                await photoManager.requestAuthorization()
+                
+                // Show settings alert if permission was denied
+                if photoManager.authorizationStatus == .denied ||
+                   photoManager.authorizationStatus == .restricted {
+                    showPermissionDeniedAlert = true
+                }
+            } else {
+                // If already denied or restricted, show settings alert
+                showPermissionDeniedAlert = true
+            }
         }
     }
 

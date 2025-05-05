@@ -422,7 +422,7 @@ struct DiscoverView: View {
                 Text("Generate Smart Albums")
                     .padding()
                     .background(Color.blue)
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(UIColor.systemBackground))
                     .cornerRadius(10)
             }
             .padding(.horizontal, 32)

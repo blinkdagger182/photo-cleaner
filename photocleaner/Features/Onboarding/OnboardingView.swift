@@ -425,80 +425,67 @@ struct CyclingTaglineView: View {
 struct OnboardingView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @EnvironmentObject private var photoManager: PhotoManager
+    @EnvironmentObject private var toastService: ToastService
+    @State private var photoCount: Int = 0
     @State private var showPermissionDeniedAlert = false
+    @State private var currentPage = 0
+    @State private var isCompletingOnboarding = false
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
-                contentView(geometry: geometry)
+                
+                if isCompletingOnboarding {
+                    // This is a temporary view shown while transitioning to the main app
+                    // It prevents the TabView from resetting to the first page
+                    Color(.systemBackground).ignoresSafeArea()
+                } else {
+                    TabView(selection: $currentPage) {
+                        IntroPageView(goToNextPage: goToNextPage)
+                            .tag(0)
+                        
+                        PermissionPageView(goToNextPage: requestPhotoPermission)
+                            .tag(1)
+                        
+                        SwipeTutorialPageView(photoCount: photoCount, onGetStarted: handleGetStarted)
+                            .tag(2)
+                    }
+                    .tabViewStyle(.page)
+                    .indexViewStyle(.page(backgroundDisplayMode: .always))
+                }
             }
         }
         .task {
             await photoManager.checkCurrentStatus()
         }
         .alert("Photo Access Required", isPresented: $showPermissionDeniedAlert) {
-            permissionAlertButtons
-        } message: {
-            Text("This app needs access to your photos to help you organize and clean up your library. Please enable access in Settings.")
-        }
-    }
-    
-    // Main content view
-    private func contentView(geometry: GeometryProxy) -> some View {
-        VStack {
-            // Card stack with adaptive height
-            FrostedCardStackView()
-                .frame(height: geometry.size.height * 0.6)
-            
-            // Centered tagline with proper spacing
-            CyclingTaglineView()
-                .padding(.top, 30)
-                .padding(.horizontal)
-            
-            Spacer()
-            
-            // Get started button
-            getStartedButton
-        }
-        .padding(.top, geometry.size.height * 0.05)
-    }
-    
-    // Get started button
-    private var getStartedButton: some View {
-        Button(action: handleGetStartedAction) {
-            Text("Get Started")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.primary.opacity(0.9))
-                .foregroundColor(Color(UIColor.systemBackground))
-                .cornerRadius(16)
-                .padding(.horizontal, 32)
-        }
-        .padding(.bottom, 40)
-    }
-    
-    // Permission alert buttons
-    private var permissionAlertButtons: some View {
-        Group {
             Button("Open Settings") {
                 if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(settingsURL)
                 }
             }
             Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This app needs access to your photos to help you organize and clean up your library. Please enable access in Settings.")
         }
     }
-
-    private func handleGetStartedAction() {
+    
+    private func goToNextPage() {
+        withAnimation {
+            currentPage += 1
+        }
+    }
+    
+    private func requestPhotoPermission() {
         Task {
             if photoManager.authorizationStatus == .notDetermined {
                 await photoManager.requestAuthorization()
-
+                
                 switch photoManager.authorizationStatus {
                 case .authorized, .limited:
-                    completeOnboarding()
+                    await fetchPhotoCount()
+                    goToNextPage()
                 case .denied, .restricted:
                     showPermissionDeniedAlert = true
                 default:
@@ -506,16 +493,201 @@ struct OnboardingView: View {
                 }
             } else if photoManager.authorizationStatus == .authorized ||
                       photoManager.authorizationStatus == .limited {
-                completeOnboarding()
+                await fetchPhotoCount()
+                goToNextPage()
             } else {
                 showPermissionDeniedAlert = true
             }
         }
     }
+    
+    private func fetchPhotoCount() async {
+        let fetchOptions = PHFetchOptions()
+        let result = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        photoCount = result.count
+    }
 
+    private func handleGetStarted() {
+        // First, set the flag to prevent TabView from resetting
+        withAnimation {
+            isCompletingOnboarding = true
+        }
+        
+        // Check if we already have permission, otherwise request it first
+        Task {
+            if photoManager.authorizationStatus == .notDetermined {
+                await photoManager.requestAuthorization()
+                
+                // After permission request, fetch photo count if granted
+                if photoManager.authorizationStatus == .authorized || 
+                   photoManager.authorizationStatus == .limited {
+                    await fetchPhotoCount()
+                    completeOnboarding()
+                } else {
+                    // Reset the completion flag if we need to show an alert
+                    isCompletingOnboarding = false
+                    showPermissionDeniedAlert = true
+                }
+            } else if photoManager.authorizationStatus == .authorized || 
+                      photoManager.authorizationStatus == .limited {
+                // Permission already granted, complete onboarding
+                completeOnboarding()
+            } else {
+                // Reset the completion flag if we need to show an alert
+                isCompletingOnboarding = false
+                showPermissionDeniedAlert = true
+            }
+        }
+    }
+    
     private func completeOnboarding() {
-        withAnimation(.easeInOut(duration: 0.6)) {
-            hasSeenOnboarding = true
+        // Add a small delay to ensure smooth transition
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Set hasSeenOnboarding to true to trigger the app's navigation to the main interface
+            withAnimation(.easeInOut(duration: 0.6)) {
+                hasSeenOnboarding = true
+            }
+            
+            if photoCount > 0 {
+                let formattedCount = NumberFormatter.localizedString(from: NSNumber(value: photoCount), number: .decimal)
+                toastService.show("You've got \(formattedCount) photos. Let's get started.")
+            }
+        }
+    }
+}
+
+// MARK: - Page Views
+struct IntroPageView: View {
+    var goToNextPage: () -> Void
+    
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 30) {
+                Spacer()
+                
+                Image("CLN")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 70)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .shadow(radius: 8)
+                
+                Text("Welcome to cln.")
+                    .font(.system(size: 32, weight: .bold))
+                    .multilineTextAlignment(.center)
+                
+                Text("The average person has over 10,000 photos on their phone.")
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                
+                Spacer()
+                
+                Button(action: goToNextPage) {
+                    Text("Next")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.primary.opacity(0.9))
+                        .foregroundColor(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 40)
+            }
+            .frame(width: geometry.size.width)
+        }
+    }
+}
+
+struct PermissionPageView: View {
+    var goToNextPage: () -> Void
+    
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 30) {
+                Spacer()
+                
+                Image("smartalbums_image")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 150, height: 150)
+                
+                Text("Photo Access")
+                    .font(.system(size: 32, weight: .bold))
+                    .multilineTextAlignment(.center)
+                
+                Text("We need access to your photo library to help you clean it. You'll stay in full control.")
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                
+                Spacer()
+                
+                Button(action: goToNextPage) {
+                    Text("Continue")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.primary.opacity(0.9))
+                        .foregroundColor(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 40)
+            }
+            .frame(width: geometry.size.width)
+        }
+    }
+}
+
+struct SwipeTutorialPageView: View {
+    var photoCount: Int
+    var onGetStarted: () -> Void
+    
+    var body: some View {
+        GeometryReader { geometry in
+            VStack {
+                Text("This is just a demo. No photos will be deleted yet.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 20)
+                
+                // Card stack with adaptive height
+                FrostedCardStackView()
+                    .frame(height: geometry.size.height * 0.6)
+                
+                // Centered tagline with proper spacing
+                CyclingTaglineView()
+                    .padding(.top, 10)
+                    .padding(.horizontal)
+                
+                Spacer()
+                
+                // Photo count display
+                if photoCount > 0 {
+                    let formattedCount = NumberFormatter.localizedString(from: NSNumber(value: photoCount), number: .decimal)
+                    Text("You've got \(formattedCount) photos. Let's get started.")
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 10)
+                }
+                
+                // Get started button
+                Button(action: onGetStarted) {
+                    Text("Get Started")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.primary.opacity(0.9))
+                        .foregroundColor(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .padding(.horizontal, 32)
+                }
+                .padding(.bottom, 40)
+            }
+            .frame(width: geometry.size.width)
         }
     }
 }
