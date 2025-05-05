@@ -37,6 +37,10 @@ class ImageClassificationService {
     
     // Model configuration
     private var modelURL: URL? {
+        // TEMPORARILY DISABLED: Skip ML model loading
+        return nil
+        
+        /*
         // First check for the compiled model in the bundle
         if let bundleUrl = Bundle.main.url(forResource: "MobileNetV2FP16", withExtension: "mlmodelc") {
             print("✅ Found compiled ML model in app bundle: \(bundleUrl.path)")
@@ -78,6 +82,7 @@ class ImageClassificationService {
         print("⚠️ Could not find ML model in any of the searched paths")
         logEnvironmentInfo() // Log additional info when model can't be found
         return nil
+        */
     }
     
     // VNCoreMLModel instance for reuse
@@ -88,11 +93,14 @@ class ImageClassificationService {
     private let maxClassifications: Int = 5
     
     private init() {
-        // Initialize the Vision model on creation
-        setupModel()
+        // TEMPORARILY DISABLED: Don't initialize the Vision model
+        // setupModel()
+        print("⚠️ ML model loading temporarily disabled to improve onboarding performance")
     }
     
     private func logEnvironmentInfo() {
+        // TEMPORARILY DISABLED: Skip environment logging
+        /*
         print("📱 Current working directory: \(FileManager.default.currentDirectoryPath)")
         print("📱 App bundle path: \(Bundle.main.bundlePath)")
         
@@ -144,9 +152,12 @@ class ImageClassificationService {
                 print("⚠️ Path #\(index + 1) is nil")
             }
         }
+        */
     }
     
     private func setupModel() {
+        // TEMPORARILY DISABLED: Skip model setup
+        /*
         // First try to get a model URL from any source
         let originalModelURL = modelURL
         
@@ -166,9 +177,12 @@ class ImageClassificationService {
         } else {
             print("⚠️ ML model file not found. Classification will use fallback mode.")
         }
+        */
     }
     
     private func loadModelFromURL(_ url: URL) {
+        // TEMPORARILY DISABLED: Skip model loading
+        /*
         print("📱 Attempting to load ML model from: \(url.path)")
         
         do {
@@ -181,6 +195,7 @@ class ImageClassificationService {
             print("⚠️ Failed to load ML model: \(error)")
             print("⚠️ Error description: \(error.localizedDescription)")
         }
+        */
     }
     
     private func copyModelToDocumentsDirectory(from sourceURL: URL) -> URL? {
@@ -228,7 +243,8 @@ class ImageClassificationService {
     
     /// Check if the ML model is available for classification
     func isModelAvailable() -> Bool {
-        return ensureModelLoaded()
+        // TEMPORARILY DISABLED: Always return false to use fallback mode
+        return false
     }
     
     /// Classify a UIImage and return the top classifications

@@ -69,9 +69,14 @@ class SmartAlbumManager: ObservableObject {
         "import": "📥"
     ]
     
+    // Flag to enable/disable auto-loading albums at startup
+    private let loadAlbumsOnStartup = false
+    
     private init() {
-        // Load albums on initialization
-        loadSmartAlbums()
+        // Only load albums if flag is enabled - disable during onboarding
+        if loadAlbumsOnStartup {
+            loadSmartAlbums()
+        }
     }
     
     // MARK: - Public Methods
