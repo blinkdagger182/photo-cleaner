@@ -204,7 +204,7 @@ struct SwipeCardView: View {
                                                     .stroke(labelColor, lineWidth: 3)
                                             )
                                     )
-                                    .rotationEffect(.degrees(-15))
+                                    .rotationEffect( swipeLabel == "Keep" ? .degrees(-15) : .degrees(15) )
                                     .opacity(1)
                                     .offset(
                                         x: swipeLabel == "Keep" ? -40 : 40,
