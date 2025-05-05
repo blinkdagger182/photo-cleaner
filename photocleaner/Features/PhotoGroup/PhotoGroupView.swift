@@ -55,7 +55,7 @@ struct PhotoGroupView: View {
                         // 🔄 Top Row: Picker and cln. logo
                         HStack(alignment: .bottom) {
                             Picker("View Mode", selection: $viewModel.viewByYear) {
-                                Text("By Year").tag(true)
+                                Text("By Month").tag(true)
                                 Text("My Albums").tag(false)
                             }
                             .pickerStyle(.segmented)
