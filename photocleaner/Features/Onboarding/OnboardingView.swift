@@ -441,6 +441,7 @@ struct OnboardingView: View {
     @State private var showPermissionDeniedAlert = false
     @State private var currentPage = 0
     @State private var isCompletingOnboarding = false
+    @State private var isLoading = false
     
     // Add a flag to track if permission check is already running
     @State private var isCheckingPermission = false
@@ -465,7 +466,7 @@ struct OnboardingView: View {
                         }
                         
                         if currentPage == 0 || currentPage == 1 || currentPage == 2 {
-                            LazyView(PermissionPageView(goToNextPage: requestPhotoPermission))
+                            LazyView(PermissionPageView(goToNextPage: requestPhotoPermission, isLoading: $isLoading))
                                 .frame(width: geometry.size.width)
                                 .opacity(currentPage == 1 ? 1 : 0)
                         }
@@ -522,6 +523,11 @@ struct OnboardingView: View {
         } message: {
             Text("This app needs access to your photos to help you organize and clean up your library. Please enable access in Settings.")
         }
+        .onChange(of: showPermissionDeniedAlert) { newValue in
+            if !newValue {
+                isLoading = false // Reset loading state when alert is dismissed
+            }
+        }
     }
     
     private func goToNextPage() {
@@ -535,6 +541,7 @@ struct OnboardingView: View {
         guard !isCheckingPermission else { return }
         
         isCheckingPermission = true
+        // Note: isLoading is already set to true by the PermissionPageView button
         
         Task {
             if photoManager.authorizationStatus == .notDetermined {
@@ -547,8 +554,10 @@ struct OnboardingView: View {
                         currentPage = 2 // Skip directly to the last page
                     }
                 case .denied, .restricted:
+                    isLoading = false // Reset loading state when permission denied
                     showPermissionDeniedAlert = true
                 default:
+                    isLoading = false // Reset loading state for any other case
                     break
                 }
             } else if photoManager.authorizationStatus == .authorized ||
@@ -558,6 +567,7 @@ struct OnboardingView: View {
                     currentPage = 2 // Skip directly to the last page
                 }
             } else {
+                isLoading = false // Reset loading state when permission denied
                 showPermissionDeniedAlert = true
             }
             
@@ -666,6 +676,7 @@ struct IntroPageView: View {
 
 struct PermissionPageView: View {
     var goToNextPage: () -> Void
+    @Binding var isLoading: Bool
     
     var body: some View {
         GeometryReader { geometry in
@@ -688,17 +699,32 @@ struct PermissionPageView: View {
                 
                 Spacer()
                 
-                Button(action: goToNextPage) {
-                    Text("Continue")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.primary.opacity(0.9))
-                        .foregroundColor(Color(UIColor.systemBackground))
-                        .cornerRadius(16)
+                if isLoading {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 40)
+                } else {
+                    Button(action: {
+                        isLoading = true
+                        goToNextPage()
+                    }) {
+                        Text("Continue")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.primary.opacity(0.9))
+                            .foregroundColor(Color(UIColor.systemBackground))
+                            .cornerRadius(16)
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 40)
             }
             .frame(width: geometry.size.width)
         }
