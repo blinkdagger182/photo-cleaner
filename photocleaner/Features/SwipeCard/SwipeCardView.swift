@@ -6,6 +6,7 @@ import StoreKit
 struct SwipeCardView: View {
     let group: PhotoGroup
     @Binding var forceRefresh: Bool
+    let initialThumbnail: UIImage?
 
     @EnvironmentObject var photoManager: PhotoManager
     @Environment(\.dismiss) private var dismiss
@@ -41,9 +42,10 @@ struct SwipeCardView: View {
     @State private var flyOffLabelRotation: Angle = .zero
     @State private var flyOffLabelOpacity: Double = 0.0
 
-    init(group: PhotoGroup, forceRefresh: Binding<Bool>, isDiscoverTab: Bool = false) {
+    init(group: PhotoGroup, forceRefresh: Binding<Bool>, initialThumbnail: UIImage? = nil, isDiscoverTab: Bool = false) {
         self.group = group
         self._forceRefresh = forceRefresh
+        self.initialThumbnail = initialThumbnail
         self.isDiscoverTab = isDiscoverTab
         // Initialize the ViewModel with the group, image view tracker, and discover tab flag
         self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(
@@ -160,8 +162,37 @@ struct SwipeCardView: View {
                                     .id("\(viewModel.currentIndex)-\(index)") // Key for animation
                                     .animation(.easeInOut(duration: 0.3), value: viewModel.currentIndex)
                                 } else if actualIndex < group.count {
+                                    // If this is the first card (index 0) and we have an initialThumbnail, display that
+                                    if index == 0 && viewModel.currentIndex == 0 && initialThumbnail != nil {
+                                        SwipePhotoCard(
+                                            asset: group.asset(at: actualIndex) ?? PHAsset(),
+                                            image: initialThumbnail,
+                                            index: actualIndex,
+                                            isTopCard: true,
+                                            offset: viewModel.offset
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                        .gesture(
+                                            DragGesture()
+                                                .onChanged { value in
+                                                    // Only process drag if not currently zooming and memory saved modal is not shown
+                                                    if currentScale <= 1.0 && !showMemorySavedModal {
+                                                        viewModel.handleDragGesture(value: value)
+                                                    }
+                                                }
+                                                .onEnded { value in
+                                                    // Only process drag end if not currently zooming and memory saved modal is not shown
+                                                    if currentScale <= 1.0 && !showMemorySavedModal {
+                                                        viewModel.handleDragGestureEnd(value: value)
+                                                    }
+                                                }
+                                        )
+                                        .simultaneousGesture(magnification)
+                                        .id("\(viewModel.currentIndex)-\(index)") // Key for animation
+                                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
+                                    }
                                     // If no image is available yet but we have a previous image, show it with overlay
-                                    if index == 0, let prevImage = viewModel.previousImage {
+                                    else if index == 0, let prevImage = viewModel.previousImage {
                                         Image(uiImage: prevImage)
                                             .resizable()
                                             .scaledToFit()
@@ -180,6 +211,17 @@ struct SwipeCardView: View {
                                                         .scaleEffect(1.5)
                                                         .tint(.white)
                                                 }
+                                            )
+                                    } else {
+                                        // Show skeleton loader
+                                        Rectangle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(width: geometry.size.width * 0.85, height: geometry.size.height * 0.6)
+                                            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                                            .shadow(radius: 8)
+                                            .overlay(
+                                                ProgressView()
+                                                    .scaleEffect(1.5)
                                             )
                                     }
                                 }
@@ -543,11 +585,26 @@ struct SwipeCardView: View {
             }
         }
         .animation(.spring(), value: showMemorySavedModal)
-        // Add swipe limit progress bar for non-premium users on discover tab
+        // Add swipe limit progress bar for non-premium users on discover tab - position below toolbar
         .overlay(alignment: .top) {
             if isDiscoverTab && !subscriptionManager.isPremium, let tracker = viewModel.discoverSwipeTracker {
-                SwipeLimitView(swipesUsed: tracker.swipeCount, dailyLimit: tracker.threshold)
-                    .padding(.top, 60) // Increased padding to avoid overlapping with navigation elements
+                GeometryReader { geometry in
+                    VStack {
+                        // Add sufficient top spacing to ensure it appears below the navigation bar
+                        Spacer().frame(height: 50)
+                        
+                        // The actual swipe limit view
+                        SwipeLimitView(
+                            swipesUsed: tracker.swipeCount, 
+                            dailyLimit: tracker.threshold,
+                            onUpgradePressed: {
+                                viewModel.showRCPaywall = true
+                            }
+                        )
+                    }
+                }
+                .transition(.opacity)
+                .animation(.easeInOut, value: isDiscoverTab)
             }
         }
         #if DEBUG
@@ -557,13 +614,17 @@ struct SwipeCardView: View {
                 let swipeCount = viewModel.discoverSwipeTracker?.swipeCount ?? 0
                 let threshold = viewModel.discoverSwipeTracker?.threshold ?? 5
                 
-                Text("Swipes: \(swipeCount)/\(threshold)")
-                    .font(.caption)
-                    .padding(6)
-                    .background(Color.black.opacity(0.7))
-                    .foregroundColor(.white)
-                    .cornerRadius(6)
-                    .padding(8)
+                VStack {
+                    Spacer().frame(height: 60) // Position below navigation bar
+                    
+                    Text("Swipes: \(swipeCount)/\(threshold)")
+                        .font(.caption)
+                        .padding(6)
+                        .background(Color.black.opacity(0.7))
+                        .foregroundColor(.white)
+                        .cornerRadius(6)
+                        .padding(8)
+                }
             }
         }
         #endif
