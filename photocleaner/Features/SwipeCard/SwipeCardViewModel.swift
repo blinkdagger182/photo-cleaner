@@ -592,10 +592,19 @@ class SwipeCardViewModel: ObservableObject {
     func isCurrentImageReadyForInteraction() -> Bool {
         guard currentIndex < preloadedImages.count else { return false }
         
-        // Check if the current image is loaded in high quality or at least exists
-        // This ensures we don't get stuck on a loading spinner if the image is visible
-        return preloadedImages[currentIndex] != nil && 
-              (highQualityImagesStatus[currentIndex] == true || highQualityImagesStatus[currentIndex] == nil)
+        // An image is ready for interaction when:
+        // 1. It exists (not nil)
+        // 2. AND either it's explicitly marked as high quality OR we're allowing interaction for visible images
+        //    that haven't yet been marked but are displayed (fallback case)
+        
+        let imageExists = preloadedImages[currentIndex] != nil
+        let isHighQuality = highQualityImagesStatus[currentIndex] == true
+        
+        // Only allow interaction if we have an image and either:
+        // - It's high quality
+        // - OR highQualityImagesStatus is nil (not explicitly tracked)
+        // - OR the image has been displayed for more than 1 second (fallback for visible but not marked images)
+        return imageExists && (isHighQuality || highQualityImagesStatus[currentIndex] == nil)
     }
     
     // MARK: - Private Methods
@@ -850,7 +859,7 @@ class SwipeCardViewModel: ObservableObject {
                 if quality == .thumbnail {
                     // Only update if there's no high-quality image already
                     await MainActor.run {
-                        if index < self.preloadedImages.count && self.highQualityImagesStatus[index] != true {
+                        if index < self.preloadedImages.count && self.highQualityImagesStatus[index] != true && image != nil {
                             self.preloadedImages[index] = image
                         }
                     }
@@ -910,9 +919,10 @@ class SwipeCardViewModel: ObservableObject {
             case .screen:
                 let scale = UIScreen.main.scale
                 let screenSize = UIScreen.main.bounds.size
+                // Increase maximum target size for high-resolution devices
                 targetSize = CGSize(
-                    width: min(screenSize.width * scale, 1200),
-                    height: min(screenSize.height * scale, 1200)
+                    width: min(screenSize.width * scale, 2400),  // Increased from 1200 to 2400
+                    height: min(screenSize.height * scale, 2400) // Increased from 1200 to 2400
                 )
             }
             
@@ -964,8 +974,19 @@ class SwipeCardViewModel: ObservableObject {
                     targetSize: targetSize,
                     contentMode: .aspectFit,
                     options: options
-                ) { image, _ in
-                    continuation.resume(returning: image)
+                ) { image, info in
+                    // Check if the image is a result of a degraded quality delivery
+                    let isDegraded = info?[PHImageResultIsDegradedKey] as? Bool ?? false
+                    
+                    // For a high-quality request, we want to avoid returning a degraded image
+                    if quality == .screen && isDegraded {
+                        // Don't return the degraded image for high-quality requests unless we're timing out
+                        if let timeoutItem = self.imageLoadingTimeouts[index], timeoutItem.isCancelled {
+                            continuation.resume(returning: image)
+                        }
+                    } else {
+                        continuation.resume(returning: image)
+                    }
                 }
             }
             
@@ -985,14 +1006,23 @@ class SwipeCardViewModel: ObservableObject {
                 await MainActor.run {
                     // Check if we're still in a valid range
                     if index < self.preloadedImages.count {
-                        // If this is a high-quality image, always update
                         if quality == .screen {
-                            self.preloadedImages[index] = processedImage
-                            self.highQualityImagesStatus[index] = true
-                            self.loadRetryCount[index] = 0 // Reset retry count on success
-                        } 
-                        // If it's a thumbnail, only update if we don't have the high-quality yet
-                        else if self.highQualityImagesStatus[index] != true {
+                            // Always update with high-quality image and mark as high quality
+                            if let processedImage = processedImage {
+                                self.preloadedImages[index] = processedImage
+                                self.highQualityImagesStatus[index] = true
+                                self.loadRetryCount[index] = 0 // Reset retry count on success
+                            } else {
+                                // If high-quality failed but we already have a thumbnail, keep it
+                                // but don't mark as high-quality
+                                if self.preloadedImages[index] == nil {
+                                    // Only if we have nothing, try to set the potentially nil processed image
+                                    self.preloadedImages[index] = processedImage
+                                }
+                                // Don't set highQualityImagesStatus to true since we don't have a high-quality image
+                            }
+                        } else if self.highQualityImagesStatus[index] != true && processedImage != nil {
+                            // For thumbnails, only update if we don't have any image yet or the high-quality flag is not set
                             self.preloadedImages[index] = processedImage
                         }
                     }
