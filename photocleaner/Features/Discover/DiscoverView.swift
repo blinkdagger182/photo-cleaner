@@ -450,35 +450,51 @@ struct DiscoverView: View {
     
     // Empty state view
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 60))
-                .foregroundColor(.secondary)
-            
-            Text("No Smart Albums Yet")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text("Generate smart albums to organize your photos automatically")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 24)
-            
-            Button(action: {
-                Task {
-                    await viewModel.processEntireLibrary()
+        GeometryReader { geometry in
+            VStack(spacing: 20) {
+                Spacer()
+                
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: geometry.size.width > 700 ? 80 : 60))
+                    .foregroundColor(.secondary)
+                
+                Text("No Moments Yet")
+                    .font(geometry.size.width > 700 ? .title : .title2)
+                    .fontWeight(.bold)
+                
+                Text("Generate Moments by Cln. to organize your photos automatically")
+                    .font(geometry.size.width > 700 ? .body : .subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, geometry.size.width > 700 ? 40 : 24)
+                    .frame(maxWidth: 600)
+                
+                Button(action: {
+                    Task {
+                        await viewModel.processEntireLibrary()
+                    }
+                }) {
+                    Text("Create Moments by Cln.")
+                        .font(.headline)
+                        .padding(.vertical, 16)
+                        .padding(.horizontal, geometry.size.width > 700 ? 40 : 24)
+                        .frame(minWidth: geometry.size.width > 700 ? 300 : 200)
+                        .background(Color.blue)
+                        .foregroundColor(Color(UIColor.systemBackground))
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                 }
-            }) {
-                Text("Generate Smart Albums")
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(Color(UIColor.systemBackground))
-                    .cornerRadius(10)
+                .contentShape(Rectangle()) // Ensures the entire button area is tappable
+                .buttonStyle(PlainButtonStyle()) // Use PlainButtonStyle for consistent behavior
+                .padding(.horizontal, 32)
+                .padding(.top, 24)
+                
+                Spacer()
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 16)
+            .frame(width: geometry.size.width)
+            .frame(minHeight: geometry.size.height)
         }
-        .padding(.vertical, 60)
+        .edgesIgnoringSafeArea(.bottom)
     }
     
     // Load more button

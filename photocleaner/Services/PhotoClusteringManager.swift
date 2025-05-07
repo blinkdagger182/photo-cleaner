@@ -57,8 +57,11 @@ class PhotoClusteringManager: ObservableObject {
             return
         }
         
-        isProcessing = true
-        progress = 0.0
+        // Set state immediately for UI responsiveness
+        Task { @MainActor in
+            self.isProcessing = true
+            self.progress = 0.0
+        }
         
         // Cancel any existing task
         clusteringTask?.cancel()
@@ -66,14 +69,37 @@ class PhotoClusteringManager: ObservableObject {
         // Create a new task for processing
         clusteringTask = Task {
             do {
+                // Ensure we signal processing has started on main thread
+                await MainActor.run {
+                    self.progress = 0.01 // Small non-zero value to show immediate progress
+                }
+                
+                // Add a small delay to ensure the UI updates and button press is registered
+                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
+                
                 // 1. Fetch all assets from the photo library
                 let allAssets = try await fetchAllAssets()
+                
+                // Check if task was cancelled
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
                 
                 // 2. Extract metadata for all assets
                 let assetMetadata = try await extractMetadata(from: allAssets)
                 
+                // Check if task was cancelled
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                
                 // 3. Cluster assets into events
                 let eventClusters = try await clusterIntoEvents(metadata: assetMetadata)
+                
+                // Check if task was cancelled
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
                 
                 // 4. Create PhotoGroup objects from clusters
                 let photoGroups = try await createPhotoGroups(from: eventClusters, allAssets: allAssets)

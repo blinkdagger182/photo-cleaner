@@ -226,6 +226,7 @@ class DiscoverViewModel: ObservableObject {
             return
         }
         
+        // Set UI state immediately to provide feedback
         isClusteringInProgress = true
         clusteringProgress = 0.0
         processedAlbumCount = 0 // Reset processed album count
@@ -233,15 +234,21 @@ class DiscoverViewModel: ObservableObject {
         // Show toast notification
         toast?.showInfo("Processing photo library by time and location...", duration: 2.0)
         
+        // Add a small delay to ensure UI updates before heavy processing starts
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        
         // Set up a timer to update the UI with progress
         let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.clusteringProgress = self.clusteringManager.progress
             
-            // Estimate processed album count based on progress
-            let estimatedAlbumCount = Int(self.clusteringProgress * 20)
-            if estimatedAlbumCount > self.processedAlbumCount {
-                self.processedAlbumCount = estimatedAlbumCount
+            Task { @MainActor in
+                self.clusteringProgress = self.clusteringManager.progress
+                
+                // Estimate processed album count based on progress
+                let estimatedAlbumCount = Int(self.clusteringProgress * 20)
+                if estimatedAlbumCount > self.processedAlbumCount {
+                    self.processedAlbumCount = estimatedAlbumCount
+                }
             }
         }
         
