@@ -969,6 +969,10 @@ class SwipeCardViewModel: ObservableObject {
             }
             
             let image = await withCheckedContinuation { continuation in
+                // Add a flag to track if we've already resumed the continuation
+                var hasResumedContinuation = false
+                var receivedHighQualityImage = false
+                
                 PHImageManager.default().requestImage(
                     for: asset,
                     targetSize: targetSize,
@@ -977,15 +981,61 @@ class SwipeCardViewModel: ObservableObject {
                 ) { image, info in
                     // Check if the image is a result of a degraded quality delivery
                     let isDegraded = info?[PHImageResultIsDegradedKey] as? Bool ?? false
+                    let isCancelled = info?[PHImageCancelledKey] as? Bool ?? false
                     
-                    // For a high-quality request, we want to avoid returning a degraded image
-                    if quality == .screen && isDegraded {
-                        // Don't return the degraded image for high-quality requests unless we're timing out
-                        if let timeoutItem = self.imageLoadingTimeouts[index], timeoutItem.isCancelled {
+                    // Skip if the request was cancelled and we've already received a high-quality image
+                    if isCancelled && receivedHighQualityImage {
+                        return
+                    }
+                    
+                    // If we got a non-degraded image, this is our high-quality result
+                    if !isDegraded && image != nil {
+                        receivedHighQualityImage = true
+                        if !hasResumedContinuation {
+                            hasResumedContinuation = true
                             continuation.resume(returning: image)
                         }
-                    } else {
+                        return
+                    }
+                    
+                    // For a high-quality request, we want to avoid immediately returning a degraded image
+                    if quality == .screen && isDegraded {
+                        // Store the degraded image in case we need it later
+                        let degradedImage = image
+                        
+                        // Check if we're in a timeout situation
+                        if let timeoutItem = self.imageLoadingTimeouts[index], timeoutItem.isCancelled {
+                            // We're timing out, so use the degraded image if we haven't resumed yet
+                            if !hasResumedContinuation {
+                                hasResumedContinuation = true
+                                continuation.resume(returning: degradedImage)
+                            }
+                        }
+                        
+                        // Don't resume the continuation yet for degraded images unless it's a timeout
+                        // The high-quality image should arrive shortly
+                    } else if !hasResumedContinuation && image != nil {
+                        // This is either a non-screen quality request or a non-degraded image
+                        hasResumedContinuation = true
                         continuation.resume(returning: image)
+                    }
+                }
+                
+                // Handle the case where only a degraded image might be delivered
+                // Set a short timeout to ensure we eventually return something
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    if !hasResumedContinuation {
+                        hasResumedContinuation = true
+                        // If the high-quality image hasn't arrived after 1.5 seconds,
+                        // we'll fall back to whatever image the PHImageManager has provided
+                        PHImageManager.default().requestImage(
+                            for: asset,
+                            targetSize: targetSize,
+                            contentMode: .aspectFit,
+                            options: options
+                        ) { image, _ in
+                            continuation.resume(returning: image)
+                        }
                     }
                 }
             }
