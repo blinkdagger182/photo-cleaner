@@ -65,13 +65,14 @@ struct PhotoGroupView: View {
                                     .font(.footnote)
                                     .foregroundColor(.secondary)
                                 }
+                                .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.yellow.opacity(0.1))
                                 .cornerRadius(12)
                             }
                         }
-                        .padding(.horizontal)
                         .padding(.top, 16)
+                        .padding(.horizontal, 16)
 
                         // 🔄 Top Row: Picker and cln. logo
                         HStack(alignment: .bottom) {
@@ -90,24 +91,28 @@ struct PhotoGroupView: View {
                         // 📅 Main content
                         VStack(alignment: .leading, spacing: 20) {
                             if viewModel.viewByYear {
-                                ForEach(viewModel.yearGroups) { yearGroup in
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        Text("\(yearGroup.year)")
-                                            .font(.title)
-                                            .bold()
-                                            .padding(.horizontal)
+                                if viewModel.yearGroups.isEmpty {
+                                    noPhotosView
+                                } else {
+                                    ForEach(viewModel.yearGroups) { yearGroup in
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            Text("\(yearGroup.year)")
+                                                .font(.title)
+                                                .bold()
+                                                .padding(.horizontal)
 
-                                        LazyVGrid(columns: columns, spacing: 16) {
-                                            ForEach(yearGroup.months, id: \.id) { group in
-                                                Button {
-                                                    viewModel.updateSelectedGroup(group)
-                                                } label: {
-                                                    AlbumCell(group: group)
+                                            LazyVGrid(columns: columns, spacing: 16) {
+                                                ForEach(yearGroup.months, id: \.id) { group in
+                                                    Button {
+                                                        viewModel.updateSelectedGroup(group)
+                                                    } label: {
+                                                        AlbumCell(group: group)
+                                                    }
+                                                    .buttonStyle(ScaleButtonStyle())
                                                 }
-                                                .buttonStyle(ScaleButtonStyle())
                                             }
+                                            .padding(.horizontal)
                                         }
-                                        .padding(.horizontal)
                                     }
                                 }
                             } else {
@@ -124,17 +129,23 @@ struct PhotoGroupView: View {
                                             }
                                         }
                                     
-                                    LazyVGrid(columns: columns, spacing: 20) {
-                                        ForEach(viewModel.photoGroups.filter { $0.title == "Maybe?" }, id: \.id) { group in
-                                            Button {
-                                                viewModel.updateSelectedGroup(group)
-                                            } label: {
-                                                AlbumCell(group: group)
+                                    let filteredGroups = viewModel.photoGroups.filter { $0.title == "Maybe?" }
+                                    
+                                    if filteredGroups.isEmpty {
+                                        noPhotosView
+                                    } else {
+                                        LazyVGrid(columns: columns, spacing: 20) {
+                                            ForEach(filteredGroups, id: \.id) { group in
+                                                Button {
+                                                    viewModel.updateSelectedGroup(group)
+                                                } label: {
+                                                    AlbumCell(group: group)
+                                                }
+                                                .buttonStyle(ScaleButtonStyle())
                                             }
-                                            .buttonStyle(ScaleButtonStyle())
                                         }
+                                        .padding(.horizontal)
                                     }
-                                    .padding(.horizontal)
 
                                     Spacer(minLength: 40)
                                 }
@@ -242,6 +253,20 @@ struct PhotoGroupView: View {
             Spacer()
         }
         .padding(.horizontal)
+    }
+
+    private var noPhotosView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            Text("No photos here")
+                .font(.title3)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
     }
 }
 

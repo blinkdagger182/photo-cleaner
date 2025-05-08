@@ -25,6 +25,10 @@ class DiscoverViewModel: ObservableObject {
     @Published var useFallbackMode = true // Use fallback mode to prevent black screens
     @Published var forceRefresh: Bool = false // For SwipeCardView
     
+    // Photo library access status
+    @Published var photoAccessStatus: PHAuthorizationStatus = .notDetermined
+    @Published var isPhotoLibraryEmpty: Bool = true
+    
     // Advanced clustering properties
     @Published var isClusteringInProgress: Bool = false
     @Published var clusteringProgress: Double = 0.0
@@ -128,6 +132,12 @@ class DiscoverViewModel: ObservableObject {
         
         // Remove automatic processing at initialization to improve startup time
         // The processing will be triggered when loadAlbums is called
+        
+        // Initialize photo access status and library emptiness
+        // Call this on the main actor as it updates published properties
+        Task { @MainActor in
+            self.updatePhotoLibraryAccessInfo()
+        }
     }
     
     private func setupBatchProcessingSubscribers() {
@@ -167,6 +177,55 @@ class DiscoverViewModel: ObservableObject {
         toast?.showInfo(message, duration: duration)
     }
     
+    // New method to update photo library status information
+    @MainActor
+    private func updatePhotoLibraryAccessInfo() {
+        // TODO: Replace with actual calls to PhotoManager
+        // For example:
+        // self.photoAccessStatus = self.photoManager.currentAuthorizationStatus
+        // if self.photoAccessStatus == .authorized {
+        //     self.isPhotoLibraryEmpty = self.photoManager.getTotalPhotoCount() == 0
+        //     self.totalPhotoCount = self.photoManager.getTotalPhotoCount()
+        // } else {
+        //     self.isPhotoLibraryEmpty = true
+        //     self.totalPhotoCount = 0
+        // }
+        
+        // For now, using defaults or simple logic until PhotoManager is integrated
+        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite) // Get current status directly for now
+        self.photoAccessStatus = currentStatus
+        
+        if currentStatus == .authorized {
+            // Placeholder: Assume library is not empty if authorized, until PhotoManager provides count
+            // You should replace this with an actual check using PhotoManager
+            let fetchOptions = PHFetchOptions()
+            let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            self.isPhotoLibraryEmpty = allPhotos.count == 0
+            self.totalPhotoCount = allPhotos.count // Update totalPhotoCount as well
+        } else {
+            self.isPhotoLibraryEmpty = true
+            self.totalPhotoCount = 0
+        }
+
+        // Update the main showEmptyState flag based on the new states.
+        // This flag is used by contentView to decide whether to show the emptyStateView container.
+        if self.photoAccessStatus == .denied || self.photoAccessStatus == .restricted {
+            self.showEmptyState = true
+        } else if self.photoAccessStatus == .authorized {
+            if self.isPhotoLibraryEmpty {
+                self.showEmptyState = true // Show "No Photos Found"
+            } else {
+                // If authorized and photos exist, show "No Moments Yet" if photoGroups is empty.
+                // This assumes photoGroups being empty means no moments are generated.
+                self.showEmptyState = self.photoGroups.isEmpty
+            }
+        } else { // .notDetermined (or any other new cases)
+            // While .notDetermined, we might be requesting permission or initializing.
+            // It's reasonable to show an empty/loading state.
+            self.showEmptyState = true
+        }
+    }
+    
     // Check if we have clustering results - Now only uses clustering results
     private func checkForClusteringResults() {
         // Load albums with clustering data if available, otherwise generate them
@@ -204,6 +263,7 @@ class DiscoverViewModel: ObservableObject {
         // Show loading toast on main thread
         Task { @MainActor [weak self] in
             self?.toast?.showInfo("Loading albums...", duration: 1.5)
+            self?.updatePhotoLibraryAccessInfo() // Update status when loading albums
         }
         
         // Check if we need to process the library
@@ -230,6 +290,17 @@ class DiscoverViewModel: ObservableObject {
         isClusteringInProgress = true
         clusteringProgress = 0.0
         processedAlbumCount = 0 // Reset processed album count
+        
+        // Update access info before starting, as status might have changed
+        updatePhotoLibraryAccessInfo()
+        
+        // If access is not authorized, don't proceed with clustering
+        guard photoAccessStatus == .authorized && !isPhotoLibraryEmpty else {
+            toast?.showError("Photo library access is required or library is empty.", duration: 2.0)
+            isClusteringInProgress = false // Reset flag
+            // `showEmptyState` should already be true due to `updatePhotoLibraryAccessInfo`
+            return
+        }
         
         // Show toast notification
         toast?.showInfo("Processing photo library by time and location...", duration: 2.0)
@@ -285,6 +356,17 @@ class DiscoverViewModel: ObservableObject {
             // Show error message
             self.toast?.showError("Error processing photo library: \(error.localizedDescription)", duration: 3.0)
             print("Error processing photo library: \(error)")
+        }
+        
+        // After processing is complete (successful or otherwise)
+        // This should be called within the Task that awaits clusteringManager.generatePhotoGroups
+        // For example, in a defer block or after the await.
+        // For now, adding it here to ensure it's called.
+        defer {
+            Task { @MainActor in
+                self.isClusteringInProgress = false
+                self.updatePhotoLibraryAccessInfo() // Re-check conditions after processing
+            }
         }
     }
     

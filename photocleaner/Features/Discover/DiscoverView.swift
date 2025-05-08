@@ -450,51 +450,133 @@ struct DiscoverView: View {
     
     // Empty state view
     private var emptyStateView: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 20) {
-                Spacer()
-                
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: geometry.size.width > 700 ? 80 : 60))
-                    .foregroundColor(.secondary)
-                
-                Text("No Moments Yet")
-                    .font(geometry.size.width > 700 ? .title : .title2)
-                    .fontWeight(.bold)
-                
-                Text("Generate Moments by Cln. to organize your photos automatically")
-                    .font(geometry.size.width > 700 ? .body : .subheadline)
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, geometry.size.width > 700 ? 40 : 24)
-                    .frame(maxWidth: 600)
-                
-                Button(action: {
-                    Task {
-                        await viewModel.processEntireLibrary()
-                    }
-                }) {
-                    Text("Create Moments by Cln.")
-                        .font(.headline)
-                        .padding(.vertical, 16)
-                        .padding(.horizontal, geometry.size.width > 700 ? 40 : 24)
-                        .frame(minWidth: geometry.size.width > 700 ? 300 : 200)
-                        .background(Color.blue)
-                        .foregroundColor(Color(UIColor.systemBackground))
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+        Group {
+            switch viewModel.photoAccessStatus {
+            case .denied, .restricted:
+                photoAccessDeniedView
+            case .authorized:
+                if viewModel.isPhotoLibraryEmpty {
+                    noPhotosAvailableView
+                } else {
+                    noMomentsView
                 }
-                .contentShape(Rectangle()) // Ensures the entire button area is tappable
-                .buttonStyle(PlainButtonStyle()) // Use PlainButtonStyle for consistent behavior
-                .padding(.horizontal, 32)
-                .padding(.top, 24)
-                
-                Spacer()
+            default: // .notDetermined or other cases
+                // Optionally, show a loading or default state while status is being determined
+                // For now, showing noMomentsView as a fallback or initial state
+                noMomentsView
             }
-            .frame(width: geometry.size.width)
-            .frame(minHeight: geometry.size.height)
         }
-        .edgesIgnoringSafeArea(.bottom)
+    }
+    
+    // View for when photo access is denied
+    private var photoAccessDeniedView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            Text("Photo Library Access Required")
+                .font(.title2)
+                .bold()
+                .multilineTextAlignment(.center)
+            
+            Text("To help you organize and clean your photo library, we need permission to access your photos.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 32)
+            
+            Button(action: {
+                // Attempt to open app settings
+                if let url = URL(string: UIApplication.openSettingsURLString), UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url)
+                }
+            }) {
+                Text("Open Settings")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(UIColor.systemBackground))
+                    .foregroundColor(.primary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.primary, lineWidth: 1)
+                    )
+                    .cornerRadius(16)
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 16)
+        }
+        .padding(32)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(24)
+        .padding(24) // Outer padding to match PhotoGroupView style
+    }
+
+    // View for when no photos are available in the library
+    private var noPhotosAvailableView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "photo.stack") // Different icon for no photos
+                .font(.system(size: 60)) // Standardized size
+                .foregroundColor(.secondary)
+            
+            Text("No Photos Found")
+                .font(.title2) // Standardized font
+                .fontWeight(.bold)
+            
+            Text("Your photo library appears to be empty. Add some photos to get started!")
+                .font(.subheadline) // Standardized font
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 32) // Standardized padding
+                .frame(maxWidth: 600)
+        }
+        .padding(32) // Inner card padding
+        .background(Color.secondary.opacity(0.1)) // Card background
+        .cornerRadius(24) // Card corners
+        .padding(24) // Outer padding for the card
+    }
+    
+    // Renamed original empty state view for clarity
+    private var noMomentsView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 60)) // Standardized size
+                .foregroundColor(.secondary)
+            
+            Text("No Moments Yet")
+                .font(.title2) // Standardized font
+                .fontWeight(.bold)
+            
+            Text("Generate Moments by Cln. to organize your photos automatically")
+                .font(.subheadline) // Standardized font
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 32) // Standardized padding
+                .frame(maxWidth: 600)
+            
+            Button(action: {
+                Task {
+                    await viewModel.processEntireLibrary()
+                }
+            }) {
+                Text("Create Moments by Cln.")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity) // Make text take available width
+                    .padding() // Standard padding around text
+                    .background(Color.primary) // Adaptive black/white background
+                    .foregroundColor(Color(UIColor.systemBackground)) // Adaptive white/black text
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+            }
+            .contentShape(Rectangle())
+            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, 32) // Horizontal padding for the button's position
+            .padding(.top, 24)
+        }
+        .padding(32) // Inner card padding
+        .background(Color.secondary.opacity(0.1)) // Card background
+        .cornerRadius(24) // Card corners
+        .padding(24) // Outer padding for the card
     }
     
     // Load more button
