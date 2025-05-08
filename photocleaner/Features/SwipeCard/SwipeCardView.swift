@@ -66,28 +66,28 @@ struct SwipeCardView: View {
                     // Left side gradient (for Keep) - Radial gradient for smoother fade
                     ZStack {
                         RadialGradient(
-                            gradient: Gradient(colors: [Color.green.opacity(0.4), Color.green.opacity(0.2), Color.clear]),
+                            gradient: Gradient(colors: [Color.green.opacity(0.7), Color.green.opacity(0.5), Color.clear]),
                             center: .leading,
                             startRadius: 5,
-                            endRadius: geometry.size.width * 0.7
+                            endRadius: geometry.size.width * 0.8
                         )
                         .frame(width: geometry.size.width / 1.6, height: geometry.size.height)
                         .position(x: geometry.size.width * 0.2, y: geometry.size.height / 2)
-                        .opacity(viewModel.offset.width > 30 ? min(viewModel.offset.width / 200, 0.9) : 0)
+                        .opacity(viewModel.offset.width > 30 ? min(viewModel.offset.width / 200, 1.0) : 0)
                     }
                     .animation(.easeOut(duration: 0.2), value: viewModel.offset.width)
                     
                     // Right side gradient (for Delete) - Radial gradient for smoother fade
                     ZStack {
                         RadialGradient(
-                            gradient: Gradient(colors: [Color(red: 0.55, green: 0.35, blue: 0.98).opacity(0.4), Color(red: 0.55, green: 0.35, blue: 0.98).opacity(0.2), Color.clear]),
+                            gradient: Gradient(colors: [Color(red: 0.55, green: 0.35, blue: 0.98).opacity(0.7), Color(red: 0.55, green: 0.35, blue: 0.98).opacity(0.5), Color.clear]),
                             center: .trailing,
                             startRadius: 5,
-                            endRadius: geometry.size.width * 0.7
+                            endRadius: geometry.size.width * 0.8
                         )
                         .frame(width: geometry.size.width / 1.6, height: geometry.size.height)
                         .position(x: geometry.size.width * 0.8, y: geometry.size.height / 2)
-                        .opacity(viewModel.offset.width < -30 ? min(abs(viewModel.offset.width) / 200, 0.9) : 0)
+                        .opacity(viewModel.offset.width < -30 ? min(abs(viewModel.offset.width) / 200, 1.0) : 0)
                     }
                     .animation(.easeOut(duration: 0.2), value: viewModel.offset.width)
                     
