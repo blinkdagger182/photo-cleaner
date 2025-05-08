@@ -7,6 +7,7 @@ struct PhotoGroupView: View {
     @EnvironmentObject var toast: ToastService
     @EnvironmentObject var photoManager: PhotoManager
     @State private var showPermissionDeniedAlert = false
+    @State private var isRefreshing = false
     
     // Track scroll offset for banner dismissal
     @State private var scrollPosition: CGFloat = 0
@@ -156,6 +157,9 @@ struct PhotoGroupView: View {
                 }
                 .scrollIndicators(.hidden)
                 .coordinateSpace(name: "scrollView")
+                .refreshable {
+                    await refreshPhotos()
+                }
                 .blur(radius: isPhotoAccessDenied ? 8 : 0)
                 .overlay {
                     if isPhotoAccessDenied {
@@ -182,6 +186,16 @@ struct PhotoGroupView: View {
         } message: {
             Text("This app needs access to your photos to help you organize and clean your library. Please enable access in Settings.")
         }
+    }
+
+    private func refreshPhotos() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        
+        await viewModel.refreshPhotoLibrary()
+        
+        // Show toast notification
+        toast.show("Photo library refreshed", type: .success)
     }
 
     private var isPhotoAccessDenied: Bool {

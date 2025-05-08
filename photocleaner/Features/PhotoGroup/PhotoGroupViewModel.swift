@@ -71,4 +71,10 @@ class PhotoGroupViewModel: ObservableObject {
     func refreshData() async {
         await photoManager.refreshAllPhotoGroups()
     }
+    
+    /// Refreshes photo library data by reloading all photo groups
+    /// Used for pull-to-refresh functionality
+    func refreshPhotoLibrary() async {
+        await photoManager.refreshAllPhotoGroups()
+    }
 } 
