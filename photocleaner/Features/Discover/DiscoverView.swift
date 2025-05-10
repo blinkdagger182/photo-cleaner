@@ -79,12 +79,17 @@ struct DiscoverView: View {
             .onAppear {
                 connectToastService()
                 
-                // Only load data when view appears for the first time
+                // Only check for existing albums, don't automatically load
                 if isInitializing {
-                    viewModel.loadAlbums()
-                    
-                    // Mark initialization as complete
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // Check if we have any existing albums
+                    if viewModel.photoGroups.isEmpty {
+                        // No albums exist, show empty state
+                        withAnimation {
+                            isInitializing = false
+                        }
+                    } else {
+                        // We have existing albums, just display them
+                        viewModel.updateUIWithPhotoGroups(viewModel.photoGroups)
                         withAnimation {
                             isInitializing = false
                         }

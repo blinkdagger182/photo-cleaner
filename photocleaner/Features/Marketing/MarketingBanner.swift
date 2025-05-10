@@ -212,15 +212,10 @@ struct PremiumAlertBanner: View {
     
     private var bannerContent: some View {
         VStack(spacing: 12) {
-            Button(action: {
-                onDismiss()
-                onTap()
-            }) {
-                Image("plus_feature_banner")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: .infinity)
-            }
+            Image("plus_feature_banner")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: .infinity)
 
             Button(action: {
                 onDismiss()

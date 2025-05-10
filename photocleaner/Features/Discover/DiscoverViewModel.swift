@@ -130,11 +130,7 @@ class DiscoverViewModel: ObservableObject {
         // Set up batch processing subscribers
         setupBatchProcessingSubscribers()
         
-        // Remove automatic processing at initialization to improve startup time
-        // The processing will be triggered when loadAlbums is called
-        
         // Initialize photo access status and library emptiness
-        // Call this on the main actor as it updates published properties
         Task { @MainActor in
             self.updatePhotoLibraryAccessInfo()
         }
@@ -266,7 +262,7 @@ class DiscoverViewModel: ObservableObject {
             self?.updatePhotoLibraryAccessInfo() // Update status when loading albums
         }
         
-        // Check if we need to process the library
+        // Only process the library if explicitly requested or if we have no data
         if photoGroups.isEmpty || forceRefresh {
             Task { @MainActor in
                 await processEntireLibrary()
