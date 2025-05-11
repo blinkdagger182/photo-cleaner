@@ -435,8 +435,6 @@ struct SwipeCardView: View {
                             }
                             .padding(.vertical, 6)
                             .padding(.horizontal, 10)
-                            .background(Color(.systemGroupedBackground).opacity(0.8))
-                            .cornerRadius(8)
                             .contentShape(Rectangle()) // Makes the entire area tappable
                             .buttonStyle(.plain)
                         }
@@ -550,13 +548,19 @@ struct SwipeCardView: View {
                 DeletePreviewView(forceRefresh: $forceRefresh, onDeletionComplete: { result in
                     // Handle the deletion result by showing the memory saved modal
                     if result.success {
-                        self.memorySavedMB = result.memorySavedMB
-                        self.totalMemoryMB = result.totalMemoryMB
-                        self.showMemorySavedModal = true
+                        // Add a small delay to ensure smooth transition
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            self.memorySavedMB = result.memorySavedMB
+                            self.totalMemoryMB = result.totalMemoryMB
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                self.showMemorySavedModal = true
+                            }
+                        }
                     }
                 })
                     .environmentObject(photoManager)
                     .environmentObject(toast)
+                    .transition(.move(edge: .bottom))
             }
             .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView()

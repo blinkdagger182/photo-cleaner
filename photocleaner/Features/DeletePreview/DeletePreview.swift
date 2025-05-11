@@ -390,11 +390,8 @@ struct DeletePreviewView: View {
                     isDeleting = false
                     deletionComplete = true
                     
-                    // We'll play the sound in MemorySavedModal instead
-                    // SoundManager.shared.playSound(named: "air-whoosh")
-                    
                     // Delay to allow completion animation to be visible
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                         // Create deletion result to pass back to parent
                         let result = DeletionResult(
                             success: true,
@@ -402,8 +399,10 @@ struct DeletePreviewView: View {
                             totalMemoryMB: totalStorageSpace
                         )
                         
-                        // Dismiss this view
-                        dismiss()
+                        // Dismiss this view with animation
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            dismiss()
+                        }
                         forceRefresh.toggle()
                         
                         // Pass result back to parent view
