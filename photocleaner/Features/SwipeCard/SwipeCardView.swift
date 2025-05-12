@@ -41,18 +41,34 @@ struct SwipeCardView: View {
     @State private var flyOffLabelOffset: CGSize = .zero
     @State private var flyOffLabelRotation: Angle = .zero
     @State private var flyOffLabelOpacity: Double = 0.0
+    
+    // High-quality first image from cache
+    @State private var highQualityFirstImage: UIImage?
 
     init(group: PhotoGroup, forceRefresh: Binding<Bool>, initialThumbnail: UIImage? = nil, isDiscoverTab: Bool = false) {
         self.group = group
         self._forceRefresh = forceRefresh
         self.initialThumbnail = initialThumbnail
         self.isDiscoverTab = isDiscoverTab
+        
+        // Check if we have a high-quality cached first image
+        let cachedImage = AlbumHighQualityCache.shared.getCachedFirstImage(for: group)
+        
+        // Use the best available image for initialization
+        let bestInitialImage = cachedImage ?? initialThumbnail
+        
         // Initialize the ViewModel with the group, image view tracker, and discover tab flag
         self._viewModel = StateObject(wrappedValue: SwipeCardViewModel(
             group: group, 
             imageViewTracker: ImageViewTracker.shared,
-            isDiscoverTab: isDiscoverTab
+            isDiscoverTab: isDiscoverTab,
+            initialHighQualityImage: bestInitialImage
         ))
+        
+        // If we don't have a cached high-quality image yet, start loading it
+        if cachedImage == nil {
+            AlbumHighQualityCache.shared.cacheFirstImage(for: group)
+        }
     }
     
     var body: some View {

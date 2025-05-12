@@ -15,6 +15,11 @@ struct PhotoGroupView: View {
     @State private var scrollDirectionDown = false
     var onScroll: ((CGFloat) -> Void)? = nil
     
+    // State for navigation to SwipeCardView
+    @State private var selectedGroup: PhotoGroup? = nil
+    @State private var isShowingSwipeCard = false
+    @State private var albumCoverImage: UIImage? = nil
+    
     init(photoManager: PhotoManager, onScroll: ((CGFloat) -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: PhotoGroupViewModel(photoManager: photoManager))
         self.onScroll = onScroll
@@ -27,184 +32,157 @@ struct PhotoGroupView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                ScrollView {
-                    ScrollDetector(
-                        yOffset: $scrollPosition,
-                        onScrollDirectionChanged: { isScrollingDown in
-                            // When scrolling down, notify parent
-                            if isScrollingDown {
-                                print("Scrolling DOWN")
-                                onScroll?(-20)
-                            } else {
-                                print("Scrolling UP")
-                                onScroll?(20)
-                            }
-                        }
-                    )
-                    
-                    VStack(spacing: 0) {
-                        HStack(alignment: .center) {
-                            // 🟨 Left: Banner text + buttons
-                            if viewModel.authorizationStatus == .limited {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("You're viewing only selected photos.")
-                                        .font(.subheadline)
-                                        .foregroundColor(.primary)
-
-                                    Button("Add More Photos") {
-                                        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                                           let root = scene.windows.first?.rootViewController {
-                                            viewModel.openPhotoLibraryPicker(from: root)
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-
-                                    Button("Go to Settings to Allow Full Access") {
-                                        viewModel.openSettings()
-                                    }
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.yellow.opacity(0.1))
-                                .cornerRadius(12)
-                            }
-                        }
-                        .padding(.top, 16)
-                        .padding(.horizontal, 16)
-
-                        // 🔄 Top Row: Picker and cln. logo
-                        HStack(alignment: .bottom) {
-                            Picker("View Mode", selection: $viewModel.viewByYear) {
-                                Text("By Month").tag(true)
-                                Text("My Albums").tag(false)
-                            }
-                            .pickerStyle(.segmented)
-                            .frame(maxWidth: .infinity)
-
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 12)
-                        .padding(.bottom, 8)
-
-                        // 📅 Main content
-                        VStack(alignment: .leading, spacing: 20) {
-                            if viewModel.viewByYear {
-                                if viewModel.yearGroups.isEmpty {
-                                    noPhotosView
-                                } else {
-                                    ForEach(viewModel.yearGroups) { yearGroup in
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            Text("\(yearGroup.year)")
-                                                .font(.title)
-                                                .bold()
-                                                .padding(.horizontal)
-
-                                            LazyVGrid(columns: columns, spacing: 16) {
-                                                ForEach(yearGroup.months, id: \.id) { group in
-                                                    Button {
-                                                        viewModel.updateSelectedGroup(group)
-                                                    } label: {
-                                                        AlbumCell(group: group)
-                                                    }
-                                                    .buttonStyle(ScaleButtonStyle())
-                                                }
-                                            }
-                                            .padding(.horizontal)
-                                        }
-                                    }
-                                }
-                            } else {
-                                VStack(alignment: .leading, spacing: 16) {
-                                    sectionHeader(title: "My Albums")
-                                    
-                                    // Debug view to print album names
-                                    Color.clear
-                                        .frame(width: 0, height: 0)
-                                        .onAppear {
-                                            print("DEBUG: Available albums:")
-                                            for group in viewModel.photoGroups {
-                                                print("- \(group.title) (\(group.count) photos)")
-                                            }
-                                        }
-                                    
-                                    let filteredGroups = viewModel.photoGroups.filter { $0.title == "Maybe?" }
-                                    
-                                    if filteredGroups.isEmpty {
-                                        noPhotosView
-                                    } else {
-                                        LazyVGrid(columns: columns, spacing: 20) {
-                                            ForEach(filteredGroups, id: \.id) { group in
-                                                Button {
-                                                    viewModel.updateSelectedGroup(group)
-                                                } label: {
-                                                    AlbumCell(group: group)
-                                                }
-                                                .buttonStyle(ScaleButtonStyle())
-                                            }
-                                        }
+            ScrollView {
+                if viewModel.authorizationStatus == .denied {
+                    PermissionDeniedView(onRequestAccess: {
+                        viewModel.openPhotoLibraryPicker(from: UIApplication.shared.windows.first!.rootViewController!)
+                    }, onOpenSettings: {
+                        viewModel.openSettings()
+                    })
+                } else if viewModel.authorizationStatus == .limited {
+                    PhotoGroupLimitedAccessView(onRequestAccess: {
+                        viewModel.openPhotoLibraryPicker(from: UIApplication.shared.windows.first!.rootViewController!)
+                    })
+                } else if viewModel.yearGroups.isEmpty {
+                    VStack {
+                        Spacer()
+                        Text("No photos found")
+                            .font(.title)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if viewModel.viewByYear {
+                            ForEach(viewModel.yearGroups, id: \.id) { yearGroup in
+                                VStack(alignment: .leading) {
+                                    Text("\(yearGroup.year)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
                                         .padding(.horizontal)
+                                    
+                                    LazyVGrid(columns: columns, spacing: 16) {
+                                        ForEach(yearGroup.months, id: \.id) { group in
+                                            Button {
+                                                // Check for high-quality cached image first
+                                                let cachedImage = AlbumHighQualityCache.shared.getCachedFirstImage(for: group)
+                                                
+                                                // If we have a cached image, use it directly
+                                                if let cachedImage = cachedImage {
+                                                    viewModel.updateSelectedGroup(group)
+                                                    selectedGroup = group
+                                                    albumCoverImage = cachedImage
+                                                    isShowingSwipeCard = true
+                                                } else {
+                                                    // If no cached image, use the high-priority loading method
+                                                    // This ensures we get the best quality image as quickly as possible
+                                                    AlbumHighQualityCache.shared.preloadFirstImageWithHighPriority(for: group) { image in
+                                                        viewModel.updateSelectedGroup(group)
+                                                        selectedGroup = group
+                                                        albumCoverImage = image
+                                                        isShowingSwipeCard = true
+                                                    }
+                                                }
+                                            } label: {
+                                                AlbumCell(group: group, viewModel: viewModel)
+                                            }
+                                            .buttonStyle(ScaleButtonStyle())
+                                        }
                                     }
-
-                                    Spacer(minLength: 40)
+                                    .padding(.horizontal)
                                 }
                             }
+                        } else {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(viewModel.photoGroups, id: \.id) { group in
+                                    Button {
+                                        // Check for high-quality cached image first
+                                        let cachedImage = AlbumHighQualityCache.shared.getCachedFirstImage(for: group)
+                                        
+                                        // If we have a cached image, use it directly
+                                        if let cachedImage = cachedImage {
+                                            viewModel.updateSelectedGroup(group)
+                                            selectedGroup = group
+                                            albumCoverImage = cachedImage
+                                            isShowingSwipeCard = true
+                                        } else {
+                                            // If no cached image, use the high-priority loading method
+                                            // This ensures we get the best quality image as quickly as possible
+                                            AlbumHighQualityCache.shared.preloadFirstImageWithHighPriority(for: group) { image in
+                                                viewModel.updateSelectedGroup(group)
+                                                selectedGroup = group
+                                                albumCoverImage = image
+                                                isShowingSwipeCard = true
+                                            }
+                                        }
+                                    } label: {
+                                        AlbumCell(group: group, viewModel: viewModel)
+                                    }
+                                    .buttonStyle(ScaleButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal)
                         }
                     }
-                    .padding(.bottom, 20)
+                    .padding(.vertical)
+                    .background(GeometryReader { proxy -> Color in
+                        DispatchQueue.main.async {
+                            scrollPosition = proxy.frame(in: .named("scroll")).minY
+                            scrollDirectionDown = scrollPosition > previousScrollPosition
+                            previousScrollPosition = scrollPosition
+                            onScroll?(scrollPosition)
+                        }
+                        return Color.clear
+                    })
                 }
-                .scrollIndicators(.hidden)
-                .coordinateSpace(name: "scrollView")
-                .refreshable {
-                    await refreshPhotos()
-                }
-                .blur(radius: isPhotoAccessDenied ? 8 : 0)
-                .overlay {
-                    if isPhotoAccessDenied {
-                        photoAccessDeniedView
+            }
+            .coordinateSpace(name: "scroll")
+            .refreshable {
+                isRefreshing = true
+                await viewModel.refreshPhotoLibrary()
+                isRefreshing = false
+            }
+            .navigationTitle("Albums")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        withAnimation {
+                            viewModel.toggleViewMode()
+                        }
+                    } label: {
+                        Image(systemName: viewModel.viewByYear ? "rectangle.grid.1x2" : "rectangle.stack")
+                            .imageScale(.large)
                     }
                 }
             }
-        }
-        .sheet(item: $viewModel.selectedGroup) { group in
-            SwipeCardView(group: group, forceRefresh: $viewModel.shouldForceRefresh)
-                .onAppear {
-                    print("\u{1F4E4} Showing SwipeCardView for:", group.title, "Asset count:", group.count)
-                }
-                .environmentObject(photoManager)
-                .environmentObject(toast)
-        }
-        .alert("Photo Access Required", isPresented: $showPermissionDeniedAlert) {
-            Button("Open Settings") {
-                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(settingsURL)
+            .onAppear {
+                viewModel.triggerFadeInAnimation()
+                
+                // Pre-cache first images for all albums when the view appears
+                Task {
+                    await photoManager.preCacheFirstImages()
                 }
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This app needs access to your photos to help you organize and clean your library. Please enable access in Settings.")
+            .sheet(isPresented: $isShowingSwipeCard) {
+                if let group = selectedGroup {
+                    SwipeCardView(
+                        group: group,
+                        forceRefresh: $viewModel.shouldForceRefresh,
+                        initialThumbnail: albumCoverImage
+                    )
+                    .environmentObject(photoManager)
+                    .environmentObject(toast)
+                }
+            }
         }
     }
+}
 
-    private func refreshPhotos() async {
-        isRefreshing = true
-        defer { isRefreshing = false }
-        
-        await viewModel.refreshPhotoLibrary()
-        
-        // Show toast notification
-        toast.show("Photo library refreshed", type: .success)
-    }
-
-    private var isPhotoAccessDenied: Bool {
-        photoManager.authorizationStatus == .denied ||
-        photoManager.authorizationStatus == .restricted ||
-        photoManager.authorizationStatus == .notDetermined
-    }
+struct PermissionDeniedView: View {
+    let onRequestAccess: () -> Void
+    let onOpenSettings: () -> Void
     
-    private var photoAccessDeniedView: some View {
+    var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "lock.fill")
                 .font(.system(size: 60))
@@ -212,7 +190,7 @@ struct PhotoGroupView: View {
             
             Text("Photo Library Access Required")
                 .font(.title2)
-                .bold()
+                .fontWeight(.bold)
                 .multilineTextAlignment(.center)
             
             Text("To help you organize and clean your photo library, we need permission to access your photos.")
@@ -220,7 +198,7 @@ struct PhotoGroupView: View {
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 32)
             
-            Button(action: requestPhotoAccess) {
+            Button(action: onRequestAccess) {
                 Text("Allow Access")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
@@ -235,59 +213,47 @@ struct PhotoGroupView: View {
             }
             .padding(.horizontal, 32)
             .padding(.top, 16)
+            
+            Button(action: onOpenSettings) {
+                Text("Open Settings")
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
+            .padding(.top, 8)
         }
         .padding(32)
         .background(Color.secondary.opacity(0.1))
         .cornerRadius(24)
         .padding(24)
     }
+}
+
+struct PhotoGroupLimitedAccessView: View {
+    let onRequestAccess: () -> Void
     
-    private func requestPhotoAccess() {
-        Task {
-            if photoManager.authorizationStatus == .notDetermined {
-                await photoManager.requestAuthorization()
-                
-                // Show settings alert if permission was denied
-                if photoManager.authorizationStatus == .denied ||
-                   photoManager.authorizationStatus == .restricted {
-                    showPermissionDeniedAlert = true
-                }
-            } else {
-                // If already denied or restricted, show settings alert
-                showPermissionDeniedAlert = true
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("You're viewing only selected photos.")
+                .font(.subheadline)
+                .foregroundColor(.primary)
+
+            Button("Add More Photos") {
+                onRequestAccess()
             }
-        }
-    }
-
-    private func sectionHeader(title: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.title2)
-                .bold()
-            Spacer()
-        }
-        .padding(.horizontal)
-    }
-
-    private var noPhotosView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 60))
-                .foregroundColor(.secondary)
-            
-            Text("No photos here")
-                .font(.title3)
-                .foregroundColor(.secondary)
+            .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
+        .padding()
+        .background(Color.yellow.opacity(0.1))
+        .cornerRadius(12)
+        .padding()
     }
 }
 
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -295,6 +261,12 @@ struct ScaleButtonStyle: ButtonStyle {
 struct AlbumCell: View {
     let group: PhotoGroup
     @State private var thumbnail: UIImage?
+    let viewModel: PhotoGroupViewModel
+    
+    init(group: PhotoGroup, viewModel: PhotoGroupViewModel) {
+        self.group = group
+        self.viewModel = viewModel
+    }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -327,47 +299,51 @@ struct AlbumCell: View {
     }
 
     private func loadThumbnail() async {
-        guard group.count > 0 else { return }
-
-        let key = "LastViewedIndex_\(group.id.uuidString)"
-        let savedIndex = UserDefaults.standard.integer(forKey: key)
-        let safeIndex = min(savedIndex, group.count - 1)
-        guard let asset = group.asset(at: safeIndex) else { return }
-
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.resizeMode = .exact
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
-
-        let size = CGSize(width: 600, height: 600)
-        
-        // Track if we've already resumed to prevent multiple resumes
-        var hasResumed = false
-
-        thumbnail = await withCheckedContinuation { continuation in
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: size,
-                contentMode: .aspectFill,
-                options: options
-            ) { image, info in
-                // Guard against multiple resume calls
-                guard !hasResumed else { return }
+        do {
+            // First check if we have a high-quality cached image
+            // Use try-catch for error handling
+            if let cachedImage = try? AlbumHighQualityCache.shared.getCachedFirstImage(for: group) {
+                await MainActor.run {
+                    self.thumbnail = cachedImage
+                }
+                return
+            }
+            
+            // Otherwise load the thumbnail as before
+            if let asset = group.thumbnailAsset {
+                let options = PHImageRequestOptions()
+                options.deliveryMode = .opportunistic
+                options.resizeMode = .fast
+                options.isNetworkAccessAllowed = true
                 
-                // Check for cancellation or errors
-                let cancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
-                let hasError = (info?[PHImageErrorKey] != nil)
+                let size = CGSize(width: 300, height: 300)
                 
-                if cancelled || hasError {
-                    // PHImageManager will call again with the final result
-                    return
+                let result = await withCheckedContinuation { continuation in
+                    // Add a flag to ensure continuation is only resumed once
+                    var hasResumed = false
+                    
+                    PHImageManager.default().requestImage(
+                        for: asset,
+                        targetSize: size,
+                        contentMode: .aspectFill,
+                        options: options
+                    ) { image, _ in
+                        // Only resume if we haven't already
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume(returning: image)
+                        }
+                    }
                 }
                 
-                // Mark as resumed and return the image
-                hasResumed = true
-                continuation.resume(returning: image)
+                if let result = result {
+                    await MainActor.run {
+                        self.thumbnail = result
+                    }
+                }
             }
+        } catch {
+            print("Error loading thumbnail: \(error)")
         }
     }
 }

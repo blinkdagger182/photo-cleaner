@@ -546,16 +546,104 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         addAsset(asset, toAlbumNamed: "Maybe?")
     }
 
+    /// Refreshes all photo groups
+    @MainActor
     func refreshAllPhotoGroups() async {
-        async let system = fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Maybe?"])
-        async let yearGroups = fetchPhotoGroupsByYearAndMonth()
-
-        let systemResult = await system
-        let yearResult = await yearGroups
-
+        // Throttle reloads to prevent excessive refreshes
+        let now = Date()
+        if now.timeIntervalSince(lastReloadTime) < reloadThrottleInterval {
+            return
+        }
+        lastReloadTime = now
+        
+        // Fetch photo groups by year and month
+        let newYearGroups = await fetchPhotoGroupsByYearAndMonth()
+        
+        // Update published properties on main thread
         await MainActor.run {
-            self.photoGroups = systemResult
-            self.yearGroups = yearResult
+            self.yearGroups = newYearGroups
+            
+            // Flatten year groups into a single array of photo groups
+            var allPhotoGroups: [PhotoGroup] = []
+            for yearGroup in newYearGroups {
+                allPhotoGroups.append(contentsOf: yearGroup.months)
+            }
+            self.photoGroups = allPhotoGroups
+            
+            // Pre-cache high-quality first images for all photo groups
+            // This ensures we have high-quality first images ready when the user selects an album
+            Task {
+                await self.preCacheFirstImages()
+            }
+        }
+    }
+    
+    /// Pre-caches high-quality first images for all photo groups
+    @MainActor
+    func preCacheFirstImages() async {
+        // Get all photo groups
+        let allGroups = photoGroups
+        
+        // Prioritize groups with more recent view dates
+        let sortedGroups = allGroups.sorted { group1, group2 in
+            // Get last viewed index as a proxy for recency
+            let index1 = loadLastViewedIndex(for: group1.id)
+            let index2 = loadLastViewedIndex(for: group2.id)
+            
+            // Groups with higher indices (more recently viewed) come first
+            return index1 > index2
+        }
+        
+        // Limit the number of groups to pre-cache to avoid excessive memory usage
+        let groupsToCache = Array(sortedGroups.prefix(10))
+        
+        // Pre-cache first images in high quality
+        AlbumHighQualityCache.shared.cacheFirstImages(for: groupsToCache)
+    }
+    
+    /// Fetches a high-quality album cover image for the given group
+    /// Uses the AlbumHighQualityCache for faster loading
+    func fetchAlbumCoverImage(for group: PhotoGroup, completion: @escaping (UIImage?) -> Void) {
+        guard group.count > 0 else {
+            completion(nil)
+            return
+        }
+        
+        // First, check if we have a high-quality cached version
+        if let cachedImage = AlbumHighQualityCache.shared.getCachedFirstImage(for: group) {
+            completion(cachedImage)
+            return
+        }
+
+        let key = "LastViewedIndex_\(group.id.uuidString)"
+        let savedIndex = UserDefaults.standard.integer(forKey: key)
+        let safeIndex = min(savedIndex, group.count - 1)
+        
+        guard let asset = group.asset(at: safeIndex) else {
+            completion(nil)
+            return
+        }
+
+        // If we're requesting the first image, use the high-quality cache
+        if safeIndex == 0 {
+            AlbumHighQualityCache.shared.cacheFirstImage(for: group, completion: completion)
+            return
+        }
+        
+        // For non-first images, use the original implementation
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+
+        PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: CGSize(width: 600, height: 600),
+            contentMode: .aspectFill,
+            options: options
+        ) { image, _ in
+            completion(image)
         }
     }
 
@@ -655,36 +743,6 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         // This method exists to provide a consistent API alongside markForDeletion and bookmarkAsset
     }
 
-    func fetchAlbumCoverImage(for group: PhotoGroup, completion: @escaping (UIImage?) -> Void) {
-        guard group.count > 0 else {
-            completion(nil)
-            return
-        }
-
-        let key = "LastViewedIndex_\(group.id.uuidString)"
-        let savedIndex = UserDefaults.standard.integer(forKey: key)
-        let safeIndex = min(savedIndex, group.count - 1)
-        
-        guard let asset = group.asset(at: safeIndex) else {
-            completion(nil)
-            return
-        }
-
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.resizeMode = .exact
-        options.isNetworkAccessAllowed = true
-        options.isSynchronous = false
-
-        PHImageManager.default().requestImage(
-            for: asset,
-            targetSize: CGSize(width: 600, height: 600),
-            contentMode: .aspectFill,
-            options: options
-        ) { image, _ in
-            completion(image)
-        }
-    }
     func handleLeftSwipe(asset: PHAsset, monthDate: Date?) async {
         isPerformingInternalChange = true // Set flag before operation
         self.markForDeletion(asset)

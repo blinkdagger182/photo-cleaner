@@ -178,7 +178,7 @@ struct LimitedAccessView: View {
                     let group = viewModel.createPhotoGroup(with: photoManager.allAssets)
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        AlbumCell(group: group)
+                        LimitedAccessAlbumCell(group: group, viewModel: viewModel)
                             .onTapGesture {
                                 viewModel.selectedGroup = group
                             }
@@ -230,5 +230,96 @@ class LimitedAccessViewModel: ObservableObject {
             title: "Selected Photos",
             monthDate: nil
         )
+    }
+}
+
+// Add a specialized AlbumCell for LimitedAccessView after the LimitedAccessViewModel class
+struct LimitedAccessAlbumCell: View {
+    let group: PhotoGroup
+    @State private var thumbnail: UIImage?
+    let viewModel: LimitedAccessViewModel
+    
+    init(group: PhotoGroup, viewModel: LimitedAccessViewModel) {
+        self.group = group
+        self.viewModel = viewModel
+    }
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            ZStack {
+                if let thumbnail = thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color.gray.opacity(0.1)
+                    ProgressView()
+                }
+            }
+            .frame(width: UIScreen.main.bounds.width / 2 - 30, height: 120)
+            .clipped()
+            .cornerRadius(8)
+
+            Text(group.title)
+                .font(.subheadline)
+                .lineLimit(1)
+
+            Text("\(group.count)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(width: UIScreen.main.bounds.width / 2 - 30, alignment: .leading)
+        .task {
+            await loadThumbnail()
+        }
+    }
+
+    private func loadThumbnail() async {
+        do {
+            // First check if we have a high-quality cached image
+            // Use try-catch for error handling
+            if let cachedImage = try? AlbumHighQualityCache.shared.getCachedFirstImage(for: group) {
+                await MainActor.run {
+                    self.thumbnail = cachedImage
+                }
+                return
+            }
+            
+            // Otherwise load the thumbnail as before
+            if let asset = group.thumbnailAsset {
+                let options = PHImageRequestOptions()
+                options.deliveryMode = .opportunistic
+                options.resizeMode = .fast
+                options.isNetworkAccessAllowed = true
+                
+                let size = CGSize(width: 300, height: 300)
+                
+                let result = await withCheckedContinuation { continuation in
+                    // Add a flag to ensure continuation is only resumed once
+                    var hasResumed = false
+                    
+                    PHImageManager.default().requestImage(
+                        for: asset,
+                        targetSize: size,
+                        contentMode: .aspectFill,
+                        options: options
+                    ) { image, _ in
+                        // Only resume if we haven't already
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume(returning: image)
+                        }
+                    }
+                }
+                
+                if let result = result {
+                    await MainActor.run {
+                        self.thumbnail = result
+                    }
+                }
+            }
+        } catch {
+            print("Error loading thumbnail: \(error)")
+        }
     }
 }

@@ -33,9 +33,21 @@ struct photocleanerApp: App {
                             let apiKey = "appl_SAJcTFqLeBLEYlRIVBtSSPDBJRe"
                             subscriptionManager.configure(apiKey: apiKey)
                             
+                            // Initialize the high-quality album cache
+                            _ = AlbumHighQualityCache.shared
+                            print("📸 Initialized AlbumHighQualityCache")
+                            
                             await updateService.checkAppVersion()
                             await photoManager.checkCurrentStatus()
                             await subscriptionManager.checkSubscriptionStatus()
+                            
+                            // Pre-cache first images for all albums when the app starts
+                            if photoManager.authorizationStatus == .authorized || 
+                               photoManager.authorizationStatus == .limited {
+                                Task {
+                                    await photoManager.preCacheFirstImages()
+                                }
+                            }
                         }
                 } else {
                     OnboardingView()

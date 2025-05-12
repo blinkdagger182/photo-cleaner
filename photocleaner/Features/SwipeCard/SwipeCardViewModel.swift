@@ -49,14 +49,18 @@ class SwipeCardViewModel: ObservableObject {
     // Add a reference to the forceRefresh binding
     var forceRefreshCallback: (() -> Void)?
     
+    // Initial high-quality image for first card
+    private var initialHighQualityImage: UIImage?
+    
     // MARK: - Initialization
-    init(group: PhotoGroup, photoManager: PhotoManager? = nil, toast: ToastService? = nil, imageViewTracker: ImageViewTracker? = nil, isDiscoverTab: Bool = false) {
+    init(group: PhotoGroup, photoManager: PhotoManager? = nil, toast: ToastService? = nil, imageViewTracker: ImageViewTracker? = nil, isDiscoverTab: Bool = false, initialHighQualityImage: UIImage? = nil) {
         self.group = group
         self.photoManager = photoManager
         self.toast = toast
         self.imageViewTracker = imageViewTracker
         self.isDiscoverTab = isDiscoverTab
         self.discoverSwipeTracker = isDiscoverTab ? DiscoverSwipeTracker.shared : nil
+        self.initialHighQualityImage = initialHighQualityImage
         
         // Initialize currentIndex from saved value
         self.currentIndex = UserDefaults.standard.integer(
@@ -621,17 +625,45 @@ class SwipeCardViewModel: ObservableObject {
         Task {
             resetViewState()
             
-            // First, load thumbnails for the first few images
-            await loadImagesInRange(
-                from: currentIndex,
-                count: min(maxBufferSize, group.count - currentIndex),
-                quality: .thumbnail
-            )
+            // If we have an initial high-quality image, use it for the first card
+            if let initialImage = initialHighQualityImage, currentIndex == 0 {
+                await MainActor.run {
+                    // Make sure preloadedImages array has enough slots
+                    while preloadedImages.count <= currentIndex {
+                        preloadedImages.append(nil)
+                    }
+                    
+                    // Set the initial high-quality image
+                    preloadedImages[currentIndex] = initialImage
+                    highQualityImagesStatus[currentIndex] = true
+                    
+                    // Mark as loaded
+                    loadedCount = max(loadedCount, currentIndex + 1)
+                }
+            }
             
-            // Then load higher quality for current card and next few cards
+            // First, load thumbnails for the first few images (skip first if we already have it)
+            let startIndex = (initialHighQualityImage != nil && currentIndex == 0) ? 1 : currentIndex
+            let count = min(maxBufferSize, group.count - startIndex)
+            
+            if count > 0 {
+                await loadImagesInRange(
+                    from: startIndex,
+                    count: count,
+                    quality: .thumbnail
+                )
+            }
+            
+            // Then load higher quality for current card (if needed) and next few cards
             let preloadCount = min(highQualityPreloadCount, group.count - currentIndex)
             for i in 0..<preloadCount {
                 let index = currentIndex + i
+                
+                // Skip the first image if we already have a high-quality version
+                if index == currentIndex && initialHighQualityImage != nil && highQualityImagesStatus[index] == true {
+                    continue
+                }
+                
                 if index < group.count {
                     await loadImage(at: index, quality: .screen)
                 }
@@ -756,15 +788,39 @@ class SwipeCardViewModel: ObservableObject {
         // Set preloading flag to prevent unnecessary reloads
         photoManager.setPreloadingState(true)
         
-        // Keep only the current image, clear everything else
+        // Keep only the current image, next image, and previous image, clear everything else
         if !preloadedImages.isEmpty && currentIndex < preloadedImages.count {
+            // Save the current image
             let currentImage = preloadedImages[currentIndex]
+            
+            // Save the next image if available
+            let nextIndex = currentIndex + 1
+            let nextImage = nextIndex < preloadedImages.count ? preloadedImages[nextIndex] : nil
+            
+            // Save the previous image if available
+            let prevIndex = currentIndex - 1
+            let prevImage = prevIndex >= 0 && prevIndex < preloadedImages.count ? preloadedImages[prevIndex] : nil
+            
+            // Clear all images
             preloadedImages = Array(repeating: nil, count: preloadedImages.count)
             highQualityImagesStatus = [:]
             
+            // Restore the current image
             if currentIndex < preloadedImages.count {
                 preloadedImages[currentIndex] = currentImage
                 highQualityImagesStatus[currentIndex] = true
+            }
+            
+            // Restore the next image if available
+            if nextIndex < preloadedImages.count && nextImage != nil {
+                preloadedImages[nextIndex] = nextImage
+                highQualityImagesStatus[nextIndex] = true
+            }
+            
+            // Restore the previous image if available
+            if prevIndex >= 0 && prevIndex < preloadedImages.count && prevImage != nil {
+                preloadedImages[prevIndex] = prevImage
+                highQualityImagesStatus[prevIndex] = true
             }
         }
         
