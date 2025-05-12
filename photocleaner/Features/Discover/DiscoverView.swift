@@ -14,6 +14,9 @@ struct DiscoverView: View {
     @EnvironmentObject var toast: ToastService
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
+    // Add DiscoverSwipeTracker
+    @ObservedObject private var swipeTracker = DiscoverSwipeTracker.shared
+    
     // Add loading state
     @State private var isInitializing = true
     
@@ -116,8 +119,8 @@ struct DiscoverView: View {
             // Header
             headerView
             
-            // Premium banner for non-premium users
-            if !viewModel.showEmptyState && !SubscriptionManager.shared.isPremium {
+            // Premium banner for non-premium users - Only show when swipe count is 70 or higher
+            if !viewModel.showEmptyState && !SubscriptionManager.shared.isPremium && swipeTracker.swipeCount >= 70 {
                 DiscoverPromoBanner {
                     // Show paywall when banner is tapped
                     viewModel.showRCPaywall = true

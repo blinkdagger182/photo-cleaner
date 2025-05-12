@@ -614,7 +614,7 @@ struct SwipeCardView: View {
             .animation(.spring(), value: showMemorySavedModal)
             // Add swipe limit progress bar for non-premium users on discover tab - position above cards but below toolbar
             .overlay(alignment: .top) {
-                if isDiscoverTab && !subscriptionManager.isPremium, let tracker = viewModel.discoverSwipeTracker {
+                if isDiscoverTab && !subscriptionManager.isPremium, let tracker = viewModel.discoverSwipeTracker, tracker.swipeCount >= 70 {
                     VStack(spacing: 0) {
                         // Add sufficient top spacing to ensure it appears below the navigation bar
                         // but above the card content
