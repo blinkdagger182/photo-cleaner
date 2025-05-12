@@ -16,6 +16,17 @@ class PhotoGroupViewModel: ObservableObject {
     // MARK: - Private Properties
     private let photoManager: PhotoManager
     
+    // MARK: - Computed Properties
+    // This property filters photoGroups to only show the "Maybe?" album when in album view
+    var filteredPhotoGroups: [PhotoGroup] {
+        if viewByYear {
+            return photoGroups
+        } else {
+            // Only show the "Maybe?" album in the My Albums view
+            return photoGroups.filter { $0.title == "Maybe?" }
+        }
+    }
+    
     // MARK: - Initialization
     init(photoManager: PhotoManager) {
         self.photoManager = photoManager

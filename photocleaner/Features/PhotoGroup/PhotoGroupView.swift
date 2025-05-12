@@ -120,11 +120,11 @@ struct PhotoGroupView: View {
                                 VStack(alignment: .leading, spacing: 16) {
                                     sectionHeader(title: "My Albums")
                                     
-                                    if viewModel.photoGroups.isEmpty {
+                                    if viewModel.filteredPhotoGroups.isEmpty {
                                         noPhotosView
                                     } else {
                                         LazyVGrid(columns: columns, spacing: 20) {
-                                            ForEach(viewModel.photoGroups, id: \.id) { group in
+                                            ForEach(viewModel.filteredPhotoGroups, id: \.id) { group in
                                                 Button {
                                                     viewModel.updateSelectedGroup(group)
                                                 } label: {

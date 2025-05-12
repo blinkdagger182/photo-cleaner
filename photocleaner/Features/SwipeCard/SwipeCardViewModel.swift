@@ -546,6 +546,11 @@ class SwipeCardViewModel: ObservableObject {
         photoManager.bookmarkAsset(asset)
         photoManager.markForFavourite(asset)
         
+        // Ensure UI is refreshed to show updated Maybe? album
+        Task {
+            await photoManager.refreshAllPhotoGroups()
+        }
+        
         // Update the current index directly
         currentIndex = capturedIndex + 1
         offset = .zero
@@ -1789,6 +1794,11 @@ class SwipeCardViewModel: ObservableObject {
             // Create an album or add to existing album
             self.photoManager.bookmarkAsset(asset)
             self.photoManager.markForFavourite(asset)
+            
+            // Ensure UI is refreshed to show updated Maybe? album
+            Task {
+                await self.photoManager.refreshAllPhotoGroups()
+            }
             
             // Track swipe count
             self.incrementSwipeCount()

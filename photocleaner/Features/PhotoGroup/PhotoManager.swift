@@ -544,6 +544,11 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     func bookmarkAsset(_ asset: PHAsset) {
         isPerformingInternalChange = true // Set flag before operation
         addAsset(asset, toAlbumNamed: "Maybe?")
+        
+        // Manually refresh photo groups to update the UI
+        Task {
+            await refreshAllPhotoGroups()
+        }
     }
 
     /// Refreshes all photo groups
