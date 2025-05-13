@@ -2,37 +2,29 @@ import SwiftUI
 import Photos
 import PhotosUI
 
+// MARK: - LivePhotoView
 struct LivePhotoView: UIViewRepresentable {
-    // MARK: - Properties
-    var livePhoto: PHLivePhoto?
+    let livePhoto: PHLivePhoto
     var isPlaying: Bool
     
-    // MARK: - UIViewRepresentable
     func makeUIView(context: Context) -> PHLivePhotoView {
-        print("🔵 LivePhotoView: makeUIView called")
         let livePhotoView = PHLivePhotoView()
+        livePhotoView.livePhoto = livePhoto
         livePhotoView.delegate = context.coordinator
-        livePhotoView.contentMode = .scaleAspectFill
-        livePhotoView.clipsToBounds = true
         return livePhotoView
     }
     
     func updateUIView(_ livePhotoView: PHLivePhotoView, context: Context) {
-        // Update the live photo if it changes
-        if let livePhoto = livePhoto {
-            print("🔵 LivePhotoView: Updating with live photo")
+        // Update the live photo if needed
+        if livePhotoView.livePhoto != livePhoto {
             livePhotoView.livePhoto = livePhoto
-            
-            // Play or stop the live photo based on isPlaying state
-            if isPlaying {
-                print("🔵 LivePhotoView: Starting playback")
-                livePhotoView.startPlayback(with: .full)
-            } else {
-                print("🔵 LivePhotoView: Stopping playback")
-                livePhotoView.stopPlayback()
-            }
+        }
+        
+        // Start or stop playback based on isPlaying
+        if isPlaying {
+            livePhotoView.startPlayback(with: .full)
         } else {
-            print("🔵 LivePhotoView: No live photo available")
+            livePhotoView.stopPlayback()
         }
     }
     
@@ -40,7 +32,6 @@ struct LivePhotoView: UIViewRepresentable {
         Coordinator(self)
     }
     
-    // MARK: - Coordinator
     class Coordinator: NSObject, PHLivePhotoViewDelegate {
         var parent: LivePhotoView
         
@@ -48,82 +39,57 @@ struct LivePhotoView: UIViewRepresentable {
             self.parent = parent
         }
         
-        // MARK: - PHLivePhotoViewDelegate
         func livePhotoView(_ livePhotoView: PHLivePhotoView, willBeginPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
-            print("🔵 LivePhotoView: Will begin playback")
+            print("LivePhotoView: Will begin playback")
         }
         
         func livePhotoView(_ livePhotoView: PHLivePhotoView, didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle) {
-            print("🔵 LivePhotoView: Did end playback")
+            print("LivePhotoView: Did end playback")
         }
     }
 }
 
-// MARK: - LivePhoto Asset Loader
+// MARK: - LivePhotoLoader
 class LivePhotoLoader: ObservableObject {
     @Published var livePhoto: PHLivePhoto?
-    @Published var isLoading: Bool = false
-    @Published var error: Error?
-    
-    private let imageManager = PHCachingImageManager()
+    @Published var isLoading = false
     private var requestID: PHImageRequestID?
     
-    func loadLivePhoto(for asset: PHAsset, targetSize: CGSize) {
-        print("🔵 LivePhotoLoader: Attempting to load live photo")
-        guard asset.isLivePhoto else {
-            print("🔵 LivePhotoLoader: Asset is not a live photo")
-            self.livePhoto = nil
-            return
-        }
+    func loadLivePhoto(for asset: PHAsset, targetSize: CGSize = PHImageManagerMaximumSize) {
+        // Skip if already loading or if the asset is not a live photo
+        guard !isLoading, asset.mediaSubtypes.contains(.photoLive) else { return }
         
-        print("🔵 LivePhotoLoader: Asset is a live photo, loading...")
         isLoading = true
-        error = nil
         
-        // Cancel any previous request
-        cancelLoading()
-        
-        // Configure options for high-quality live photo
         let options = PHLivePhotoRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
-        options.version = .current
         
-        // Use our optimized caching method
-        requestID = imageManager.requestLivePhoto(
+        // Cancel any existing request
+        if let requestID = requestID {
+            PHImageManager.default().cancelImageRequest(requestID)
+        }
+        
+        // Request the live photo
+        requestID = PHImageManager.default().requestLivePhoto(
             for: asset,
-            targetSize: targetSize, 
-            contentMode: .aspectFill,
+            targetSize: targetSize,
+            contentMode: .aspectFit,
             options: options
-        ) { [weak self] (livePhoto, info) in
+        ) { [weak self] livePhoto, info in
             DispatchQueue.main.async {
+                self?.livePhoto = livePhoto
                 self?.isLoading = false
-                
-                if let error = info?[PHImageErrorKey] as? Error {
-                    print("🔵 LivePhotoLoader: Error loading live photo: \(error)")
-                    self?.error = error
-                    return
-                }
-                
-                if let livePhoto = livePhoto {
-                    print("🔵 LivePhotoLoader: Successfully loaded live photo")
-                    self?.livePhoto = livePhoto
-                } else {
-                    print("🔵 LivePhotoLoader: No live photo was returned")
-                }
+                self?.requestID = nil
             }
         }
     }
     
     func cancelLoading() {
-        // Cancel any active request
         if let requestID = requestID {
-            imageManager.cancelImageRequest(requestID)
+            PHImageManager.default().cancelImageRequest(requestID)
             self.requestID = nil
         }
-        
-        // Stop caching images
-        imageManager.stopCachingImagesForAllAssets()
         isLoading = false
     }
 }
@@ -157,7 +123,7 @@ struct LivePhotoCard: View {
             }
             
             // Add a transparent layer for the gesture detection
-            if asset.isLivePhoto {
+            if asset.mediaSubtypes.contains(.photoLive) {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(
@@ -198,7 +164,7 @@ struct LivePhotoCard: View {
             )
             
             // Pre-load the live photo when the view appears
-            if asset.isLivePhoto {
+            if asset.mediaSubtypes.contains(.photoLive) {
                 print("🔵 LivePhotoCard: This is a live photo, size: \(targetSize)")
                 livePhotoLoader.loadLivePhoto(for: asset, targetSize: targetSize)
             } else {

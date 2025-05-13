@@ -16,7 +16,7 @@ struct LivePhotoDebugView: View {
             Text("Live Photo Debug View")
                 .font(.headline)
             
-            if asset.isLivePhoto {
+            if asset.mediaSubtypes.contains(.photoLive) {
                 Text("This is a Live Photo")
                     .foregroundColor(.green)
             } else {
@@ -89,13 +89,6 @@ struct LivePhotoDebugView: View {
                         .padding()
                 }
                 
-                if let error = livePhotoLoader.error {
-                    Text("Error: \(error.localizedDescription)")
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .padding()
-                }
-                
                 Text("Is Live Photo Available: \(livePhotoLoader.livePhoto != nil ? "Yes" : "No")")
                     .padding()
             }
@@ -103,7 +96,7 @@ struct LivePhotoDebugView: View {
         .padding()
         .onAppear {
             print("📱 Debug: LivePhotoDebugView appeared for asset \(asset.localIdentifier)")
-            if asset.isLivePhoto {
+            if asset.mediaSubtypes.contains(.photoLive) {
                 let targetSize = CGSize(
                     width: asset.pixelWidth > 0 ? asset.pixelWidth : 1000,
                     height: asset.pixelHeight > 0 ? asset.pixelHeight : 1000

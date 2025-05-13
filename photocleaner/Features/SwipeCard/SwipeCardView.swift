@@ -34,6 +34,11 @@ struct SwipeCardView: View {
     @State private var currentScale: CGFloat = 1.0
     @State private var finalScale: CGFloat = 1.0
     
+    // Gallery view state
+    @State private var isGalleryVisible = false
+    @State private var verticalDragOffset: CGFloat = 0
+    @State private var isDraggingVertically = false
+    
     // Fly-off animation state
     @State private var showFlyOffLabel: Bool = false
     @State private var flyOffLabelText: String = ""
@@ -178,17 +183,19 @@ struct SwipeCardView: View {
                                             offset: viewModel.offset
                                         )
                                         .frame(maxWidth: .infinity)
+                                        .offset(y: isDraggingVertically ? verticalDragOffset : 0)
                                         .gesture(
                                             DragGesture()
                                                 .onChanged { value in
-                                                    // Only process drag if not currently zooming and memory saved modal is not shown
+                                                    // Only handle horizontal swipes on the card for keep/delete
                                                     if currentScale <= 1.0 && !showMemorySavedModal {
+                                                        // Horizontal drag - for swiping cards
                                                         viewModel.handleDragGesture(value: value)
                                                     }
                                                 }
                                                 .onEnded { value in
-                                                    // Only process drag end if not currently zooming and memory saved modal is not shown
                                                     if currentScale <= 1.0 && !showMemorySavedModal {
+                                                        // Process horizontal drag end for card swiping
                                                         viewModel.handleDragGestureEnd(value: value)
                                                     }
                                                 }
@@ -426,6 +433,35 @@ struct SwipeCardView: View {
                         }
                         .padding(.bottom, 32)
                     }
+
+                    // Swipe up indicator when not showing gallery
+                    if !isGalleryVisible && !isDraggingVertically && viewModel.currentIndex < group.count && viewModel.preloadedImages.count > 0 {
+                        VStack {
+                            Spacer()
+                            
+                            HStack {
+                                Spacer()
+                                
+                                VStack(spacing: 4) {
+                                    Image(systemName: "chevron.up")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Swipe up outside card for gallery")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 16)
+                                .background(Color(.systemBackground).opacity(0.7))
+                                .cornerRadius(16)
+                                .padding(.bottom, 100)
+                                
+                                Spacer()
+                            }
+                        }
+                        .opacity(0.8)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationTitle(group.title)
@@ -458,10 +494,27 @@ struct SwipeCardView: View {
                     }
                     
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Next") {
-                            viewModel.prepareDeletePreview()
+                        HStack(spacing: 16) {
+                            // Next button to lead to DeletePreview modal
+                            Button(action: {
+                                viewModel.prepareDeletePreview()
+                            }) {
+                                Text("Next")
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            // Gallery button
+                            Button(action: {
+                                // Show gallery view when tapping the grid icon
+                                withAnimation(.spring()) {
+                                    isGalleryVisible = true
+                                }
+                            }) {
+                                Image(systemName: "square.grid.2x2")
+                                    .foregroundColor(.primary)
+                            }
                         }
-                        .disabled(group.count == 0)
                     }
                 }
             }
@@ -637,6 +690,36 @@ struct SwipeCardView: View {
                     .animation(.easeInOut, value: isDiscoverTab)
                 }
             }
+            // Add a gesture overlay for gallery swipe-up that doesn't affect the card
+            .overlay(alignment: .bottom) {
+                // This transparent area is for detecting swipe gestures outside the card
+                GallerySwipeDetector(
+                    isGalleryVisible: $isGalleryVisible,
+                    isDraggingVertically: $isDraggingVertically,
+                    verticalDragOffset: $verticalDragOffset,
+                    showMemorySavedModal: showMemorySavedModal,
+                    currentIndex: viewModel.currentIndex,
+                    groupCount: group.count
+                )
+            }
+            // Gallery peek view that follows finger
+            .overlay(alignment: .bottom) {
+                GalleryPeekView(
+                    isDraggingVertically: isDraggingVertically,
+                    verticalDragOffset: verticalDragOffset,
+                    isGalleryVisible: $isGalleryVisible,
+                    group: group,
+                    selectedAssetIndex: $viewModel.currentIndex
+                )
+            }
+            // Replace the conditional overlay with a fullScreenCover for Gallery view
+            .fullScreenCover(isPresented: $isGalleryVisible) {
+                AlbumGalleryView(
+                    group: group,
+                    selectedAssetIndex: $viewModel.currentIndex,
+                    isGalleryVisible: $isGalleryVisible
+                )
+            }
         }
     }
 
@@ -777,5 +860,84 @@ struct ShimmerModifier: ViewModifier {
                     phase = 1.5
                 }
         )
+    }
+}
+
+// MARK: - Gallery Helper Views
+
+// Gallery swipe detector for handling upward swipes
+struct GallerySwipeDetector: View {
+    @Binding var isGalleryVisible: Bool
+    @Binding var isDraggingVertically: Bool
+    @Binding var verticalDragOffset: CGFloat
+    let showMemorySavedModal: Bool
+    let currentIndex: Int
+    let groupCount: Int
+    
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity)
+            .frame(height: UIScreen.main.bounds.height * 0.3)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        // Only detect vertical upward swipes
+                        let isVertical = abs(value.translation.height) > abs(value.translation.width)
+                        
+                        if isVertical && value.translation.height < 0 && !showMemorySavedModal {
+                            // Vertical upward drag - for gallery view
+                            isDraggingVertically = true
+                            // Limit the drag offset to avoid going too far up
+                            verticalDragOffset = max(value.translation.height, -UIScreen.main.bounds.height)
+                        }
+                    }
+                    .onEnded { value in
+                        if isDraggingVertically {
+                            // If dragged up far enough, show gallery view
+                            if verticalDragOffset < -150 {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isGalleryVisible = true
+                                    verticalDragOffset = 0
+                                }
+                            } else {
+                                // Reset if not dragged far enough
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    verticalDragOffset = 0
+                                }
+                            }
+                            isDraggingVertically = false
+                        }
+                    }
+            )
+            .allowsHitTesting(!isGalleryVisible && currentIndex < groupCount)
+    }
+}
+
+// Gallery peek view that follows the finger gesture
+struct GalleryPeekView: View {
+    let isDraggingVertically: Bool
+    let verticalDragOffset: CGFloat
+    @Binding var isGalleryVisible: Bool
+    let group: PhotoGroup
+    @Binding var selectedAssetIndex: Int
+    
+    var body: some View {
+        Group {
+            if isDraggingVertically && verticalDragOffset < 0 && !isGalleryVisible {
+                // Show a preview of the gallery that follows the finger
+                AlbumGalleryView(
+                    group: group,
+                    selectedAssetIndex: $selectedAssetIndex,
+                    isGalleryVisible: $isGalleryVisible
+                )
+                .frame(height: max(-verticalDragOffset * 1.2, 100)) // Multiply by 1.2 for more responsive feel
+                .transition(.move(edge: .bottom))
+                .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.6), value: verticalDragOffset)
+                .zIndex(95)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -5)
+            }
+        }
     }
 }
