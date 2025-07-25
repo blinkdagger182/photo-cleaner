@@ -49,29 +49,35 @@ struct SplashView: View {
                 .background(Color(.systemBackground))
                 .ignoresSafeArea()
                 .task {
-                    // Staggered word-by-word soft fade
+                    // Staggered word-by-word soft fade (keep animation for branding)
                     try? await Task.sleep(nanoseconds: 400_000_000)
                     withAnimation(.easeInOut(duration: 0.4)) {
                         showWord1 = true
                     }
 
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try? await Task.sleep(nanoseconds: 300_000_000)
                     withAnimation(.easeInOut(duration: 0.4)) {
                         showWord2 = true
                     }
 
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try? await Task.sleep(nanoseconds: 300_000_000)
                     withAnimation(.easeInOut(duration: 0.4)) {
                         showWord3 = true
                     }
 
-                    await photoManager.checkCurrentStatus()
+                    // Start photo loading in background immediately
+                    Task.detached(priority: .userInitiated) {
+                        await photoManager.checkCurrentStatus()
+                    }
+                    
+                    // Don't wait for photo processing - just show UI after minimal animation
+                    try? await Task.sleep(nanoseconds: 400_000_000)
 
                     withAnimation(.easeOut(duration: 0.5)) {
                         fadeOut = true
                     }
 
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    try? await Task.sleep(nanoseconds: 300_000_000)
 
                     withAnimation {
                         isActive = true

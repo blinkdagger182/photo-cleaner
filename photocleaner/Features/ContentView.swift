@@ -59,36 +59,51 @@ struct ContentView: View {
                 }
 
             case .authorized, .limited:
-                if photoManager.photoGroups.isEmpty {
-                    // 🔍 If no albums are grouped, but assets exist (e.g. limited selection)
-                    if !photoManager.allAssets.isEmpty {
-                        let _ = print("✅ LimitedAccessView is active") // ✅ trick to inline-print
-                        LimitedAccessView()
-                    } else {
-                        FallbackContentUnavailableView("No Photos",
-                                               systemImage: "photo.on.rectangle",
-                                               description: Text("Your photo library is empty")).overlay(
-                        Button("Open Settings") {
-                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(settingsURL)
-                            }
-                        }
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.primary.opacity(0.9))
-                        .foregroundColor(Color(UIColor.systemBackground))
-                        .cornerRadius(16)
-                        .padding(.horizontal, 32)
-                        .padding(.bottom, 20),
-                        alignment: .bottom
-                    )
+                if photoManager.photoGroups.isEmpty && photoManager.isLoadingInitialData {
+                    // Show loading state for progressive loading rather than empty state
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        
+                        Text("Loading your photos...")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        Text("This may take a moment for large libraries")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemBackground))
+                } else if photoManager.photoGroups.isEmpty && !photoManager.isLoadingInitialData {
+                    // Empty library state
+                    FallbackContentUnavailableView("No Photos",
+                                           systemImage: "photo.on.rectangle",
+                                           description: Text("Your photo library is empty or we don't have access to any photos"))
                 } else {
-                    // Pass photoManager to PhotoGroupView for proper initialization of the ViewModel
+                    // Show main UI as soon as we have some data
                     PhotoGroupView(photoManager: photoManager)
                         .environmentObject(photoManager)
                         .environmentObject(toast)
+                        .overlay(
+                            // Show subtle loading indicator when background loading is happening
+                            photoManager.isLoadingCompleteLibrary ? 
+                            VStack {
+                                Spacer()
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Loading complete library...")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                .padding()
+                            }
+                            : nil,
+                            alignment: .bottom
+                        )
                 }
 
             case .denied, .restricted:

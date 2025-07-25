@@ -29,22 +29,34 @@ struct photocleanerApp: App {
                 if hasSeenOnboarding {
                     SplashView()
                         .task {
-                            // Only run these operations if onboarding is complete
+                            // Only run essential operations at launch
                             let apiKey = "appl_SAJcTFqLeBLEYlRIVBtSSPDBJRe"
                             subscriptionManager.configure(apiKey: apiKey)
                             
-                            // Initialize the high-quality album cache
-                            _ = AlbumHighQualityCache.shared
-                            print("📸 Initialized AlbumHighQualityCache")
+                            // Initialize services in background
+                            Task.detached(priority: .utility) {
+                                // Initialize the high-quality album cache in background
+                                _ = AlbumHighQualityCache.shared
+                                print("📸 Initialized AlbumHighQualityCache")
+                            }
                             
-                            await updateService.checkAppVersion()
-                            await photoManager.checkCurrentStatus()
-                            await subscriptionManager.checkSubscriptionStatus()
+                            // Run essential checks in parallel
+                            async let versionCheck = updateService.checkAppVersion()
+                            async let statusCheck = photoManager.checkCurrentStatus()
+                            async let subscriptionCheck = subscriptionManager.checkSubscriptionStatus()
                             
-                            // Pre-cache first images for all albums when the app starts
-                            if photoManager.authorizationStatus == .authorized || 
-                               photoManager.authorizationStatus == .limited {
-                                Task {
+                            // Wait for essential checks only
+                            await versionCheck
+                            await statusCheck
+                            await subscriptionCheck
+                            
+                            // Move heavy pre-caching to background - don't block UI
+                            Task.detached(priority: .utility) {
+                                // Wait a bit for main UI to settle, then start pre-caching
+                                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                                
+                                let authStatus = await photoManager.authorizationStatus
+                                if authStatus == .authorized || authStatus == .limited {
                                     await photoManager.preCacheFirstImages()
                                 }
                             }

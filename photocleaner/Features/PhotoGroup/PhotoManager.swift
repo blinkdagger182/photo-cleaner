@@ -17,6 +17,9 @@ class PhotoManager: NSObject, ObservableObject {
     @Published var markedForDeletion: Set<String> = []  // asset.localIdentifier
     @Published var markedForBookmark: Set<String> = []
     @Published var deletedImagesPreview: [DeletePreviewEntry] = [] // Track all deleted images for preview
+    @Published var isLoadingInitialData: Bool = false
+    @Published var isLoadingCompleteLibrary: Bool = false
+    @Published var hasLoadedInitialData: Bool = false
 
     private let lastViewedIndexKey = "LastViewedIndex"
     private let markedForDeletionFileName = "MarkedForDeletion.json"
@@ -326,9 +329,14 @@ class PhotoManager: NSObject, ObservableObject {
         }
     }
     
-    /// Loads assets after authorization is granted
+    /// Progressive loading strategy: Load minimal data first, then continue in background
     private func loadAssets() async {
-        // Fetch all assets first
+        await MainActor.run {
+            self.isLoadingInitialData = true
+            self.hasLoadedInitialData = false
+        }
+        
+        // Phase 1: Get basic asset count and fetch result (minimal work)
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let allPhotoAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
@@ -336,25 +344,153 @@ class PhotoManager: NSObject, ObservableObject {
         // Store the fetch result for change detection
         self.currentAssetsFetchResult = allPhotoAssets
         
-        // Convert PHFetchResult to [PHAsset] array
-        var assetArray: [PHAsset] = []
-        allPhotoAssets.enumerateObjects { asset, _, _ in
-            assetArray.append(asset)
+        let totalCount = allPhotoAssets.count
+        
+        // Update UI immediately with basic info
+        await MainActor.run {
+            print("📸 Found \(totalCount) total assets - starting progressive load")
         }
         
-        // Fetch the organized collections
-        async let years = fetchPhotoGroupsByYearAndMonth()
-        async let systemAlbums = fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Maybe?"])
-
-        let fetchedYears = await years
-        let fetchedSystemAlbums = await systemAlbums
-
+        // Phase 2: Load first batch of recent photos for immediate display (fast)
+        await loadRecentPhotosForQuickDisplay()
+        
+        // Phase 3: Continue loading rest in background (slow work moved off critical path)
+        Task.detached(priority: .utility) { [weak self] in
+            await self?.loadAllAssetsInBackground()
+        }
+    }
+    
+    /// Phase 2: Load only recent photos for immediate UI display
+    private func loadRecentPhotosForQuickDisplay() async {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        fetchOptions.fetchLimit = 500 // Only load most recent 500 photos for quick start
+        
+        let recentAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        
+        // Build basic groups from recent assets only
+        let quickGroups = await buildPhotoGroupsFromAssets(recentAssets, isQuickLoad: true)
+        
+        await MainActor.run {
+            // Update with initial data so UI can display immediately
+            self.photoGroups = quickGroups
+            self.yearGroups = self.organizeGroupsByYear(quickGroups)
+            self.isLoadingInitialData = false
+            self.hasLoadedInitialData = true
+            print("📸 Quick loaded \(quickGroups.count) recent photo groups")
+        }
+    }
+    
+    /// Phase 3: Load all remaining assets in background
+    private func loadAllAssetsInBackground() async {
+        await MainActor.run {
+            self.isLoadingCompleteLibrary = true
+        }
+        
+        // This runs in background - load all assets without blocking UI
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let allPhotoAssets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        
+        // Convert to array in chunks to avoid blocking
+        var assetArray: [PHAsset] = []
+        let chunkSize = 1000
+        let totalAssets = allPhotoAssets.count
+        
+        for i in stride(from: 0, to: totalAssets, by: chunkSize) {
+            let endIndex = min(i + chunkSize, totalAssets)
+            
+            // Process in chunks to avoid blocking
+            for j in i..<endIndex {
+                let asset = allPhotoAssets.object(at: j)
+                assetArray.append(asset)
+            }
+            
+            // Small yield between chunks
+            await Task.yield()
+        }
+        
+        // Build complete photo groups
+        let allGroups = await buildPhotoGroupsFromAssets(allPhotoAssets, isQuickLoad: false)
+        let systemAlbums = await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Maybe?"])
+        
+        // Update UI with complete data
         await MainActor.run {
             self.allAssets = assetArray
-            self.yearGroups = fetchedYears
-            self.photoGroups = fetchedYears.flatMap { $0.months } + fetchedSystemAlbums
-            print("📸 Loaded \(assetArray.count) total assets")
+            self.photoGroups = allGroups + systemAlbums
+            self.yearGroups = self.organizeGroupsByYear(self.photoGroups)
+            self.isLoadingCompleteLibrary = false
+            print("📸 Background loaded complete library: \(assetArray.count) assets, \(allGroups.count) groups")
         }
+    }
+    
+    /// Helper method to build photo groups from assets with memory management
+    private func buildPhotoGroupsFromAssets(_ fetchResult: PHFetchResult<PHAsset>, isQuickLoad: Bool) async -> [PhotoGroup] {
+        var groupedByMonth: [Date: [PHAsset]] = [:]
+        let calendar = Calendar.current
+        
+        let assetCount = fetchResult.count
+        let chunkSize = isQuickLoad ? 100 : 1000
+        
+        // Process assets in chunks to avoid memory spikes
+        for i in stride(from: 0, to: assetCount, by: chunkSize) {
+            let endIndex = min(i + chunkSize, assetCount)
+            
+            for j in i..<endIndex {
+                let asset = fetchResult.object(at: j)
+                
+                if !self.markedForDeletion.contains(asset.localIdentifier),
+                   let date = asset.creationDate,
+                   let monthDate = calendar.date(
+                       from: calendar.dateComponents([.year, .month], from: date))
+                {
+                    groupedByMonth[monthDate, default: []].append(asset)
+                }
+            }
+            
+            // Yield periodically to keep UI responsive
+            if i % (chunkSize * 5) == 0 {
+                await Task.yield()
+            }
+        }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMMM yyyy"
+        
+        let photoGroups = groupedByMonth.map { (monthDate, assets) in
+            let title = dateFormatter.string(from: monthDate)
+            return PhotoGroup(assets: assets, title: title, monthDate: monthDate)
+        }
+        
+        return photoGroups.sorted {
+            ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast)
+        }
+    }
+    
+    /// Helper method to organize groups by year
+    private func organizeGroupsByYear(_ photoGroups: [PhotoGroup]) -> [YearGroup] {
+        let calendar = Calendar.current
+        var yearMap: [Int: [PhotoGroup]] = [:]
+        
+        for group in photoGroups {
+            if let monthDate = group.monthDate {
+                let components = calendar.dateComponents([.year], from: monthDate)
+                let year = components.year ?? 0
+                yearMap[year, default: []].append(group)
+            }
+        }
+        
+        let yearGroups = yearMap.map { (year, groups) in
+            YearGroup(
+                id: year,
+                year: year,
+                months: groups.sorted {
+                    ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast)
+                }
+            )
+        }
+        
+        return yearGroups.sorted { $0.year > $1.year }
     }
 
     /// Explicitly requests user authorization to access photos
@@ -371,49 +507,8 @@ class PhotoManager: NSObject, ObservableObject {
         }
     }
 
-    func fetchPhotoGroupsByYearAndMonth() async -> [YearGroup] {
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-
-        var groupedByMonth: [Date: [PHAsset]] = [:]
-        let calendar = Calendar.current
-
-        allPhotos.enumerateObjects { asset, _, _ in
-            if !self.markedForDeletion.contains(asset.localIdentifier),
-                let date = asset.creationDate,
-                let monthDate = calendar.date(
-                    from: calendar.dateComponents([.year, .month], from: date))
-            {
-                groupedByMonth[monthDate, default: []].append(asset)
-            }
-        }
-
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MMMM yyyy"
-
-        var yearMap: [Int: [PhotoGroup]] = [:]
-        for (monthDate, assets) in groupedByMonth {
-            let components = calendar.dateComponents([.year, .month], from: monthDate)
-            let year = components.year ?? 0
-            let title = dateFormatter.string(from: monthDate)
-
-            let group = PhotoGroup(assets: assets, title: title, monthDate: monthDate)
-            yearMap[year, default: []].append(group)
-        }
-
-        let yearGroups = yearMap.map { (year, photoGroups) in
-            YearGroup(
-                id: year,
-                year: year,
-                months: photoGroups.sorted {
-                    ($0.monthDate ?? .distantPast) > ($1.monthDate ?? .distantPast)
-                }
-            )
-        }
-
-        return yearGroups.sorted { ($0.year) > ($1.year) }
-    }
+    // This method has been replaced by progressive loading in buildPhotoGroupsFromAssets() and organizeGroupsByYear()
+    // Keeping this comment for reference during refactoring
 
     func fetchPhotoGroupsFromAlbums(albumNames: [String]) async -> [PhotoGroup] {
         var result: [PhotoGroup] = []
@@ -561,36 +656,34 @@ class PhotoManager: NSObject, ObservableObject {
         }
         lastReloadTime = now
         
-        // Fetch photo groups by year and month
-        let newYearGroups = await fetchPhotoGroupsByYearAndMonth()
-        
-        // Update published properties on main thread
-        await MainActor.run {
-            self.yearGroups = newYearGroups
+        // Use the new progressive loading approach
+        if let currentAssetsFetchResult = currentAssetsFetchResult {
+            // Build photo groups from current assets
+            let allPhotoGroups = await buildPhotoGroupsFromAssets(currentAssetsFetchResult, isQuickLoad: false)
+            let systemAlbums = await fetchPhotoGroupsFromAlbums(albumNames: ["Deleted", "Maybe?"])
             
-            // Flatten year groups into a single array of photo groups
-            var allPhotoGroups: [PhotoGroup] = []
-            for yearGroup in newYearGroups {
-                allPhotoGroups.append(contentsOf: yearGroup.months)
+            // Update published properties on main thread
+            await MainActor.run {
+                self.photoGroups = allPhotoGroups + systemAlbums
+                self.yearGroups = self.organizeGroupsByYear(self.photoGroups)
             }
-            self.photoGroups = allPhotoGroups
-            
-            // Pre-cache high-quality first images for all photo groups
-            // This ensures we have high-quality first images ready when the user selects an album
-            Task {
-                await self.preCacheFirstImages()
-            }
+        } else {
+            // Fallback: reload assets if we don't have them
+            await loadAssets()
         }
     }
     
     /// Pre-caches high-quality first images for all photo groups
     @MainActor
     func preCacheFirstImages() async {
-        // Get all photo groups
-        let allGroups = photoGroups
+        // Only cache if we have loaded some data
+        guard hasLoadedInitialData else { return }
+        
+        // Get current photo groups (might be partial during progressive loading)
+        let currentGroups = photoGroups
         
         // Prioritize groups with more recent view dates
-        let sortedGroups = allGroups.sorted { group1, group2 in
+        let sortedGroups = currentGroups.sorted { group1, group2 in
             // Get last viewed index as a proxy for recency
             let index1 = loadLastViewedIndex(for: group1.id)
             let index2 = loadLastViewedIndex(for: group2.id)
@@ -599,10 +692,10 @@ class PhotoManager: NSObject, ObservableObject {
             return index1 > index2
         }
         
-        // Limit the number of groups to pre-cache to avoid excessive memory usage
-        let groupsToCache = Array(sortedGroups.prefix(10))
+        // Be more conservative - only cache first 5 groups to avoid memory pressure
+        let groupsToCache = Array(sortedGroups.prefix(5))
         
-        // Pre-cache first images in high quality
+        // Pre-cache first images with lower priority
         AlbumHighQualityCache.shared.cacheFirstImages(for: groupsToCache)
     }
     

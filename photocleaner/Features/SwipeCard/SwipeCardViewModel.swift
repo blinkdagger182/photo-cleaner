@@ -128,6 +128,7 @@ class SwipeCardViewModel: ObservableObject {
         } else {
             // Even if the image isn't ready for interaction, we need to reset the offset
             // This ensures the card always springs back on the first drag
+            // Use animation with completion to avoid animation conflicts
             withAnimation(.interpolatingSpring(
                 stiffness: 300,
                 damping: 30,
@@ -135,7 +136,10 @@ class SwipeCardViewModel: ObservableObject {
                 offset = .zero
             }
         }
+        // Clear label without animation to avoid conflicts
+        withAnimation(.none) {
         swipeLabel = nil
+        }
     }
     
     func handleSwipeGesture(value: DragGesture.Value) {
@@ -179,29 +183,37 @@ class SwipeCardViewModel: ObservableObject {
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
+        // First, clear any existing animations by setting swipeLabel to nil with no animation
+        withAnimation(.none) {
+            swipeLabel = nil
+        }
+        
+        // Wait a tiny bit before starting the next animation to avoid conflicts
+        DispatchQueue.main.async {
         // Trigger fly-off animation
         let label = "Delete"
         let color = Color(red: 0.55, green: 0.35, blue: 0.98)
-        triggerLabelFlyOff?(label, color, value.translation)
+            self.triggerLabelFlyOff?(label, color, value.translation)
         
         // Start preloading next image silently
         Task {
-            if capturedIndex + 1 < group.count {
-                await loadImage(at: capturedIndex + 1, quality: .screen)
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
             }
         }
         
         // Create a fly-off animation that NEVER springs back
         withAnimation(.easeOut(duration: duration)) {
             // Fly off to the left with a bit of vertical movement based on gesture
-            offset = CGSize(
+                self.offset = CGSize(
                 width: -UIScreen.main.bounds.width * 2.0, // Even further to ensure it's off-screen
                 height: value.translation.height * 1.5
             )
         }
         
         // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { // Add a small buffer time
+            // Add a slightly longer delay to ensure animations don't conflict
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.1) {
             // Get the asset again in case things changed
             guard let asset = self.group.asset(at: capturedIndex) else { return }
             
@@ -231,27 +243,26 @@ class SwipeCardViewModel: ObservableObject {
                     // Undo the deletion action
                     self.photoManager.unmarkForDeletion(asset)
                     
-                    // Animate back to the original position
+                        // Animate back to the original position after a small delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     withAnimation {
                         self.currentIndex = capturedIndex
                         self.offset = .zero
+                            }
                     }
                     
                     return
                 }
             }
             
-            // Important: Disable all animations temporarily
-            UIView.setAnimationsEnabled(false)
-            
+                // Update state without animations using SwiftUI's withAnimation(.none)
+                withAnimation(.none) {
             // Update the index while the old card is off screen
             self.currentIndex = capturedIndex + 1
             
-            // THEN reset the offset with absolutely no animation 
+                    // Reset the offset with absolutely no animation 
             self.offset = .zero
-            
-            // Re-enable animations after state is reset
-            UIView.setAnimationsEnabled(true)
+                }
             
             // If this is the last image, show delete preview
             if isLastImage {
@@ -270,7 +281,8 @@ class SwipeCardViewModel: ObservableObject {
                 await self.cleanupOldImages()
             }
             
-            // Show the deletion toast message
+                // Show the deletion toast message after a small delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             Task { @MainActor in
                 self.toast.show(
                     "Marked for deletion. Press Next to permanently delete from storage.", 
@@ -280,14 +292,18 @@ class SwipeCardViewModel: ObservableObject {
                         // Undo Action - Use capturedIndex
                         self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
                         self.photoManager.unmarkForDeletion(asset)
-                        // Animate the state reset using capturedIndex
+                                // Animate the state reset using capturedIndex after a small delay
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         withAnimation {
                             self.currentIndex = capturedIndex
                             self.offset = .zero
+                                    }
                         }
                     },
                     type: .info
                 )
+                    }
+                }
             }
         }
     }
@@ -308,29 +324,37 @@ class SwipeCardViewModel: ObservableObject {
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
+        // First, clear any existing animations by setting swipeLabel to nil with no animation
+        withAnimation(.none) {
+            swipeLabel = nil
+        }
+        
+        // Wait a tiny bit before starting the next animation to avoid conflicts
+        DispatchQueue.main.async {
         // Trigger fly-off animation
         let label = "Keep"
         let color = Color.green
-        triggerLabelFlyOff?(label, color, value.translation)
+            self.triggerLabelFlyOff?(label, color, value.translation)
         
         // Start preloading next image silently
         Task {
-            if capturedIndex + 1 < group.count {
-                await loadImage(at: capturedIndex + 1, quality: .screen)
+                if capturedIndex + 1 < self.group.count {
+                    await self.loadImage(at: capturedIndex + 1, quality: .screen)
             }
         }
         
         // Create a fly-off animation
         withAnimation(.easeOut(duration: duration)) {
             // Fly off to the right with a bit of vertical movement based on gesture
-            offset = CGSize(
+                self.offset = CGSize(
                 width: UIScreen.main.bounds.width * 2.0, // Even further to ensure it's off-screen
                 height: value.translation.height * 1.5
             )
         }
         
         // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            // Add a slightly longer delay to ensure animations don't conflict
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) {
             withAnimation(.none) {
                 self.offset = .zero // Reset immediately (not visible to user)
             }
@@ -353,26 +377,25 @@ class SwipeCardViewModel: ObservableObject {
                     // Show the paywall
                     self.showRCPaywall = true
                     
-                    // Animate back to the original position
+                        // Animate back to the original position after a small delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     withAnimation {
                         self.offset = .zero
+                            }
                     }
                     
                     return
                 }
             }
             
-            // Important: Disable all animations temporarily
-            UIView.setAnimationsEnabled(false)
-            
+                // Update state without animations using SwiftUI's withAnimation(.none)
+                withAnimation(.none) {
             // Update the index while the old card is off screen
             self.currentIndex = capturedIndex + 1
             
-            // THEN reset the offset with absolutely no animation 
+                    // Reset the offset with absolutely no animation 
             self.offset = .zero
-            
-            // Re-enable animations after state is reset
-            UIView.setAnimationsEnabled(true)
+                }
             
             // If this is the last image, show delete preview
             if isLastImage {
@@ -389,6 +412,7 @@ class SwipeCardViewModel: ObservableObject {
                     await self.loadImage(at: capturedIndex + 1, quality: .screen)
                 }
                 await self.cleanupOldImages()
+                }
             }
         }
     }
@@ -1214,32 +1238,39 @@ class SwipeCardViewModel: ObservableObject {
         // Trigger haptic feedback
         feedbackGenerator.impactOccurred()
         
+        // First, clear any existing animations with no animation
+        withAnimation(.none) {
+            swipeLabel = nil
+        }
+        
+        // Wait a tiny bit before starting the next animation to avoid conflicts
+        DispatchQueue.main.async {
         // Add the current image to the deletion preview if available
-        if capturedIndex < preloadedImages.count, let currentImage = preloadedImages[capturedIndex] {
-            photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
+            if capturedIndex < self.preloadedImages.count, let currentImage = self.preloadedImages[capturedIndex] {
+                self.photoManager.addToDeletedImagesPreview(asset: asset, image: currentImage)
         }
         
         // Mark for deletion
-        photoManager.markForDeletion(asset)
+            self.photoManager.markForDeletion(asset)
         
         // Trigger fly-off animation with default values (no gesture)
         let label = "Delete"
         let color = Color(red: 0.55, green: 0.35, blue: 0.98)
-        triggerLabelFlyOff?(label, color, CGSize(width: -100, height: 0))
+            self.triggerLabelFlyOff?(label, color, CGSize(width: -100, height: 0))
         
         // Create a fly-off animation
         withAnimation(.easeOut(duration: 0.25)) {
             // Fly off to the left
-            offset = CGSize(width: -UIScreen.main.bounds.width * 2.0, height: 0)
+                self.offset = CGSize(width: -UIScreen.main.bounds.width * 2.0, height: 0)
         }
         
         // Wait until card is completely off-screen before doing state changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 + 0.05) {
-            // Reset index and offset
-            UIView.setAnimationsEnabled(false)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 + 0.1) {
+                // Reset index and offset without animation
+                withAnimation(.none) {
             self.currentIndex = capturedIndex + 1
             self.offset = .zero
-            UIView.setAnimationsEnabled(true)
+                }
             
             // If this is the last image, show delete preview
             if isLastImage {
@@ -1261,7 +1292,8 @@ class SwipeCardViewModel: ObservableObject {
                 await self.cleanupOldImages()
             }
             
-            // Show the deletion toast message
+                // Show the deletion toast message after a small delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             Task { @MainActor in
                 self.toast.show(
                     "Marked for deletion. Press Next to permanently delete from storage.", 
@@ -1271,14 +1303,18 @@ class SwipeCardViewModel: ObservableObject {
                         // Undo Action - Use capturedIndex
                         self.photoManager.restoreToPhotoGroups(asset, inMonth: self.group.monthDate)
                         self.photoManager.unmarkForDeletion(asset)
-                        // Animate the state reset using capturedIndex
+                                // Animate the state reset using capturedIndex after a small delay
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         withAnimation {
                             self.currentIndex = capturedIndex
                             self.offset = .zero
+                                    }
                         }
                     },
                     type: .info
                 )
+                    }
+                }
             }
         }
     }
@@ -1297,20 +1333,27 @@ class SwipeCardViewModel: ObservableObject {
         // Check if this is the last image
         let isLastImage = capturedIndex == group.count - 1
         
+        // First, clear any existing animations with no animation
+        withAnimation(.none) {
+            swipeLabel = nil
+        }
+        
+        // Wait a tiny bit before starting the next animation to avoid conflicts
+        DispatchQueue.main.async {
         // Trigger fly-off animation with green color
-        triggerLabelFlyOff?("Keep", .green, CGSize(width: 100, height: 0))
+            self.triggerLabelFlyOff?("Keep", .green, CGSize(width: 100, height: 0))
         
         // Animate card flying off screen IMMEDIATELY  
         withAnimation(.easeOut(duration: duration)) {
             // Fly off to the right with a bit of vertical movement based on gesture
-            offset = CGSize(
+                self.offset = CGSize(
                 width: UIScreen.main.bounds.width,
                 height: 0
             )
         }
         
-        // Process after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            // Process after animation completes with a slightly longer delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) {
             withAnimation(.none) {
                 self.offset = .zero // Reset immediately (not visible to user)
             }
@@ -1333,21 +1376,23 @@ class SwipeCardViewModel: ObservableObject {
                     // Show the paywall
                     self.showRCPaywall = true
                     
-                    // Animate back to the original position
+                        // Animate back to the original position after a small delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     withAnimation {
                         self.currentIndex = capturedIndex
                         self.offset = .zero
+                            }
                     }
                     
                     return
                 }
             }
             
-            // Reset index and offset
-            UIView.setAnimationsEnabled(false)
+                // Reset index and offset without animation
+                withAnimation(.none) {
             self.currentIndex = capturedIndex + 1
             self.offset = .zero
-            UIView.setAnimationsEnabled(true)
+                }
             
             // If this is the last image, show delete preview
             if isLastImage {
@@ -1358,12 +1403,15 @@ class SwipeCardViewModel: ObservableObject {
                 return
             }
             
-            // Load next image
+                // Load next image after a small delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             Task {
                 if capturedIndex + 1 < self.group.count {
                     await self.loadImage(at: capturedIndex + 1, quality: .screen)
                 }
                 await self.cleanupOldImages()
+                    }
+                }
             }
         }
     }
@@ -1773,20 +1821,27 @@ class SwipeCardViewModel: ObservableObject {
         // Check if this is the last image
         let isLastImage = capturedIndex == group.count - 1
         
+        // First, clear any existing animations with no animation
+        withAnimation(.none) {
+            swipeLabel = nil
+        }
+        
+        // Wait a tiny bit before starting the next animation to avoid conflicts
+        DispatchQueue.main.async {
         // Trigger fly-off animation with yellow color
-        triggerLabelFlyOff?("Maybe", .yellow, CGSize(width: 0, height: -100))
+            self.triggerLabelFlyOff?("Maybe", .yellow, CGSize(width: 0, height: -100))
         
         // Animate card flying off screen IMMEDIATELY
         withAnimation(.easeOut(duration: duration)) {
             // Fly off upward
-            offset = CGSize(
+                self.offset = CGSize(
                 width: 0,
                 height: -UIScreen.main.bounds.height
             )
         }
         
-        // Process after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            // Process after animation completes with a slightly longer delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) {
             withAnimation(.none) {
                 self.offset = .zero // Reset immediately (not visible to user)
             }
@@ -1811,10 +1866,12 @@ class SwipeCardViewModel: ObservableObject {
                 self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
                 self.photoManager.unmarkForFavourite(asset)
                 
-                // Animate back to the original position
+                    // Animate back to the original position after a small delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 withAnimation {
                     self.currentIndex = capturedIndex
                     self.offset = .zero
+                        }
                 }
                 
                 return
@@ -1836,21 +1893,23 @@ class SwipeCardViewModel: ObservableObject {
                     self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
                     self.photoManager.unmarkForFavourite(asset)
                     
-                    // Animate back to the original position
+                        // Animate back to the original position after a small delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     withAnimation {
                         self.currentIndex = capturedIndex
                         self.offset = .zero
+                            }
                     }
                     
                     return
                 }
             }
             
-            // Reset index and offset
-            UIView.setAnimationsEnabled(false)
+                // Reset index and offset without animation
+                withAnimation(.none) {
             self.currentIndex = capturedIndex + 1
             self.offset = .zero
-            UIView.setAnimationsEnabled(true)
+                }
             
             // If this is the last image, show delete preview
             if isLastImage {
@@ -1861,7 +1920,8 @@ class SwipeCardViewModel: ObservableObject {
                 return
             }
             
-            // Load next image and perform cleanup
+                // Load next image and perform cleanup after a small delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             Task {
                 if capturedIndex + 1 < self.group.count {
                     await self.loadImage(at: capturedIndex + 1, quality: .screen)
@@ -1879,12 +1939,17 @@ class SwipeCardViewModel: ObservableObject {
                         // Undo action
                         self.photoManager.removeAsset(asset, fromAlbumNamed: "Maybe?")
                         self.photoManager.unmarkForFavourite(asset)
+                                // Add a small delay before animating
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         withAnimation {
                             self.currentIndex = capturedIndex
                             self.offset = .zero
+                                    }
                         }
                     }
                 )
+                    }
+                }
             }
         }
     }
