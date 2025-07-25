@@ -8,7 +8,7 @@ import UIKit
 @_implementationOnly import struct photocleaner.YearGroup
 @_implementationOnly import struct photocleaner.DeletePreviewEntry
 
-class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
+class PhotoManager: NSObject, ObservableObject {
     @Published var allPhotos: [PHAsset] = []
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @Published var allAssets: [PHAsset] = []
@@ -45,21 +45,21 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         }
     }
 
-    deinit {
-        if isObservingPhotoLibrary {
-            PHPhotoLibrary.shared().unregisterChangeObserver(self)
-        }
-        pendingReloadTask?.cancel()
-    }
+//    deinit {
+//        if isObservingPhotoLibrary {
+//            PHPhotoLibrary.shared().unregisterChangeObserver(self)
+//        }
+//        pendingReloadTask?.cancel()
+//    }
     
     // Add a method to start observing photo library changes only after permissions are granted
-    private func startObservingPhotoChanges() {
-        if !isObservingPhotoLibrary {
-            print("📸 Starting to observe photo library changes.")
-            PHPhotoLibrary.shared().register(self)
-            isObservingPhotoLibrary = true
-        }
-    }
+//    private func startObservingPhotoChanges() {
+//        if !isObservingPhotoLibrary {
+//            print("📸 Starting to observe photo library changes.")
+//            PHPhotoLibrary.shared().register(self)
+//            isObservingPhotoLibrary = true
+//        }
+//    }
 
     // MARK: - Persistence for Marked for Deletion
     
@@ -227,84 +227,84 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
     
     // MARK: - Lifecycle and Change Observation
     
-    @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
-        // Skip reloads if it's from our own operations or if we're preloading images
-        if isPerformingInternalChange || isPreloading {
-            print("📝 Skipping reload - change was from our own operations")
-            // Reset flag after handling
-            isPerformingInternalChange = false
-            return
-        }
+    // @objc func photoLibraryDidChange(_ changeInstance: PHChange) {
+    //     // Skip reloads if it's from our own operations or if we're preloading images
+    //     if isPerformingInternalChange || isPreloading {
+    //         print("📝 Skipping reload - change was from our own operations")
+    //         // Reset flag after handling
+    //         isPerformingInternalChange = false
+    //         return
+    //     }
         
-        // Check if we have a reference to the current fetch result to compare changes against
-        guard let currentAssetsFetchResult = self.currentAssetsFetchResult else {
-            // If we don't have a reference fetch result yet, perform a full reload once
-            Task { @MainActor in
-                print("📸 Initial photo library change detected, loading assets...")
-                await self.loadAssets()
-            }
-            return
-        }
+    //     // Check if we have a reference to the current fetch result to compare changes against
+    //     guard let currentAssetsFetchResult = self.currentAssetsFetchResult else {
+    //         // If we don't have a reference fetch result yet, perform a full reload once
+    //         Task { @MainActor in
+    //             print("📸 Initial photo library change detected, loading assets...")
+    //             await self.loadAssets()
+    //         }
+    //         return
+    //     }
         
-        // Get detailed changes for our assets fetch result
-        guard let details = changeInstance.changeDetails(for: currentAssetsFetchResult) else {
-            // No changes relevant to our fetch result
-            return
-        }
+    //     // Get detailed changes for our assets fetch result
+    //     guard let details = changeInstance.changeDetails(for: currentAssetsFetchResult) else {
+    //         // No changes relevant to our fetch result
+    //         return
+    //     }
         
-        // Only reload if there are meaningful changes (additions or removals)
-        let hasAdditions = details.insertedObjects.count > 0
-        let hasRemovals = details.removedObjects.count > 0
+    //     // Only reload if there are meaningful changes (additions or removals)
+    //     let hasAdditions = details.insertedObjects.count > 0
+    //     let hasRemovals = details.removedObjects.count > 0
         
-        if hasAdditions || hasRemovals {
-            // Throttle reloads to prevent multiple rapid reloads
-            let now = Date()
-            if now.timeIntervalSince(lastReloadTime) < reloadThrottleInterval {
-                // Cancel any pending reload task
-                pendingReloadTask?.cancel()
+    //     if hasAdditions || hasRemovals {
+    //         // Throttle reloads to prevent multiple rapid reloads
+    //         let now = Date()
+    //         if now.timeIntervalSince(lastReloadTime) < reloadThrottleInterval {
+    //             // Cancel any pending reload task
+    //             pendingReloadTask?.cancel()
                 
-                // Schedule a new reload after the throttle interval
-                pendingReloadTask = Task { @MainActor in
-                    do {
-                        // Wait until we're outside the throttle interval
-                        let waitTime = reloadThrottleInterval - now.timeIntervalSince(lastReloadTime)
-                        if waitTime > 0 {
-                            try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
-                        }
+    //             // Schedule a new reload after the throttle interval
+    //             pendingReloadTask = Task { @MainActor in
+    //                 do {
+    //                     // Wait until we're outside the throttle interval
+    //                     let waitTime = reloadThrottleInterval - now.timeIntervalSince(lastReloadTime)
+    //                     if waitTime > 0 {
+    //                         try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+    //                     }
                         
-                        // Check if task was cancelled during sleep
-                        try Task.checkCancellation()
+    //                     // Check if task was cancelled during sleep
+    //                     try Task.checkCancellation()
                         
-                        if hasAdditions {
-                            print("🔄 New photos added (\(details.insertedObjects.count)), reloading...")
-                        } else if hasRemovals {
-                            print("🔄 Photos deleted (\(details.removedObjects.count)), reloading...")
-                        }
+    //                     if hasAdditions {
+    //                         print("🔄 New photos added (\(details.insertedObjects.count)), reloading...")
+    //                     } else if hasRemovals {
+    //                         print("🔄 Photos deleted (\(details.removedObjects.count)), reloading...")
+    //                     }
                         
-                        await self.loadAssets()
-                        lastReloadTime = Date()
-                    } catch {
-                        // Task was cancelled, do nothing
-                    }
-                }
-                return
-            }
+    //                     await self.loadAssets()
+    //                     lastReloadTime = Date()
+    //                 } catch {
+    //                     // Task was cancelled, do nothing
+    //                 }
+    //             }
+    //             return
+    //         }
             
-            // If we're outside the throttle interval, reload immediately
-            lastReloadTime = now
-            Task { @MainActor in
-                if hasAdditions {
-                    print("🔄 New photos added (\(details.insertedObjects.count)), reloading...")
-                } else if hasRemovals {
-                    print("🔄 Photos deleted (\(details.removedObjects.count)), reloading...")
-                }
-                await self.loadAssets()
-            }
-        } else if details.changedObjects.count > 0 {
-            // Just log changes that don't require reload (like metadata changes)
-            print("ℹ️ Photo metadata changed for \(details.changedObjects.count) assets (no reload needed)")
-        }
-    }
+    //         // If we're outside the throttle interval, reload immediately
+    //         lastReloadTime = now
+    //         Task { @MainActor in
+    //             if hasAdditions {
+    //                 print("🔄 New photos added (\(details.insertedObjects.count)), reloading...")
+    //             } else if hasRemovals {
+    //                 print("🔄 Photos deleted (\(details.removedObjects.count)), reloading...")
+    //             }
+    //             await self.loadAssets()
+    //         }
+    //     } else if details.changedObjects.count > 0 {
+    //         // Just log changes that don't require reload (like metadata changes)
+    //         print("ℹ️ Photo metadata changed for \(details.changedObjects.count) assets (no reload needed)")
+    //     }
+    // }
 
     // Set preloading state to prevent unnecessary reloads
     func setPreloadingState(_ isPreloading: Bool) {
@@ -322,7 +322,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
         // If already authorized, load the assets
         if status == .authorized || status == .limited {
             await loadAssets()
-            startObservingPhotoChanges() // Start observing only after we have permission
+//            startObservingPhotoChanges() // Start observing only after we have permission
         }
     }
     
@@ -367,7 +367,7 @@ class PhotoManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
 
         if status == .authorized || status == .limited {
             await loadAssets()
-            startObservingPhotoChanges() // Start observing only after we have permission
+//            startObservingPhotoChanges() // Start observing only after we have permission
         }
     }
 

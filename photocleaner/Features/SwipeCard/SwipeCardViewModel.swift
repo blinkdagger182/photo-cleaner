@@ -1141,9 +1141,9 @@ class SwipeCardViewModel: ObservableObject {
             }
             
             // Also prefetch metadata in background to avoid warnings
-            if !Task.isCancelled {
-                await prefetchAssetMetadata(asset: asset)
-            }
+            // if !Task.isCancelled {
+            //     await prefetchAssetMetadata(asset: asset)
+            // }
             
             return processedImage
         }
