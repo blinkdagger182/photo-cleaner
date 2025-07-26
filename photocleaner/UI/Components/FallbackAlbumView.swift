@@ -36,7 +36,7 @@ struct FallbackAlbumCell: View {
     let album: SmartAlbumGroup
     
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 8) {
             // Cover image or placeholder
             ZStack {
                 if let asset = album.fetchAssets().first {
@@ -58,19 +58,21 @@ struct FallbackAlbumCell: View {
             }
             .cornerRadius(8)
             
-            // Album title
+            // Album title with fixed height for 2 lines
             Text(album.title)
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .lineLimit(2)
-                .padding(.top, 4)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
             
             // Photo count
             Text("\(album.fetchAssets().count) photos")
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 160)
+        .frame(minHeight: 180)
     }
 }
 
