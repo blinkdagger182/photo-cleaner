@@ -92,15 +92,44 @@ struct PhotoGroupView: View {
                         // 📅 Main content
                         VStack(alignment: .leading, spacing: 20) {
                             if viewModel.viewByYear {
-                                if viewModel.yearGroups.isEmpty {
+                                if viewModel.yearGroups.isEmpty && (photoManager.isLoadingInitialData || photoManager.isLoadingCompleteLibrary) {
+                                    // Show skeleton loaders for year view when loading - extends beyond screen
+                                    ForEach(2018...2024, id: \.self) { year in
+                                        VStack(alignment: .leading, spacing: 16) {
+                                            HStack {
+                                                // Skeleton year title
+                                                Rectangle()
+                                                    .fill(Color.gray.opacity(0.2))
+                                                    .frame(width: 80, height: 28)
+                                                    .cornerRadius(6)
+                                                    .padding(.horizontal)
+
+                                                Spacer()
+                                            }
+
+                                            LazyVGrid(columns: columns, spacing: 16) {
+                                                // Show many skeleton albums per year to fill entire screen
+                                                ForEach(0..<(year >= 2023 ? 12 : year >= 2021 ? 10 : 8), id: \.self) { index in
+                                                    AlbumCellSkeleton(index: index + (year - 2018) * 15)
+                                                }
+                                            }
+                                            .padding(.horizontal)
+                                        }
+                                    }
+                                } else if viewModel.yearGroups.isEmpty {
+                                    // Empty state when not loading
                                     noPhotosView
                                 } else {
-                                    ForEach(viewModel.yearGroups) { yearGroup in
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            Text("\(yearGroup.year)")
-                                                .font(.title)
-                                                .bold()
-                                                .padding(.horizontal)
+                                    ForEach(viewModel.yearGroups, id: \.id) { yearGroup in
+                                        VStack(alignment: .leading, spacing: 16) {
+                                            HStack {
+                                                Text("\(yearGroup.year)")
+                                                    .font(.title)
+                                                    .bold()
+                                                    .padding(.horizontal)
+
+                                                Spacer()
+                                            }
 
                                             LazyVGrid(columns: columns, spacing: 16) {
                                                 ForEach(yearGroup.months, id: \.id) { group in
@@ -110,6 +139,13 @@ struct PhotoGroupView: View {
                                                         AlbumCell(group: group)
                                                     }
                                                     .buttonStyle(ScaleButtonStyle())
+                                                }
+                                                
+                                                // Show additional skeleton loaders if still loading more for this year
+                                                if photoManager.isLoadingCompleteLibrary {
+                                                    ForEach(0..<8, id: \.self) { index in
+                                                        AlbumCellSkeleton(index: index + yearGroup.months.count + yearGroup.year)
+                                                    }
                                                 }
                                             }
                                             .padding(.horizontal)
@@ -121,9 +157,21 @@ struct PhotoGroupView: View {
                                     sectionHeader(title: "My Albums")
                                     
                                     if viewModel.filteredPhotoGroups.isEmpty {
-                                        noPhotosView
+                                        // Show skeleton loaders when loading, empty state otherwise
+                                        if photoManager.isLoadingInitialData || photoManager.isLoadingCompleteLibrary {
+                                            LazyVGrid(columns: columns, spacing: 20) {
+                                                // Show 20 skeleton cells to completely fill the screen
+                                                ForEach(0..<20, id: \.self) { index in
+                                                    AlbumCellSkeleton(index: index)
+                                                }
+                                            }
+                                            .padding(.horizontal)
+                                        } else {
+                                            noPhotosView
+                                        }
                                     } else {
                                         LazyVGrid(columns: columns, spacing: 20) {
+                                            // Show actual albums
                                             ForEach(viewModel.filteredPhotoGroups, id: \.id) { group in
                                                 Button {
                                                     viewModel.updateSelectedGroup(group)
@@ -132,9 +180,15 @@ struct PhotoGroupView: View {
                                                 }
                                                 .buttonStyle(ScaleButtonStyle())
                                             }
+                                            
+                                            // Show additional skeleton loaders if still loading more
+                                            if photoManager.isLoadingCompleteLibrary {
+                                                ForEach(0..<10, id: \.self) { index in
+                                                    AlbumCellSkeleton(index: index + viewModel.filteredPhotoGroups.count)
+                                                }
+                                            }
                                         }
                                         .padding(.horizontal)
-                                    }
 
                                     Spacer(minLength: 40)
                                 }
@@ -144,6 +198,7 @@ struct PhotoGroupView: View {
                     .padding(.bottom, 20)
                 }
                 .scrollIndicators(.hidden)
+                                    }
                 .coordinateSpace(name: "scrollView")
                 .refreshable {
                     await refreshPhotos()
@@ -277,6 +332,72 @@ struct ScaleButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Skeleton Loader Components
+
+struct AlbumCellSkeleton: View {
+    @State private var shimmer = false
+    let index: Int
+    
+    init(index: Int = 0) {
+        self.index = index
+    }
+    
+    // Add some variation to make it more realistic
+    private var titleWidth: CGFloat {
+        [60, 85, 100, 75, 90][index % 5]
+    }
+    
+    private var countWidth: CGFloat {
+        [30, 45, 38, 42, 35][index % 5]
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Skeleton thumbnail matching AlbumCell exactly
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.gray.opacity(0.2))
+                .frame(width: UIScreen.main.bounds.width / 2 - 30, height: 120)
+                .overlay(
+                    // Shimmer effect
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0),
+                            Color.white.opacity(0.4),
+                            Color.white.opacity(0)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .mask(RoundedRectangle(cornerRadius: 8))
+                    .offset(x: shimmer ? 200 : -200)
+                    .animation(
+                        Animation.linear(duration: 1.8)
+                            .repeatForever(autoreverses: false)
+                            .delay(Double(index) * 0.1),
+                        value: shimmer
+                    )
+                )
+                .clipped()
+            
+            // Skeleton title - matches AlbumCell text layout with variation
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.gray.opacity(0.2))
+                .frame(width: titleWidth, height: 16)
+            
+            // Skeleton count - matches AlbumCell caption layout with variation
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.gray.opacity(0.15))
+                .frame(width: countWidth, height: 12)
+        }
+        .frame(width: UIScreen.main.bounds.width / 2 - 30, alignment: .leading)
+        .onAppear {
+            withAnimation {
+                shimmer = true
+            }
+        }
     }
 }
 
