@@ -406,7 +406,7 @@ struct AlbumCell: View {
     @State private var thumbnail: UIImage?
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 if let thumbnail = thumbnail {
                     Image(uiImage: thumbnail)
@@ -424,10 +424,12 @@ struct AlbumCell: View {
             Text(group.title)
                 .font(.subheadline)
                 .lineLimit(1)
+                .frame(maxWidth: UIScreen.main.bounds.width / 2 - 30, alignment: .leading)
 
             Text("\(group.count)")
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .frame(maxWidth: UIScreen.main.bounds.width / 2 - 30, alignment: .leading)
         }
         .frame(width: UIScreen.main.bounds.width / 2 - 30, alignment: .leading)
         .task {
