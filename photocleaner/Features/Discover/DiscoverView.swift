@@ -82,17 +82,26 @@ struct DiscoverView: View {
             .onAppear {
                 connectToastService()
                 
-                // Only check for existing albums, don't automatically load
+                // Smart initialization - check cache validity first
                 if isInitializing {
-                    // Check if we have any existing albums
-                    if viewModel.photoGroups.isEmpty {
-                        // No albums exist, show empty state
+                    // Check if we should use cached albums for instant loading
+                    if DiscoverCacheService.shared.shouldUseCachedAlbums() {
+                        // Load from cache - instant display
+                        print("📦 DiscoverView: Using cached albums")
+                        viewModel.loadAlbums(forceRefresh: false)
+                        withAnimation {
+                            isInitializing = false
+                        }
+                    } else if SmartAlbumManager.shared.hasExistingAlbums() {
+                        // We have existing albums in Core Data - load them
+                        print("📦 DiscoverView: Loading existing albums from Core Data")
+                        viewModel.loadAlbums(forceRefresh: false)
                         withAnimation {
                             isInitializing = false
                         }
                     } else {
-                        // We have existing albums, just display them
-                        viewModel.updateUIWithPhotoGroups(viewModel.photoGroups)
+                        // No albums exist, show empty state (user can manually trigger generation)
+                        print("📦 DiscoverView: No albums found, showing empty state")
                         withAnimation {
                             isInitializing = false
                         }

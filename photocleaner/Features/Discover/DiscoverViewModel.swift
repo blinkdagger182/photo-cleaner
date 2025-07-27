@@ -2,12 +2,14 @@ import Foundation
 import SwiftUI
 import Photos
 import Combine
+import CoreData
 
 class DiscoverViewModel: ObservableObject {
     // Services
     private let smartAlbumManager = SmartAlbumManager.shared
     private let batchProcessor = BatchProcessingManager.shared
     private let clusteringManager = PhotoClusteringManager.shared
+    private let cacheService = DiscoverCacheService.shared
     private var photoManager: PhotoManager
     var toast: ToastService?
     
@@ -130,6 +132,9 @@ class DiscoverViewModel: ObservableObject {
         // Set up batch processing subscribers
         setupBatchProcessingSubscribers()
         
+        // Set up cache service subscriber for background refresh
+        setupCacheServiceSubscribers()
+        
         // Initialize photo access status and library emptiness
         Task { @MainActor in
             self.updatePhotoLibraryAccessInfo()
@@ -165,8 +170,42 @@ class DiscoverViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    private func setupCacheServiceSubscribers() {
+        // Subscribe to cache validity changes for background refresh
+        cacheService.$isCacheValid
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isValid in
+                if !isValid && !(self?.smartAlbumManager.allSmartAlbums.isEmpty ?? true) {
+                    // Cache became invalid but we have existing albums - could trigger background refresh
+                    self?.considerBackgroundRefresh()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    /// Consider background refresh when cache becomes invalid
+    private func considerBackgroundRefresh() {
+        // Only do background refresh if we're not currently processing
+        guard !isGenerating && !isClusteringInProgress && !isBatchProcessing else { return }
+        
+        // Check if enough time has passed since last refresh
+        let cacheInfo = cacheService.getCacheInfo()
+        if let lastUpdate = cacheInfo.lastUpdate {
+            let hoursSinceUpdate = Date().timeIntervalSince(lastUpdate) / 3600
+            
+            // Only suggest refresh if it's been more than 12 hours
+            if hoursSinceUpdate > 12 {
+                print("📦 Cache is stale (\(hoursSinceUpdate) hours old) - background refresh could be beneficial")
+                // Optionally show a subtle notification or update flag
+                hasMoreAlbums = true // This will show the "Reprocess" button
+            }
+        }
+    }
+    
     // Cancellables for Combine subscriptions
     private var cancellables = Set<AnyCancellable>()
+    
+
     
     // Main actor isolation
     @MainActor private func showToast(_ message: String, duration: TimeInterval = 1.5) {
@@ -258,20 +297,59 @@ class DiscoverViewModel: ObservableObject {
         
         // Show loading toast on main thread
         Task { @MainActor [weak self] in
-            self?.toast?.showInfo("Loading albums...", duration: 1.5)
             self?.updatePhotoLibraryAccessInfo() // Update status when loading albums
         }
         
-        // Only process the library if explicitly requested or if we have no data
-        if photoGroups.isEmpty || forceRefresh {
-            Task { @MainActor in
-                await processEntireLibrary()
+        // Use smart caching - check if we should use cached albums
+        if forceRefresh {
+            // Force refresh was requested
+            Task { @MainActor [weak self] in
+                self?.toast?.showInfo("Refreshing albums...", duration: 1.5)
+                await self?.processEntireLibrary()
+            }
+        } else if cacheService.shouldUseCachedAlbums() {
+            // Use cached albums - much faster!
+            Task { @MainActor [weak self] in
+                self?.toast?.showInfo("Loading cached albums...", duration: 1.0)
+                self?.loadFromCache()
+            }
+        } else if smartAlbumManager.allSmartAlbums.isEmpty {
+            // No cached albums and no existing albums
+            Task { @MainActor [weak self] in
+                self?.toast?.showInfo("Generating albums...", duration: 2.0)
+                await self?.processEntireLibrary()
             }
         } else {
-            // If we already have data, just display it
-            updateUIWithPhotoGroups(photoGroups)
-            isLoading = false
+            // We have existing albums but cache is invalid - show existing and offer refresh
+            Task { @MainActor [weak self] in
+                self?.loadFromExistingAlbums()
+                self?.toast?.showInfo("Loaded existing albums", duration: 1.5)
+            }
         }
+    }
+    
+    /// Load albums from cache - fast path
+    @MainActor
+    private func loadFromCache() {
+        print("📦 Loading albums from cache...")
+        smartAlbumManager.loadSmartAlbums()
+        loadAlbumsPage(page: 1)
+        isLoading = false
+        
+        let cacheInfo = cacheService.getCacheInfo()
+        print("📦 ✅ Loaded \(cacheInfo.albumCount) albums from cache (last updated: \(cacheInfo.lastUpdate?.description ?? "unknown"))")
+    }
+    
+    /// Load from existing albums without regenerating
+    @MainActor
+    private func loadFromExistingAlbums() {
+        print("📦 Loading existing albums from Core Data...")
+        smartAlbumManager.loadSmartAlbums()
+        loadAlbumsPage(page: 1)
+        isLoading = false
+        
+        // Optionally mark that cache might need refresh
+        print("📦 ✅ Loaded \(smartAlbumManager.allSmartAlbums.count) existing albums (cache may be stale)")
     }
     
     /// Process the entire photo library using advanced clustering
@@ -368,18 +446,25 @@ class DiscoverViewModel: ObservableObject {
     
     /// Update the UI with the new photo groups
     func updateUIWithPhotoGroups(_ photoGroups: [PhotoGroup]) {
+        print("📦 Converting \(photoGroups.count) PhotoGroups to SmartAlbumGroups and saving to Core Data...")
+        
         // Reset the current state
         currentPage = 1
         categorizedAlbums = [:]
         featuredAlbums = []
         
+        // Clear existing albums first
+        clearExistingAlbums()
+        
         // Convert PhotoGroup objects to SmartAlbumGroup objects
         var eventAlbums: [SmartAlbumGroup] = []
         var utilityAlbums: [SmartAlbumGroup] = []
+        var allCreatedAlbums: [SmartAlbumGroup] = []
         
         for group in photoGroups {
             // Create a SmartAlbumGroup from the PhotoGroup
             let smartAlbum = createSmartAlbumFromPhotoGroup(group)
+            allCreatedAlbums.append(smartAlbum)
             
             // Categorize the album based on its title
             if group.title == "Screenshots" {
@@ -397,6 +482,9 @@ class DiscoverViewModel: ObservableObject {
                 eventAlbums.append(smartAlbum)
             }
         }
+        
+        // Save all albums to Core Data
+        saveAlbumsToCoreData(allCreatedAlbums)
         
         // Sort event albums by date (most recent first by default)
         sortEventAlbums(&eventAlbums)
@@ -426,6 +514,44 @@ class DiscoverViewModel: ObservableObject {
         
         // Update photo count statistics
         updatePhotoCountStatistics()
+        
+        print("📦 ✅ Successfully saved \(allCreatedAlbums.count) albums to Core Data and marked cache as updated")
+    }
+    
+    /// Clear existing albums from Core Data before saving new ones
+    private func clearExistingAlbums() {
+        let context = PersistenceController.shared.container.viewContext
+        let fetchRequest: NSFetchRequest<SmartAlbumGroup> = SmartAlbumGroup.fetchRequest()
+        
+        do {
+            let existingAlbums = try context.fetch(fetchRequest)
+            for album in existingAlbums {
+                context.delete(album)
+            }
+            print("📦 Cleared \(existingAlbums.count) existing albums from Core Data")
+        } catch {
+            print("📦 ❌ Error clearing existing albums: \(error)")
+        }
+    }
+    
+    /// Save albums to Core Data and mark cache as updated
+    private func saveAlbumsToCoreData(_ albums: [SmartAlbumGroup]) {
+        let context = PersistenceController.shared.container.viewContext
+        
+        do {
+            try context.save()
+            print("📦 ✅ Saved \(albums.count) albums to Core Data")
+            
+            // Mark cache as updated
+            cacheService.markCacheUpdated(albumCount: albums.count)
+            
+            // Reload albums in SmartAlbumManager to sync with saved data
+            smartAlbumManager.loadSmartAlbums()
+            
+        } catch {
+            print("📦 ❌ Failed to save albums to Core Data: \(error)")
+            context.rollback()
+        }
     }
     
     /// Create a SmartAlbumGroup from a PhotoGroup

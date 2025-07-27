@@ -12,6 +12,7 @@ class SmartAlbumManager: ObservableObject {
     // Services
     private let imageClassifier = ImageClassificationService.shared
     private let persistence = PersistenceController.shared
+    private let cacheService = DiscoverCacheService.shared
     
     // Published properties
     @Published var allSmartAlbums: [SmartAlbumGroup] = []
@@ -70,16 +71,44 @@ class SmartAlbumManager: ObservableObject {
     ]
     
     // Flag to enable/disable auto-loading albums at startup
-    private let loadAlbumsOnStartup = false
+    private let loadAlbumsOnStartup = true // Enable smart loading
     
     private init() {
-        // Only load albums if flag is enabled - disable during onboarding
+        // Enable smart loading - check cache validity first
         if loadAlbumsOnStartup {
-            loadSmartAlbums()
+            loadSmartAlbumsWithCaching()
         }
     }
     
     // MARK: - Public Methods
+    
+    /// Check if albums exist in Core Data (synchronous check)
+    func hasExistingAlbums() -> Bool {
+        let context = persistence.container.viewContext
+        let fetchRequest: NSFetchRequest<SmartAlbumGroup> = SmartAlbumGroup.fetchRequest()
+        fetchRequest.fetchLimit = 1
+        
+        do {
+            let count = try context.count(for: fetchRequest)
+            return count > 0
+        } catch {
+            print("📦 Error checking for existing albums: \(error)")
+            return false
+        }
+    }
+    
+    /// Smart loading method that checks cache validity before generating albums
+    func loadSmartAlbumsWithCaching() {
+        if cacheService.shouldUseCachedAlbums() {
+            print("📦 SmartAlbumManager: Loading albums from cache")
+            loadSmartAlbums()
+        } else if hasExistingAlbums() {
+            print("📦 SmartAlbumManager: Cache invalid but albums exist - loading existing albums")
+            loadSmartAlbums()
+        } else {
+            print("📦 SmartAlbumManager: No albums found - albums will be generated when needed")
+        }
+    }
     
     /// Generate smart albums from photos with limit option
     func generateSmartAlbums(from assets: [PHAsset], limit: Int = 0, completion: @escaping () -> Void) {
@@ -251,6 +280,10 @@ class SmartAlbumManager: ObservableObject {
             // Final update on the main thread
             DispatchQueue.main.async {
                 print("✅ Generated \(savedAlbumCount) smart albums (skipped \(skippedClusters) small clusters)")
+                
+                // Mark cache as updated
+                self.cacheService.markCacheUpdated(albumCount: savedAlbumCount)
+                
                 self.loadSmartAlbums()
                 self.isGenerating = false
                 completion()
