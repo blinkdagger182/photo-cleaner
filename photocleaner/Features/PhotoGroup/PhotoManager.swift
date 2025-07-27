@@ -468,11 +468,20 @@ class PhotoManager: NSObject, ObservableObject {
     }
     
     /// Helper method to organize groups by year
+    /// Only organizes time-based photo groups, excludes system albums like "Maybe?" and "Deleted"
     private func organizeGroupsByYear(_ photoGroups: [PhotoGroup]) -> [YearGroup] {
         let calendar = Calendar.current
         var yearMap: [Int: [PhotoGroup]] = [:]
         
+        // System albums that should not be organized by year
+        let systemAlbumNames = ["Maybe?", "Deleted"]
+        
         for group in photoGroups {
+            // Skip system albums - they should only appear in "My Albums" section
+            if systemAlbumNames.contains(group.title) {
+                continue
+            }
+            
             if let monthDate = group.monthDate {
                 let components = calendar.dateComponents([.year], from: monthDate)
                 let year = components.year ?? 0

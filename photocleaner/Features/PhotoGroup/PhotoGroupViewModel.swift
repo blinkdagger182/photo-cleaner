@@ -17,13 +17,15 @@ class PhotoGroupViewModel: ObservableObject {
     private let photoManager: PhotoManager
     
     // MARK: - Computed Properties
-    // This property filters photoGroups to only show the "Maybe?" album when in album view
+    // This property filters photoGroups to only show system albums in "My Albums" view
     var filteredPhotoGroups: [PhotoGroup] {
         if viewByYear {
-            return photoGroups
+            // This shouldn't be used when viewByYear is true, but return empty for safety
+            return []
         } else {
-            // Only show the "Maybe?" album in the My Albums view
-            return photoGroups.filter { $0.title == "Maybe?" }
+            // Show only system albums in the "My Albums" view
+            let systemAlbumNames = ["Maybe?", "Deleted"]
+            return photoGroups.filter { systemAlbumNames.contains($0.title) }
         }
     }
     
