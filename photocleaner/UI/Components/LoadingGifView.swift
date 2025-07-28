@@ -4,22 +4,23 @@ import ImageIO
 import Foundation
 
 struct LoadingGifView: View {
-    let size: CGFloat
+    let constrainToSize: Bool
+    let maxSize: CGFloat
     
-    init(size: CGFloat = 100) {
-        self.size = size
+    init(constrainToSize: Bool = false, maxSize: CGFloat = 200) {
+        self.constrainToSize = constrainToSize
+        self.maxSize = maxSize
     }
     
     var body: some View {
         ZStack {
             if let gifData = loadGifData() {
-                // Try UIKit approach first, maintain original gif proportions
-                GifImageView(data: gifData)
-                    .frame(maxWidth: size, maxHeight: size)
+                // Display gif at original dimensions (200x200) or constrained if needed
+                GifImageView(data: gifData, constrainToSize: constrainToSize, maxSize: maxSize)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
-                // Fallback to animated pulse effect for a nice loading experience
-                AnimatedLoadingFallback(size: size)
+                // Fallback to animated pulse effect
+                AnimatedLoadingFallback(size: maxSize)
             }
         }
     }
@@ -50,10 +51,12 @@ struct LoadingGifView: View {
 
 struct GifImageView: UIViewRepresentable {
     let data: Data
+    let constrainToSize: Bool
+    let maxSize: CGFloat
     
     func makeUIView(context: Context) -> UIImageView {
         let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFit
+        imageView.contentMode = .center // Use center to maintain original size and quality
         imageView.backgroundColor = UIColor.clear
         imageView.clipsToBounds = true
         
@@ -84,9 +87,40 @@ struct GifImageView: UIViewRepresentable {
                 imageView.animationRepeatCount = 0 // Infinite loop
                 imageView.startAnimating()
                 
-                // Set intrinsic content size to original gif dimensions
+                // Store original size for intrinsic content size
                 if let firstImage = images.first {
-                    imageView.frame.size = firstImage.size
+                    let originalSize = firstImage.size
+                    print("✅ Original GIF size: \(originalSize)")
+                    
+                    // Set the image view's intrinsic content size
+                    imageView.translatesAutoresizingMaskIntoConstraints = false
+                    
+                    if constrainToSize && (originalSize.width > maxSize || originalSize.height > maxSize) {
+                        // Only scale down if the original is larger than maxSize
+                        let scale = min(maxSize / originalSize.width, maxSize / originalSize.height)
+                        let scaledSize = CGSize(
+                            width: originalSize.width * scale,
+                            height: originalSize.height * scale
+                        )
+                        
+                        // Set content mode to scale aspect fit only when constraining
+                        imageView.contentMode = .scaleAspectFit
+                        
+                        // Set constraints for scaled size
+                        NSLayoutConstraint.activate([
+                            imageView.widthAnchor.constraint(equalToConstant: scaledSize.width),
+                            imageView.heightAnchor.constraint(equalToConstant: scaledSize.height)
+                        ])
+                        
+                        print("✅ Constrained GIF size: \(scaledSize)")
+                    } else {
+                        // Use original dimensions for maximum quality
+                        NSLayoutConstraint.activate([
+                            imageView.widthAnchor.constraint(equalToConstant: originalSize.width),
+                            imageView.heightAnchor.constraint(equalToConstant: originalSize.height)
+                        ])
+                        print("✅ Using original GIF size: \(originalSize)")
+                    }
                 }
                 
                 print("✅ Started animating GIF with \(images.count) frames, duration: \(totalDuration)s")
@@ -147,10 +181,15 @@ struct AnimatedLoadingFallback: View {
 
 #Preview {
     VStack(spacing: 20) {
-        LoadingGifView(size: 100)
-            .frame(width: 200, height: 200)
+        Text("Original Size (200x200)")
+        LoadingGifView()
             .background(Color.gray.opacity(0.1))
         
+        Text("Constrained Size (100x100)")
+        LoadingGifView(constrainToSize: true, maxSize: 100)
+            .background(Color.gray.opacity(0.1))
+        
+        Text("Fallback Animation")
         AnimatedLoadingFallback(size: 100)
             .frame(width: 200, height: 200)
             .background(Color.gray.opacity(0.1))

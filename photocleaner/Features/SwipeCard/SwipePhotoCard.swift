@@ -35,7 +35,7 @@ struct SwipePhotoCard: View {
                     // Show loading gif while image loads
                     ZStack {
                         Color(.systemBackground)
-                        LoadingGifView(size: 100)
+                        LoadingGifView()
                     }
                 }
                 

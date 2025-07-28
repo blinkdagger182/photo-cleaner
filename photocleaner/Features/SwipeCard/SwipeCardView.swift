@@ -123,7 +123,7 @@ struct SwipeCardView: View {
                                             .frame(width: geometry.size.width * 0.85, height: geometry.size.height * 0.4)
                                             .shadow(radius: 8)
                                         
-                                        LoadingGifView(size: 120)
+                                        LoadingGifView()
                                     }
 
                                     VStack(spacing: 8) {
@@ -260,7 +260,7 @@ struct SwipeCardView: View {
                                                 .overlay(
                                                     ZStack {
                                                         Color.black.opacity(0.2)
-                                                        LoadingGifView(size: 80)
+                                                        LoadingGifView(constrainToSize: true, maxSize: 80)
                                                     }
                                                 )
                                         } else {
@@ -271,7 +271,7 @@ struct SwipeCardView: View {
                                                     .frame(width: geometry.size.width * 0.85, height: geometry.size.height * 0.6)
                                                     .shadow(radius: 8)
                                                 
-                                                                                        LoadingGifView(size: 120)
+                                                LoadingGifView()
                                             }
                                         }
                                     }
