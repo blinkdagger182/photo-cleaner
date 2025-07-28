@@ -1,9 +1,6 @@
 {
     "sweetpad.build.xcodeWorkspacePath": "photocleaner.xcodeproj/project.xcworkspace",
     "workbench.colorCustomizations": {
-        "terminal.background": "#00000000",
-        "activityBar.background": "#072B65",
-        "titleBar.activeBackground": "#093C8D",
-        "titleBar.activeForeground": "#FAFCFF"
+        "terminal.background": "#00000000"
     }
 }

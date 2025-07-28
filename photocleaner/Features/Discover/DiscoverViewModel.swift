@@ -11,6 +11,9 @@ class DiscoverViewModel: ObservableObject {
     private var photoManager: PhotoManager
     var toast: ToastService?
     
+    // Cache manager for Discover albums
+    private let cacheManager: DiscoverCacheManager
+    
     // Memory optimization
     private let photoCache = OptimizedPhotoCache.shared
     
@@ -123,6 +126,9 @@ class DiscoverViewModel: ObservableObject {
     init(photoManager: PhotoManager, toast: ToastService? = nil) {
         self.photoManager = photoManager
         self.toast = toast
+        
+        // Initialize cache manager
+        self.cacheManager = DiscoverCacheManager(context: PersistenceController.shared.container.viewContext)
         
         // Configure the clustering manager with the photo manager
         clusteringManager.configure(with: photoManager)
@@ -252,35 +258,89 @@ class DiscoverViewModel: ObservableObject {
         return collapsedCategories.contains(category)
     }
     
-    /// Load albums from clustering results or start processing if needed
-    func loadAlbums(forceRefresh: Bool = false) {
+    /// Load albums from cache or generate new ones asynchronously
+    @MainActor
+    func loadDiscoverData() async {
+        // Set loading state immediately
         isLoading = true
         
-        // Show loading toast on main thread
-        Task { @MainActor [weak self] in
-            self?.toast?.showInfo("Loading albums...", duration: 1.5)
-            self?.updatePhotoLibraryAccessInfo() // Update status when loading albums
+        // Update photo library access info first
+        updatePhotoLibraryAccessInfo()
+        
+        // Check if we have authorization and photos
+        guard photoAccessStatus == .authorized && !isPhotoLibraryEmpty else {
+            isLoading = false
+            showEmptyState = true
+            return
         }
         
-        // Only process the library if explicitly requested or if we have no data
-        if photoGroups.isEmpty || forceRefresh {
-            Task { @MainActor in
-                await processEntireLibrary()
-            }
-        } else {
-            // If we already have data, just display it
-            updateUIWithPhotoGroups(photoGroups)
+        // Try to load from cache first
+        if let cachedAlbums = cacheManager.fetchCachedAlbums(), !cachedAlbums.isEmpty {
+            // Cache hit - use cached data
+            self.photoGroups = cachedAlbums
+            updateUIWithPhotoGroups(cachedAlbums)
             isLoading = false
+            toast?.showSuccess("Loaded \(cachedAlbums.count) cached albums", duration: 1.5)
+            return
+        }
+        
+        // Cache miss - generate new albums in background
+        await generateMomentsInBackground()
+    }
+    
+    /// Generate moments in the background and cache them
+    @MainActor
+    private func generateMomentsInBackground() async {
+        toast?.showInfo("Creating your moments...", duration: 2.0)
+        
+        // Start background task for expensive processing
+        let generatedGroups = await Task.detached { [weak self] in
+            guard let self = self else { return [PhotoGroup]() }
+            
+            // Process library using clustering manager
+            return await withCheckedContinuation { continuation in
+                self.clusteringManager.processEntireLibrary { groups in
+                    continuation.resume(returning: groups)
+                }
+            }
+        }.value
+        
+        // Back on main actor - update UI and cache
+        self.photoGroups = generatedGroups
+        
+        // Save to cache in background
+        Task.detached { [weak self] in
+            self?.cacheManager.saveAlbums(generatedGroups)
+        }
+        
+        // Update UI
+        updateUIWithPhotoGroups(generatedGroups)
+        isLoading = false
+        
+        toast?.showSuccess("Created \(generatedGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)
+    }
+    
+    /// Load albums from clustering results or start processing if needed (legacy method)
+    func loadAlbums(forceRefresh: Bool = false) {
+        Task { @MainActor in
+            if forceRefresh {
+                // Clear cache and regenerate
+                cacheManager.clearCache()
+            }
+            await loadDiscoverData()
         }
     }
     
-    /// Process the entire photo library using advanced clustering
+    /// Process the entire photo library using advanced clustering (with caching)
     @MainActor
     func processEntireLibrary() async {
         guard !isClusteringInProgress else {
             toast?.showWarning("Already processing photo library", duration: 1.5)
             return
         }
+        
+        // Clear existing cache since we're regenerating
+        cacheManager.clearCache()
         
         // Set UI state immediately to provide feedback
         isClusteringInProgress = true
@@ -320,12 +380,16 @@ class DiscoverViewModel: ObservableObject {
         }
         
         do {
-            // Start the clustering process
-            let photoGroups = await withCheckedContinuation { continuation in
-                clusteringManager.processEntireLibrary { groups in
-                    continuation.resume(returning: groups)
+            // Start the clustering process in background
+            let photoGroups = await Task.detached { [weak self] in
+                guard let self = self else { return [PhotoGroup]() }
+                
+                return await withCheckedContinuation { continuation in
+                    self.clusteringManager.processEntireLibrary { groups in
+                        continuation.resume(returning: groups)
+                    }
                 }
-            }
+            }.value
             
             // Stop the progress timer on the main thread
             progressTimer.invalidate()
@@ -336,6 +400,11 @@ class DiscoverViewModel: ObservableObject {
             
             // Set flag to indicate we have clustering results
             self.hasClusteringResults = true
+            
+            // Cache the results in background
+            Task.detached { [weak self] in
+                self?.cacheManager.saveAlbums(photoGroups)
+            }
             
             // Show completion toast
             self.toast?.showSuccess("Processed \(photoGroups.count) albums from \(self.photoManager.allAssets.count) photos", duration: 2.0)

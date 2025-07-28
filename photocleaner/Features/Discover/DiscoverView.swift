@@ -65,6 +65,23 @@ struct DiscoverView: View {
                 .coordinateSpace(name: "scrollView")
                 .overlay(processingOverlay)
                 
+                // Show loading overlay when ViewModel is loading
+                if viewModel.isLoading {
+                    Color.systemBackground
+                        .ignoresSafeArea()
+                        .overlay(
+                            VStack(spacing: 20) {
+                                ProgressView("Finding your best moments...")
+                                    .progressViewStyle(.circular)
+                                    .scaleEffect(1.5)
+                                Text("Loading your albums...")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                            }
+                        )
+                        .transition(.opacity)
+                }
+                
                 // Show initializing overlay until first data load is complete
                 if isInitializing {
                     Color.systemBackground
@@ -73,29 +90,20 @@ struct DiscoverView: View {
                             VStack(spacing: 20) {
                                 ProgressView()
                                     .scaleEffect(1.5)
-                                Text("Loading Discover tab...")
+                                Text("Initializing Discover tab...")
                                     .font(.headline)
                             }
                         )
                 }
             }
-            .onAppear {
+            .task {
                 connectToastService()
                 
-                // Only check for existing albums, don't automatically load
+                // Load discover data using the new async method
                 if isInitializing {
-                    // Check if we have any existing albums
-                    if viewModel.photoGroups.isEmpty {
-                        // No albums exist, show empty state
-                        withAnimation {
-                            isInitializing = false
-                        }
-                    } else {
-                        // We have existing albums, just display them
-                        viewModel.updateUIWithPhotoGroups(viewModel.photoGroups)
-                        withAnimation {
-                            isInitializing = false
-                        }
+                    await viewModel.loadDiscoverData()
+                    withAnimation {
+                        isInitializing = false
                     }
                 }
             }
@@ -576,6 +584,7 @@ struct DiscoverView: View {
                     .cornerRadius(12)
                     .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
             }
+            .disabled(viewModel.isLoading || viewModel.isClusteringInProgress)
             .contentShape(Rectangle())
             .buttonStyle(PlainButtonStyle())
             .padding(.horizontal, 32) // Horizontal padding for the button's position
