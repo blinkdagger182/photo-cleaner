@@ -180,8 +180,8 @@ class SwipeCardViewModel: ObservableObject {
         // Check if this is the last image
         let isLastImage = capturedIndex == group.count - 1
         
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
+        // Haptic feedback disabled for swiping
+        // feedbackGenerator.impactOccurred()
         
         // First, clear any existing animations by setting swipeLabel to nil with no animation
         withAnimation(.none) {
@@ -321,8 +321,8 @@ class SwipeCardViewModel: ObservableObject {
         // Check if this is the last image
         let isLastImage = capturedIndex == group.count - 1
         
-        // Trigger haptic feedback
-        feedbackGenerator.impactOccurred()
+        // Haptic feedback disabled for swiping
+        // feedbackGenerator.impactOccurred()
         
         // First, clear any existing animations by setting swipeLabel to nil with no animation
         withAnimation(.none) {

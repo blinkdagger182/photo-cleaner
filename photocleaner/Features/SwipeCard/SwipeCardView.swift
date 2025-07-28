@@ -116,11 +116,15 @@ struct SwipeCardView: View {
                                     .foregroundColor(.gray)
                             } else if viewModel.isLoading && viewModel.preloadedImages.isEmpty {
                                 // Show loading indicator only on initial load
-                                VStack(spacing: 16) {
-                                    skeletonStack(
-                                        width: geometry.size.width * 0.85,
-                                        height: geometry.size.height * 0.4
-                                    )
+                                VStack(spacing: 24) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                            .fill(Color(.systemBackground))
+                                            .frame(width: geometry.size.width * 0.85, height: geometry.size.height * 0.4)
+                                            .shadow(radius: 8)
+                                        
+                                        LoadingGifView(size: 120)
+                                    }
 
                                     VStack(spacing: 8) {
                                         Text("We are fetching images...")
@@ -256,22 +260,19 @@ struct SwipeCardView: View {
                                                 .overlay(
                                                     ZStack {
                                                         Color.black.opacity(0.2)
-                                                        ProgressView()
-                                                            .scaleEffect(1.5)
-                                                            .tint(.white)
+                                                        LoadingGifView(size: 80)
                                                     }
                                                 )
                                         } else {
-                                            // Show skeleton loader
-                                            Rectangle()
-                                                .fill(Color.gray.opacity(0.3))
-                                                .frame(width: geometry.size.width * 0.85, height: geometry.size.height * 0.6)
-                                                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                                                .shadow(radius: 8)
-                                                .overlay(
-                                                    ProgressView()
-                                                        .scaleEffect(1.5)
-                                                )
+                                            // Show loading gif while image loads
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                                    .fill(Color(.systemBackground))
+                                                    .frame(width: geometry.size.width * 0.85, height: geometry.size.height * 0.6)
+                                                    .shadow(radius: 8)
+                                                
+                                                                                        LoadingGifView(size: 120)
+                                            }
                                         }
                                     }
                                 }
@@ -671,26 +672,7 @@ struct SwipeCardView: View {
         viewModel.clearMemory()
     }
 
-    private func skeletonStack(width: CGFloat, height: CGFloat) -> some View {
-        ZStack {
-            ForEach((0..<2).reversed(), id: \.self) { index in
-                ZStack {
-                    RoundedRectangle(cornerRadius: 30)
-                        .fill(Color(white: 0.9))
-                        .frame(width: width, height: height)
-                        .offset(x: CGFloat(index * 6), y: CGFloat(index * 6))
-                        .shadow(radius: 6)
-                        .shimmering()
 
-                    if index == 0 {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(1.5)
-                    }
-                }
-            }
-        }
-    }
 
     // Function to request app review
     private func requestAppReview() {
@@ -731,51 +713,4 @@ struct CircleButton: View {
     }
 }
 
-extension View {
-    func shimmering(active: Bool = true, duration: Double = 1.25) -> some View {
-        modifier(ShimmerModifier(active: active, duration: duration))
-    }
-}
 
-struct ShimmerModifier: ViewModifier {
-    let active: Bool
-    let duration: Double
-
-    @State private var phase: CGFloat = -1
-
-    func body(content: Content) -> some View {
-        if !active {
-            return AnyView(content)
-        }
-
-        return AnyView(
-            content
-                .redacted(reason: .placeholder)
-                .overlay(
-                    GeometryReader { geometry in
-                        let gradient = LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.clear, Color.white.opacity(0.6), Color.clear,
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-
-                        Rectangle()
-                            .fill(gradient)
-                            .rotationEffect(.degrees(30))
-                            .offset(x: geometry.size.width * phase)
-                            .frame(width: geometry.size.width * 1.5)
-                            .blendMode(.plusLighter)
-                            .animation(
-                                .linear(duration: duration).repeatForever(autoreverses: false),
-                                value: phase)
-                    }
-                    .mask(content)
-                )
-                .onAppear {
-                    phase = 1.5
-                }
-        )
-    }
-}

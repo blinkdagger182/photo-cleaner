@@ -32,13 +32,11 @@ struct SwipePhotoCard: View {
                         .scaledToFit()
                         .opacity(showLivePhoto ? 0 : 1)
                 } else {
-                    // Fallback if no image available
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.5)
-                        )
+                    // Show loading gif while image loads
+                    ZStack {
+                        Color(.systemBackground)
+                        LoadingGifView(size: 100)
+                    }
                 }
                 
                 // Live photo layer
